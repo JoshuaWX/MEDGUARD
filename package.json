@@ -3,13 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "devDependencies": {
+    "@tailwindcss/forms": "^0.5.4",
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.4.10",
-    "@tailwindcss/forms": "^0.5.4"
+    "typescript": "^5.4.2",
+    "@types/node": "^20.3.1"
   },
   "scripts": {
     "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
-    "dev:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+    "dev:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch",
+    "build:ts": "tsc --project tsconfig.json",
+    "build": "npm run build:css && npm run build:ts"
+  },
+  "dependencies": {
+    "firebase": "^12.4.0"
   }
 }
