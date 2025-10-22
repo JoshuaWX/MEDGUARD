@@ -4,17 +4,22 @@
   "private": true,
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.4",
+    "@types/node": "^20.3.1",
     "autoprefixer": "^10.4.14",
+    "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.4.2",
-    "@types/node": "^20.3.1"
+    "vite": "^7.1.11"
   },
   "scripts": {
     "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
     "dev:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch",
     "build:ts": "tsc --project tsconfig.json",
-    "build": "npm run build:css && npm run build:ts"
+    "dev": "vite",
+    "build": "vite build && npm run build:css && npm run build:ts",
+    "preview": "vite preview"
   },
   "dependencies": {
     "firebase": "^12.4.0"
