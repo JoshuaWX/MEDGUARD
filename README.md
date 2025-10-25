@@ -80,5 +80,38 @@ This is a small prototype. If you want changes, open an issue or send a branch/P
 ## License
 This repository doesn't have a license file yet. If you'd like, I can add an MIT license or another license of your choosing.
 
+## Secure keys (Supabase)
+
+This project talks to Supabase. Do not commit your Supabase anon keys or service role keys into the repo or any public channel.
+
+Short guidance:
+
+- Never paste keys into issues, PRs, public chats, or commit them into the repository.
+- If you already exposed an anon or service key publicly, rotate/regenerate it from the Supabase dashboard immediately.
+
+Local development (recommended):
+
+1. Copy `.env.example` to `.env.local` at the project root.
+2. Edit `.env.local` and paste your values (keep the file private):
+
+```bash
+# Example (do not commit this file):
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ... (your anon key)
+```
+
+3. Vite will expose variables prefixed with `VITE_` to the browser. For server-side code (Node) use `SUPABASE_URL` and `SUPABASE_KEY` without the `VITE_` prefix.
+
+Windows (Git Bash / bash) environment example (temporary for a session):
+
+```bash
+export VITE_SUPABASE_URL="https://your-project.supabase.co"
+export VITE_SUPABASE_ANON_KEY="your-anon-key"
+# then run your dev server in the same shell
+npm run dev
+```
+
+If you want, I can add an optional small script to validate the env vars at startup and fail fast with a helpful message.
+
 ---
 Generated on October 19, 2025 — created by the project maintainer tools. If anything in this README should be adjusted to match your workflow or deployment, tell me and I'll update it.

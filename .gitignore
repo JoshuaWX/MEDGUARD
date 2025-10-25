@@ -1,0 +1,4 @@
+# Ignore local env files that may contain secrets
+.env
+.env.local
+.env.*.local
