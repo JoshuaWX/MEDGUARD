@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package",
   "name": "medguard",
   "version": "1.0.0",
   "private": true,
@@ -6,6 +7,8 @@
     "@tailwindcss/forms": "^0.5.4",
     "@types/node": "^20.3.1",
     "autoprefixer": "^10.4.14",
+    "concurrently": "^9.2.1",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "node-fetch": "^2.7.0",
     "postcss": "^8.4.27",
@@ -17,7 +20,10 @@
     "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
     "dev:css": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch",
     "build:ts": "tsc --project tsconfig.json",
-    "dev": "vite",
+  "dev": "vite",
+  "server": "node server/proxy.js",
+  "dev:server": "node server/proxy.js",
+  "dev:all": "concurrently -k -n web,api -c blue,green \"npm:dev\" \"npm:dev:server\"",
     "build": "vite build && npm run build:css && npm run build:ts",
     "preview": "vite preview"
   },
