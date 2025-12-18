@@ -113,5 +113,35 @@ npm run dev
 
 If you want, I can add an optional small script to validate the env vars at startup and fail fast with a helpful message.
 
+## Run the full app (Vite + Tailwind + Node proxy + Python chatbot)
+
+This repo now uses a Python (Flask) chatbot located in `End-to-end-Medical-Chatbot-Generative-AI/`.
+
+1. Create + activate the conda env and install Python deps:
+
+```bash
+cd End-to-end-Medical-Chatbot-Generative-AI
+conda create -n medibot python=3.10 -y
+conda activate medibot
+pip install -r requirements.txt
+```
+
+2. Create `End-to-end-Medical-Chatbot-Generative-AI/.env` with:
+
+```ini
+PINECONE_API_KEY=...
+OPENROUTER_API_KEY=...
+```
+
+3. From the project root, start everything with one command:
+
+```bash
+npm run dev:full
+```
+
+- MedGuard UI: `http://localhost:5173/home.html`
+- Chatbot server: `http://localhost:8080/`
+- The in-app “Chatbot” button opens the Flask chatbot.
+
 ---
 Generated on October 19, 2025 — created by the project maintainer tools. If anything in this README should be adjusted to match your workflow or deployment, tell me and I'll update it.
