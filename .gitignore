@@ -3,3 +3,6 @@
 .env.local
 .env.*.local
 node_modules
+
+# Windows reserved device filename (breaks `git add` on Windows)
+NUL
