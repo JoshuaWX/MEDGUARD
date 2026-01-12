@@ -41,11 +41,17 @@ import {
   Duration,
   CustomEasing,
   Shadows,
+  Gradients,
 } from '../../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
+
+const HERO_BG_URI =
+  'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=800&q=80';
+
+const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
 const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -77,6 +83,9 @@ const WelcomeScreen: React.FC = () => {
   const guestTranslateY = useSharedValue(40);
   const termsOpacity = useSharedValue(0);
   const termsTranslateY = useSharedValue(40);
+
+  // Slow background zoom (web: bgZoom keyframes)
+  const bgZoom = useSharedValue(1);
   
   // Checkmark animation
   const checkmarkProgress = useSharedValue(0);
@@ -90,6 +99,16 @@ const WelcomeScreen: React.FC = () => {
   const ring2Opacity = useSharedValue(0);
 
   useEffect(() => {
+    // Background slow zoom
+    bgZoom.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 20000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 20000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+
     // Stage 0: Overlay fade out
     overlayOpacity.value = withDelay(
       Delay.introOverlay,
@@ -207,6 +226,10 @@ const WelcomeScreen: React.FC = () => {
     opacity: overlayOpacity.value,
   }));
 
+  const heroBgStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bgZoom.value }],
+  }));
+
   const logoContainerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: logoTranslateY.value }],
   }));
@@ -291,12 +314,18 @@ const WelcomeScreen: React.FC = () => {
       <StatusBar barStyle="light-content" />
       
       {/* Hero Background */}
-      <LinearGradient
-        colors={['rgba(17, 180, 212, 0.85)', 'rgba(16, 185, 129, 0.75)', 'rgba(246, 248, 248, 0.95)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <AnimatedImageBackground
+        source={{ uri: HERO_BG_URI }}
+        style={[StyleSheet.absoluteFill, heroBgStyle]}
+        imageStyle={styles.heroImage}
+      >
+        <LinearGradient
+          colors={Gradients.welcomeHero.colors as unknown as [string, string, string]}
+          start={Gradients.welcomeHero.start}
+          end={Gradients.welcomeHero.end}
+          style={StyleSheet.absoluteFill}
+        />
+      </AnimatedImageBackground>
 
       {/* Floating Shapes */}
       <FloatingShape size={128} top={80} left={-40} delay={Delay.floatingShapes} duration={6000} />
@@ -315,7 +344,8 @@ const WelcomeScreen: React.FC = () => {
       </Animated.View>
 
       {/* Content */}
-      <View style={[styles.content, { paddingTop: insets.top + Spacing.xl }]}>
+      <View style={styles.page}>
+        <View style={[styles.content, { paddingTop: insets.top + Spacing.xl }]}>
         {/* Header with Logo */}
         <View style={styles.header}>
           <Animated.View style={[styles.logoContainer, logoContainerStyle]}>
@@ -412,6 +442,7 @@ const WelcomeScreen: React.FC = () => {
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </Animated.Text>
         </View>
+        </View>
       </View>
     </View>
   );
@@ -465,9 +496,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 100,
+  },
+  heroImage: {
+    resizeMode: 'cover',
   },
   content: {
     flex: 1,

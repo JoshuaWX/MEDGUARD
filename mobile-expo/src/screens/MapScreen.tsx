@@ -1,6 +1,6 @@
 /**
  * MapScreen
- * Placeholder for clinic/health facility map
+ * UI scaffold matching the original map.html layout (static - no map logic).
  */
 
 import React from 'react';
@@ -8,38 +8,145 @@ import {
   View,
   Text,
   StyleSheet,
+  Pressable,
+  TextInput,
+  ImageBackground,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
-import { LocationIcon } from '../components';
+import { ArrowBackIcon, ChevronDownIcon, LocationIcon } from '../components';
 import {
   Colors,
   Spacing,
   BorderRadius,
   FontFamily,
   FontSize,
+  Shadows,
 } from '../../theme';
+
+const MAP_BG_URI =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuCAPWSL2asbAADrThVKxzPYcMB4a-6zl1XNwhgJdxonOA2o4C9Bj2f49_JhxInHe3oU2NKBP8HRpclw16zK8_vA2u0_jww07JBBxJpz6kMbmtmRO3KySBflylhnqFB7plOgvDrJySDB02rguGsOwnpj7ya9Y36he3QUerbM3mSoqhBdDnTF0kxEaKMCQlS6rNxrLHh6qan4JehYfB1CWlc-UJGCTFbbR1rR45eEk5P8BpGObP-y2DkmiVXbD27pRXEMu7iZkUydYI0';
+
+const SearchIcon: React.FC<{ size?: number; color?: string }> = ({
+  size = 20,
+  color = Colors.textMuted,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 21l-4.35-4.35" />
+    <Path d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
+  </Svg>
+);
 
 const MapScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+
+  const handleBack = () => {
+    // Keep behavior safe for tab usage.
+    // If there's no back stack, do nothing.
+    // (UI parity requires the back button to exist.)
+    const nav = navigation as any;
+    if (typeof nav?.canGoBack === 'function' && nav.canGoBack()) {
+      nav.goBack();
+    }
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.content}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.emerald]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.iconContainer}
+    <View style={styles.container}>
+      {/* Sticky header */}
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <LocationIcon size={48} color={Colors.textLight} />
-        </LinearGradient>
-        <Text style={styles.title}>Map View</Text>
-        <Text style={styles.subtitle}>
-          Find nearby clinics, pharmacies, and health facilities
-        </Text>
-        <Text style={styles.comingSoon}>Coming Soon</Text>
+          <ArrowBackIcon size={24} color={Colors.textPrimary} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Disease Map</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* Map area */}
+      <View style={styles.mapArea}>
+        <ImageBackground
+          source={{ uri: MAP_BG_URI }}
+          resizeMode="cover"
+          style={styles.mapBg}
+        >
+          <View style={styles.mapOverlay}>
+            {/* Search */}
+            <View style={styles.searchBar}>
+              <View style={styles.searchIcon}>
+                <SearchIcon />
+              </View>
+              <TextInput
+                placeholder="Search for a location"
+                placeholderTextColor={Colors.textMuted}
+                style={styles.searchInput}
+              />
+            </View>
+
+            {/* Controls */}
+            <View style={styles.controlsColumn}>
+              <View style={styles.zoomCard}>
+                <Pressable style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Zoom in">
+                  <Text style={styles.zoomText}>+</Text>
+                </Pressable>
+                <View style={styles.zoomDivider} />
+                <Pressable style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Zoom out">
+                  <Text style={styles.zoomText}>−</Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [styles.locateBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Locate me"
+              >
+                <LocationIcon size={22} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+          </View>
+        </ImageBackground>
+      </View>
+
+      {/* Bottom panel */}
+      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + Spacing.base }]}>
+        <View style={styles.chipsRow}>
+          <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
+            <Text style={styles.chipText}>Month: June</Text>
+            <ChevronDownIcon size={18} color={Colors.textMuted} />
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
+            <Text style={styles.chipText}>Season: Rainy</Text>
+            <ChevronDownIcon size={18} color={Colors.textMuted} />
+          </Pressable>
+        </View>
+
+        <View style={styles.legendCard}>
+          <Text style={styles.legendTitle}>Legend</Text>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
+            <Text style={styles.legendLabel}>Malaria</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: Colors.danger }]} />
+            <Text style={styles.legendLabel}>Cholera</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
+            <Text style={styles.legendLabel}>Lassa Fever</Text>
+          </View>
+
+          <Text style={[styles.legendTitle, { marginTop: Spacing.base }]}>Weather</Text>
+          <View style={styles.weatherRow}>
+            <Text style={styles.weatherIcon}>💧</Text>
+            <Text style={styles.weatherLabel}>Rainy Conditions</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -50,43 +157,163 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.backgroundLight,
   },
-  content: {
-    flex: 1,
+  header: {
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(246, 248, 248, 0.8)',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
+    marginLeft: -Spacing.sm,
   },
-  iconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: BorderRadius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-  },
-  title: {
+  headerTitle: {
     fontFamily: FontFamily.bold,
-    fontSize: FontSize['2xl'],
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  mapArea: {
+    flex: 1,
+    backgroundColor: Colors.backgroundLight,
+  },
+  mapBg: {
+    flex: 1,
+  },
+  mapOverlay: {
+    flex: 1,
+    padding: Spacing.base,
+    justifyContent: 'space-between',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.lg,
+  },
+  searchIcon: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Spacing.base,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.base,
+    color: Colors.textPrimary,
+  },
+  controlsColumn: {
+    alignSelf: 'flex-end',
+    gap: Spacing.base,
+  },
+  zoomCard: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  zoomBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  zoomText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 20,
+    color: Colors.textPrimary,
+    lineHeight: 22,
+  },
+  locateBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.lg,
+  },
+  bottomPanel: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    backgroundColor: Colors.backgroundLight,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceLight,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    ...Shadows.sm,
+  },
+  chipText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+  },
+  legendCard: {
+    marginTop: Spacing.base,
+    padding: Spacing.base,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.md,
+  },
+  legendTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
-  subtitle: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: FontSize.base * 1.5,
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.base,
+    marginBottom: Spacing.sm,
   },
-  comingSoon: {
-    fontFamily: FontFamily.semibold,
+  legendDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  legendLabel: {
+    fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
-    color: Colors.primary,
-    marginTop: Spacing.xl,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primaryLight,
-    borderRadius: BorderRadius.full,
-    overflow: 'hidden',
+    color: Colors.textSecondary,
+  },
+  weatherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  weatherIcon: {
+    fontSize: 16,
+  },
+  weatherLabel: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });
 

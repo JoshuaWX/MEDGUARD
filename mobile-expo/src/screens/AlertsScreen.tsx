@@ -10,6 +10,8 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  Pressable,
+  ImageBackground,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,17 +22,18 @@ import Animated, {
   Easing,
   FadeInUp,
   FadeIn,
-  interpolate,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import {
   AlertCard,
   GlassCard,
   BellIcon,
   InfoCircleIcon,
-  FloatingShape,
+  ArrowBackIcon,
+  WarningIcon,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
 import {
@@ -40,6 +43,7 @@ import {
   FontFamily,
   FontSize,
   Duration,
+  Gradients,
 } from '../../theme';
 
 interface Alert {
@@ -53,35 +57,14 @@ interface Alert {
 
 const AlertsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { alerts, loading, refresh } = useAlerts();
   const [refreshing, setRefreshing] = useState(false);
-
-  // Floating shape animations
-  const float1 = useSharedValue(0);
-  const float2 = useSharedValue(0);
 
   // Badge pulse animation
   const badgePulse = useSharedValue(1);
 
   useEffect(() => {
-    // Floating animations
-    float1.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-    float2.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-
     // Badge pulse
     badgePulse.value = withRepeat(
       withSequence(
@@ -93,20 +76,6 @@ const AlertsScreen: React.FC = () => {
     );
   }, []);
 
-  const floatStyle1 = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(float1.value, [0, 1], [0, -15]) },
-      { translateX: interpolate(float1.value, [0, 1], [0, 10]) },
-    ],
-  }));
-
-  const floatStyle2 = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(float2.value, [0, 1], [0, -20]) },
-      { translateX: interpolate(float2.value, [0, 1], [0, -15]) },
-    ],
-  }));
-
   const badgePulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: badgePulse.value }],
   }));
@@ -117,188 +86,160 @@ const AlertsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  // Sample alerts for demo
+  // Sample alerts for demo (kept aligned to alerts.html structure/content)
   const sampleAlerts: Alert[] = alerts.length > 0 ? alerts : [
     {
       id: '1',
-      title: '⚠️ Malaria Outbreak Alert',
-      message: 'Increased malaria cases reported in Lagos State. Use mosquito nets and apply repellent.',
+      title: 'Cholera cases rising in Ogun',
+      message: 'Recent reports indicate a surge in cholera cases. Stay vigilant and follow health guidelines.',
       severity: 'urgent',
-      source: 'Nigeria CDC',
+      source: 'Community Health',
       timestamp: '2 hours ago',
     },
     {
       id: '2',
-      title: '💧 Water Safety Advisory',
-      message: 'Boil water before drinking due to reported contamination in some areas.',
+      title: 'Malaria risk in Lagos',
+      message: 'Lagos is experiencing a moderate risk of malaria transmission. Consider preventive measures.',
       severity: 'caution',
-      source: 'State Water Board',
+      source: 'Community Health',
       timestamp: '5 hours ago',
     },
     {
       id: '3',
-      title: '🌡️ Heatwave Warning',
-      message: 'High temperatures expected this week. Stay hydrated and avoid direct sunlight.',
+      title: 'Dengue fever prevention tips',
+      message: 'Learn how to protect yourself and your family from dengue fever. Simple steps can make a big difference.',
       severity: 'info',
-      source: 'Weather Service',
+      source: 'Health Tips',
       timestamp: '1 day ago',
-    },
-    {
-      id: '4',
-      title: '💉 Vaccination Reminder',
-      message: 'COVID-19 booster shots now available at local health centers.',
-      severity: 'info',
-      source: 'Ministry of Health',
-      timestamp: '2 days ago',
     },
   ];
 
-  const urgentAlerts = sampleAlerts.filter(a => a.severity === 'urgent');
-  const cautionAlerts = sampleAlerts.filter(a => a.severity === 'caution');
-  const infoAlerts = sampleAlerts.filter(a => a.severity === 'info');
+  const communityAlerts = sampleAlerts;
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top, paddingBottom: 120 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
-        }
-      >
-        {/* Header */}
-        <Animated.View entering={FadeIn.duration(500)}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.cyan]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.header}
-          >
-            {/* Floating Shapes */}
-            <Animated.View style={[styles.floatingShape1, floatStyle1]}>
-              <FloatingShape color="rgba(255, 255, 255, 0.08)" size={60} />
-            </Animated.View>
-            <Animated.View style={[styles.floatingShape2, floatStyle2]}>
-              <FloatingShape color="rgba(255, 255, 255, 0.06)" size={100} />
-            </Animated.View>
+    <LinearGradient
+      colors={Gradients.background.colors as unknown as [string, string, string]}
+      start={Gradients.background.start}
+      end={Gradients.background.end}
+      style={styles.container}
+    >
+      <View style={styles.page}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top, paddingBottom: 120 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          }
+        >
+          {/* Hero Header (matches alerts.html) */}
+          <Animated.View entering={FadeIn.duration(500)}>
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?auto=format&fit=crop&w=800&q=80' }}
+              style={styles.hero}
+              imageStyle={styles.heroImage}
+            >
+              <LinearGradient
+                colors={Gradients.alertsHero.colors as unknown as [string, string]}
+                start={Gradients.alertsHero.start}
+                end={Gradients.alertsHero.end}
+                style={StyleSheet.absoluteFill}
+              />
+              <LinearGradient
+                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
 
-            <View style={styles.headerIcon}>
-              <BellIcon size={32} color={Colors.textLight} />
+              <View style={styles.heroHeader}>
+                <View style={styles.heroTopRow}>
+                  <Pressable onPress={() => navigation.goBack()} style={styles.heroBackBtn} hitSlop={10}>
+                    <ArrowBackIcon size={22} color={Colors.textLight} />
+                  </Pressable>
+                  <Text style={styles.heroTitle}>Alerts & Notifications</Text>
+                  <View style={styles.heroRightSpacer} />
+                </View>
+
+                <View style={styles.heroBadgeRow}>
+                  <Animated.View style={[styles.activeBadge, badgePulseStyle]}>
+                    <View style={styles.activeDot} />
+                    <Text style={styles.activeBadgeText}>{sampleAlerts.length} Active Alerts</Text>
+                  </Animated.View>
+                </View>
+              </View>
+            </ImageBackground>
+          </Animated.View>
+
+          {/* Community Alerts */}
+          <View style={styles.contentWrap}>
+            <View style={styles.sectionHeaderRow}>
+              <InfoCircleIcon size={18} color={Colors.primary} />
+              <Text style={styles.sectionHeading}>Community Alerts</Text>
             </View>
-            <Text style={styles.headerTitle}>Health Alerts</Text>
-            <Text style={styles.headerSubtitle}>Stay informed about your area</Text>
-
-            {/* Active Alerts Badge */}
-            <Animated.View style={[styles.alertBadge, badgePulseStyle]}>
-              <Text style={styles.alertBadgeText}>
-                {sampleAlerts.length} Active Alert{sampleAlerts.length !== 1 ? 's' : ''}
-              </Text>
-            </Animated.View>
-          </LinearGradient>
-        </Animated.View>
-
-        {/* Urgent Alerts */}
-        {urgentAlerts.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.severityDot, { backgroundColor: Colors.danger }]} />
-              <Text style={styles.sectionTitle}>Urgent</Text>
+            <View style={styles.cardStack}>
+              {communityAlerts.map((alert, index) => (
+                <Animated.View
+                  key={alert.id}
+                  entering={FadeInUp.delay(100 + index * 80).duration(450)}
+                >
+                  <AlertCard
+                    title={alert.title}
+                    message={alert.message}
+                    severity={alert.severity}
+                    source={alert.source}
+                    timestamp={alert.timestamp}
+                    icon={
+                      alert.severity === 'info'
+                        ? <InfoCircleIcon size={22} color={Colors.textLight} />
+                        : <WarningIcon size={22} color={Colors.textLight} />
+                    }
+                  />
+                </Animated.View>
+              ))}
             </View>
-            {urgentAlerts.map((alert, index) => (
-              <Animated.View
-                key={alert.id}
-                entering={FadeInUp.delay(100 + index * 100).duration(500)}
-              >
-                <AlertCard
-                  title={alert.title}
-                  message={alert.message}
-                  severity={alert.severity}
-                  source={alert.source}
-                  timestamp={alert.timestamp}
-                />
-              </Animated.View>
-            ))}
-          </View>
-        )}
 
-        {/* Caution Alerts */}
-        {cautionAlerts.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.severityDot, { backgroundColor: '#f59e0b' }]} />
-              <Text style={styles.sectionTitle}>Caution</Text>
+            {/* Personal Reminders */}
+            <View style={styles.sectionHeaderRow}>
+              <BellIcon size={18} color={Colors.primary} />
+              <Text style={styles.sectionHeading}>Personal Reminders</Text>
             </View>
-            {cautionAlerts.map((alert, index) => (
-              <Animated.View
-                key={alert.id}
-                entering={FadeInUp.delay(200 + index * 100).duration(500)}
-              >
-                <AlertCard
-                  title={alert.title}
-                  message={alert.message}
-                  severity={alert.severity}
-                  source={alert.source}
-                  timestamp={alert.timestamp}
-                />
-              </Animated.View>
-            ))}
-          </View>
-        )}
-
-        {/* Info Alerts */}
-        {infoAlerts.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.severityDot, { backgroundColor: Colors.primary }]} />
-              <Text style={styles.sectionTitle}>Information</Text>
-            </View>
-            {infoAlerts.map((alert, index) => (
-              <Animated.View
-                key={alert.id}
-                entering={FadeInUp.delay(300 + index * 100).duration(500)}
-              >
-                <AlertCard
-                  title={alert.title}
-                  message={alert.message}
-                  severity={alert.severity}
-                  source={alert.source}
-                  timestamp={alert.timestamp}
-                />
-              </Animated.View>
-            ))}
-          </View>
-        )}
-
-        {/* Personal Reminders */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Reminders</Text>
-          <Animated.View entering={FadeInUp.delay(400).duration(500)}>
             <GlassCard style={styles.reminderCard}>
               <View style={styles.reminderIcon}>
-                <InfoCircleIcon size={24} color={Colors.primary} />
+                <LinearGradient
+                  colors={Gradients.primary.colors as unknown as [string, string]}
+                  start={Gradients.primary.start}
+                  end={Gradients.primary.end}
+                  style={styles.reminderIconBg}
+                >
+                  <BellIcon size={20} color={Colors.textLight} />
+                </LinearGradient>
               </View>
               <View style={styles.reminderContent}>
-                <Text style={styles.reminderTitle}>Enable Notifications</Text>
-                <Text style={styles.reminderText}>
-                  Turn on notifications to receive important health alerts for your area.
-                </Text>
+                <Text style={styles.reminderMeta}>Today, 8:00 PM</Text>
+                <Text style={styles.reminderTitle}>Take malaria meds at 8PM</Text>
+                <Text style={styles.reminderText}>Don't forget your malaria medication tonight.</Text>
               </View>
             </GlassCard>
-          </Animated.View>
-        </View>
-      </ScrollView>
-    </View>
+          </View>
+        </ScrollView>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+  },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
   },
   scrollView: {
     flex: 1,
@@ -306,75 +247,85 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.base,
   },
-  header: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    paddingTop: Spacing['3xl'],
-    marginBottom: Spacing.xl,
-    alignItems: 'center',
+  hero: {
+    borderBottomLeftRadius: BorderRadius['3xl'],
+    borderBottomRightRadius: BorderRadius['3xl'],
     overflow: 'hidden',
-    position: 'relative',
   },
-  floatingShape1: {
-    position: 'absolute',
-    top: 10,
-    right: -10,
+  heroImage: {
+    resizeMode: 'cover',
   },
-  floatingShape2: {
-    position: 'absolute',
-    bottom: -20,
-    left: -20,
+  heroHeader: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    paddingBottom: Spacing.lg,
   },
-  headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.base,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  headerTitle: {
+  heroTitle: {
+    flex: 1,
+    textAlign: 'center',
     fontFamily: FontFamily.bold,
-    fontSize: FontSize['3xl'],
+    fontSize: FontSize.xl,
     color: Colors.textLight,
-    marginBottom: Spacing.xs,
   },
-  headerSubtitle: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: 'rgba(255, 255, 255, 0.8)',
+  heroRightSpacer: {
+    width: 40,
+    height: 40,
   },
-  alertBadge: {
+  heroBadgeRow: {
+    alignItems: 'center',
     marginTop: Spacing.base,
+  },
+  activeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  alertBadgeText: {
-    fontFamily: FontFamily.semibold,
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fb7185',
+  },
+  activeBadgeText: {
+    fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
     color: Colors.textLight,
   },
-  section: {
-    marginBottom: Spacing.xl,
+  contentWrap: {
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.base,
+    marginTop: -Spacing.base,
   },
-  sectionHeader: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  severityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  sectionTitle: {
+  sectionHeading: {
     fontFamily: FontFamily.bold,
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     color: Colors.textPrimary,
+  },
+  cardStack: {
+    gap: Spacing.base,
+    marginBottom: Spacing.xl,
   },
   reminderCard: {
     flexDirection: 'row',
@@ -382,15 +333,25 @@ const styles = StyleSheet.create({
     gap: Spacing.base,
   },
   reminderIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primaryLight,
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+  },
+  reminderIconBg: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   reminderContent: {
     flex: 1,
+  },
+  reminderMeta: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    marginBottom: 4,
   },
   reminderTitle: {
     fontFamily: FontFamily.bold,

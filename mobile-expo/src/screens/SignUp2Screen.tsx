@@ -9,16 +9,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Switch,
+  Pressable,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -40,41 +32,19 @@ interface FeatureCardProps {
   number: string;
   title: string;
   description: string;
-  delay: number;
 }
 
-const FeatureCard: React.FC<FeatureCardProps> = ({ number, title, description, delay }) => {
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(20);
-
-  useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 500 }));
-    translateY.value = withDelay(delay, withTiming(0, { duration: 500, easing: Easing.out(Easing.ease) }));
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }],
-  }));
-
+const FeatureCard: React.FC<FeatureCardProps> = ({ number, title, description }) => {
   return (
-    <Animated.View style={animatedStyle}>
-      <View style={styles.featureCard}>
-        <LinearGradient
-          colors={['rgba(17, 180, 212, 0.2)', 'rgba(17, 180, 212, 0.05)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.featureNumber}>
-          <Text style={styles.featureNumberText}>{number}</Text>
-        </View>
-        <View style={styles.featureContent}>
-          <Text style={styles.featureTitle}>{title}</Text>
-          <Text style={styles.featureDescription}>{description}</Text>
-        </View>
+    <View style={styles.featureCard}>
+      <View style={styles.featureNumber}>
+        <Text style={styles.featureNumberText}>{number}</Text>
       </View>
-    </Animated.View>
+      <View style={styles.featureContent}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureDescription}>{description}</Text>
+      </View>
+    </View>
   );
 };
 
@@ -96,73 +66,77 @@ const SignUp2Screen: React.FC = () => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.progressRow}>
-          <Text style={styles.stepText}>Step 2 of 2</Text>
-          <View style={styles.progressBars}>
-            <View style={styles.progressBarFilled} />
-            <View style={styles.progressBarFilled} />
+      <View style={styles.page}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.progressRow}>
+            <Text style={styles.stepText}>Step 2 of 2</Text>
+            <View style={styles.progressBars}>
+              <View style={styles.progressBarFilled} />
+              <View style={styles.progressBarFilled} />
+            </View>
           </View>
         </View>
-      </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Welcome Message */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>
-            Hi {firstName}! 👋 Welcome to MedGuard
-          </Text>
-          <Text style={styles.welcomeSubtitle}>
-            Here's how we'll help protect your health in {location}.
-          </Text>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Welcome Message */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeTitle}>
+              Hi {firstName}! 👋 Welcome to MedGuard
+            </Text>
+            <Text style={styles.welcomeSubtitle}>
+              Here's how we'll help protect your health in {location}.
+            </Text>
+          </View>
+
+          {/* Feature Cards */}
+          <View style={styles.featuresContainer}>
+            <FeatureCard
+              number="1️⃣"
+              title="Seasonal Health Alerts"
+              description="Receive timely updates on seasonal health risks and preventive measures."
+            />
+            <FeatureCard
+              number="2️⃣"
+              title="AI Chatbot"
+              description="Get instant answers to your health questions with our AI-powered chatbot."
+            />
+            <FeatureCard
+              number="3️⃣"
+              title="Daily Health Feed"
+              description="Access a curated feed of health tips, news, and local resources."
+            />
+          </View>
+
+          {/* Notifications Toggle (web-like) */}
+          <View style={styles.notificationCard}>
+            <Text style={styles.notificationText}>Send me important notifications</Text>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: notifications }}
+              onPress={() => setNotifications((v) => !v)}
+              style={[styles.toggleTrack, notifications && styles.toggleTrackOn]}
+              hitSlop={10}
+            >
+              <View style={[styles.toggleThumbWrap, notifications && styles.toggleThumbWrapOn]}>
+                <View style={styles.toggleThumb} />
+              </View>
+            </Pressable>
+          </View>
+        </ScrollView>
+
+        {/* Footer */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.xl }]}>
+          <Button
+            title="Finish Setup"
+            onPress={handleFinish}
+            icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
+          />
         </View>
-
-        {/* Feature Cards */}
-        <View style={styles.featuresContainer}>
-          <FeatureCard
-            number="1️⃣"
-            title="Seasonal Health Alerts"
-            description="Receive timely updates on seasonal health risks and preventive measures."
-            delay={100}
-          />
-          <FeatureCard
-            number="2️⃣"
-            title="AI Chatbot"
-            description="Get instant answers to your health questions with our AI-powered chatbot."
-            delay={200}
-          />
-          <FeatureCard
-            number="3️⃣"
-            title="Daily Health Feed"
-            description="Access a curated feed of health tips, news, and local resources."
-            delay={300}
-          />
-        </View>
-
-        {/* Notifications Toggle */}
-        <View style={styles.notificationCard}>
-          <Text style={styles.notificationText}>Send me important notifications</Text>
-          <Switch
-            value={notifications}
-            onValueChange={setNotifications}
-            trackColor={{ false: Colors.borderLight, true: Colors.primary }}
-            thumbColor={Colors.surfaceLight}
-          />
-        </View>
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.xl }]}>
-        <Button
-          title="Finish Setup"
-          onPress={handleFinish}
-          icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
-        />
       </View>
     </View>
   );
@@ -173,8 +147,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.backgroundLight,
   },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
+  },
   header: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
   },
   progressRow: {
@@ -201,7 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.base,
     paddingTop: Spacing['3xl'],
     paddingBottom: Spacing.xl,
   },
@@ -232,6 +212,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     gap: Spacing.base,
+    backgroundColor: Colors.primaryLight,
   },
   featureNumber: {
     width: 48,
@@ -273,8 +254,33 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.textPrimary,
   },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: Colors.primaryLight,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: {
+    backgroundColor: Colors.primary,
+  },
+  toggleThumbWrap: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  toggleThumbWrapOn: {
+    justifyContent: 'flex-end',
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.textLight,
+  },
   footer: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
   },
 });

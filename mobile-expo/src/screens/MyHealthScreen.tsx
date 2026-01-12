@@ -11,6 +11,8 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  Image,
+  ImageBackground,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -34,6 +36,7 @@ import {
   ShieldIcon,
   ArrowRightIcon,
   LocationIcon,
+  Avatar,
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
@@ -45,6 +48,7 @@ import {
   FontSize,
   Shadows,
   Duration,
+  Gradients,
 } from '../../theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -67,6 +71,7 @@ const MyHealthScreen: React.FC = () => {
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const healthScore = user?.healthScore ?? 85;
+  const displayName = user?.name || 'User';
 
   // Pulse ring animation for health score
   const pulseScale = useSharedValue(1);
@@ -126,56 +131,82 @@ const MyHealthScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + Spacing.base, paddingBottom: 120 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <Animated.View entering={FadeInUp.delay(100).duration(500)}>
-          <LinearGradient
-            colors={[Colors.primary, Colors.emerald]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.header}
+    <LinearGradient
+      colors={Gradients.background.colors as unknown as [string, string, string]}
+      start={Gradients.background.start}
+      end={Gradients.background.end}
+      style={styles.container}
+    >
+      <View style={styles.page}>
+        {/* Hero Header (matches myhealth.html) */}
+        <Animated.View entering={FadeInUp.delay(100).duration(450)}>
+          <ImageBackground
+            source={{ uri: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=800&q=80' }}
+            style={[styles.header, { paddingTop: insets.top + Spacing.base }]}
+            imageStyle={styles.headerImage}
           >
-            <Text style={styles.headerTitle}>My Health</Text>
-            <Text style={styles.headerSubtitle}>Track your wellness journey</Text>
+            <LinearGradient
+              colors={Gradients.healthHeader.colors as unknown as [string, string, string]}
+              start={Gradients.healthHeader.start}
+              end={Gradients.healthHeader.end}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.headerOverlay} />
 
-            {/* Health Score */}
-            <View style={styles.scoreContainer}>
-              <View style={styles.scoreCircleOuter}>
-                {/* Pulse Ring */}
-                <Animated.View style={[styles.pulseRing, pulseStyle]} />
-                
-                {/* Score Circle */}
-                <View style={[styles.scoreCircle, { borderColor: getScoreColor(healthScore) }]}>
-                  <Text style={styles.scoreValue}>{healthScore}</Text>
-                  <Text style={styles.scoreLabel}>Health Score</Text>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.headerTitle}>My Health</Text>
+              <View style={styles.userChip}>
+                <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
+                <View style={styles.userAvatarWrap}>
+                  <Avatar source={user?.avatarUrl} size={44} />
                 </View>
               </View>
             </View>
-          </LinearGradient>
+
+            {/* Wellness Score Card */}
+            <View style={styles.scoreWrap}>
+              <Animated.View style={[styles.scorePulseRing, pulseStyle]} />
+              <GlassCard style={styles.scoreCard} padding={Spacing.xl} intensity={22}>
+                <Text style={styles.scoreMeta}>Wellness Score</Text>
+                <Text style={styles.scoreValue}>{healthScore}</Text>
+                <Text style={styles.scoreDesc}>Keep tracking daily to improve.</Text>
+              </GlassCard>
+            </View>
+          </ImageBackground>
         </Animated.View>
 
-        {/* Health Tip */}
-        <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-          <GlassCard style={styles.tipCard}>
-            <View style={styles.tipIcon}>
-              <HeartIcon size={24} color={Colors.danger} />
-            </View>
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitle}>Daily Tip</Text>
-              <Text style={styles.tipText}>
-                Stay hydrated! Drink at least 8 glasses of water daily to boost your immune system.
-              </Text>
-            </View>
-          </GlassCard>
-        </Animated.View>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 120 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Health Tip (card structure closer to web) */}
+          <Animated.View entering={FadeInUp.delay(200).duration(450)}>
+            <GlassCard style={styles.tipCard}>
+              <View style={styles.tipHeaderRow}>
+                <View style={styles.tipBadgeIcon}>
+                  <HeartIcon size={18} color={Colors.textLight} />
+                </View>
+                <Text style={styles.tipHeaderTitle}>Today's Health Tip</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1559839914-17aae19cec71?auto=format&fit=crop&w=200&q=80' }}
+                  style={styles.tipImage}
+                />
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>Stay Hydrated</Text>
+                  <Text style={styles.tipText}>
+                    Drinking enough water helps maintain body temperature, lubricates joints, and aids digestion.
+                  </Text>
+                  <Text style={styles.tipHint}>💡 Aim for 8 glasses daily</Text>
+                </View>
+              </View>
+            </GlassCard>
+          </Animated.View>
 
         {/* Symptom Logging */}
         <View style={styles.section}>
@@ -237,8 +268,9 @@ const MyHealthScreen: React.FC = () => {
             />
           </Animated.View>
         </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </LinearGradient>
   );
 };
 
@@ -272,9 +304,10 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
       style={animatedStyle}
     >
       <GlassCard style={styles.clinicCard}>
-        <View style={styles.clinicIcon}>
-          <ShieldIcon size={24} color={Colors.primary} />
-        </View>
+        <Image
+          source={{ uri: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=200&q=80' }}
+          style={styles.clinicImage}
+        />
         <View style={styles.clinicContent}>
           <Text style={styles.clinicName}>{name}</Text>
           <View style={styles.clinicAddress}>
@@ -290,6 +323,9 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
             </View>
           </View>
         </View>
+        <View style={styles.clinicArrow}>
+          <ArrowRightIcon size={16} color={Colors.primary} />
+        </View>
       </GlassCard>
     </AnimatedPressable>
   );
@@ -298,98 +334,153 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+  },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    marginTop: -Spacing.base,
   },
   header: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    paddingTop: Spacing['3xl'],
-    marginBottom: Spacing.xl,
+    borderBottomLeftRadius: BorderRadius['3xl'],
+    borderBottomRightRadius: BorderRadius['3xl'],
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.xl,
+    ...Shadows.lg,
+  },
+  headerImage: {
+    resizeMode: 'cover',
+    opacity: 0.2,
+  },
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   headerTitle: {
     fontFamily: FontFamily.bold,
     fontSize: FontSize['3xl'],
     color: Colors.textLight,
-    marginBottom: Spacing.xs,
   },
-  headerSubtitle: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: 'rgba(255, 255, 255, 0.8)',
+  userChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
-  scoreContainer: {
-    marginTop: Spacing.xl,
+  userName: {
+    maxWidth: 160,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.whiteAlpha90,
+  },
+  userAvatarWrap: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.whiteAlpha50,
+    overflow: 'hidden',
+  },
+  scoreWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scoreCircleOuter: {
-    width: 140,
-    height: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pulseRing: {
+  scorePulseRing: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: Colors.textLight,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: Colors.whiteAlpha50,
   },
-  scoreCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.textLight,
-    borderWidth: 4,
+  scoreCard: {
+    width: '100%',
+    borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.lg,
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha20,
+  },
+  scoreMeta: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.whiteAlpha80,
   },
   scoreValue: {
     fontFamily: FontFamily.bold,
     fontSize: FontSize['4xl'],
-    color: Colors.textPrimary,
+    color: Colors.textLight,
+    marginTop: Spacing.xs,
   },
-  scoreLabel: {
+  scoreDesc: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: Colors.whiteAlpha80,
+    marginTop: Spacing.sm,
   },
   tipCard: {
+    marginBottom: Spacing.xl,
+  },
+  tipHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  tipBadgeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipHeaderTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
+  },
+  tipRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.base,
-    marginBottom: Spacing.xl,
   },
-  tipIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  tipImage: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.borderLight,
   },
   tipContent: {
     flex: 1,
   },
   tipTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.semibold,
     fontSize: FontSize.base,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
   },
   tipText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     lineHeight: FontSize.sm * 1.5,
+    marginTop: 4,
+  },
+  tipHint: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+    marginTop: Spacing.sm,
   },
   section: {
     marginBottom: Spacing.xl,
@@ -436,16 +527,22 @@ const styles = StyleSheet.create({
     gap: Spacing.base,
     marginBottom: Spacing.md,
   },
-  clinicIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  clinicImage: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.borderLight,
   },
   clinicContent: {
     flex: 1,
+  },
+  clinicArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   clinicName: {
     fontFamily: FontFamily.bold,

@@ -1,32 +1,26 @@
 /**
  * Supabase client configuration
+ * 
+ * SECURITY: Do NOT hardcode secrets. Configure credentials via environment variables.
+ * Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.
  */
 
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 
-const SUPABASE_URL = 'https://cddfhyxlhtmrrtduwlqd.supabase.co';
-const SUPABASE_ANON_KEY = 'REDACTED_PUBLIC_JWT'; // Replace with actual key
+// Read from Expo public environment variables (configured in app.json or .env)
+const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-const baseFetch: typeof fetch = global.fetch?.bind(global);
-
-const debugFetch: typeof fetch = async (input, init) => {
-  const url = typeof input === 'string' ? input : (input as Request).url;
-  try {
-    return await baseFetch(input as never, init);
-  } catch (error) {
-    // Helps pinpoint exactly which URL is failing when React Native only shows
-    // "TypeError: Network request failed".
-    console.error('[network] fetch failed:', url);
-    throw error;
-  }
-};
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn(
+    'Supabase credentials not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment.'
+  );
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  global: {
-    fetch: __DEV__ ? debugFetch : baseFetch,
-  },
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

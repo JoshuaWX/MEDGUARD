@@ -1,302 +1,317 @@
 /**
  * SettingsScreen
- * App settings and preferences
+ * UI scaffold aligned to settings.html (Settings & Support)
  */
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Switch,
-  Pressable,
-} from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  FadeInUp,
-} from 'react-native-reanimated';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import {
-  GlassCard,
-  SettingsIcon,
-  BellIcon,
-  LocationIcon,
-  ChevronDownIcon,
-} from '../components';
-import {
-  Colors,
-  Spacing,
-  BorderRadius,
-  FontFamily,
-  FontSize,
-} from '../../theme';
+import { GlassCard, ArrowBackIcon } from '../components';
+import { RootStackParamList } from '../navigation/types';
+import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+type LangCode = 'en' | 'yo' | 'ha' | 'ig';
+
+const LANGS: Array<{ code: LangCode; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'yo', label: 'Yorùbá' },
+  { code: 'ha', label: 'Hausa' },
+  { code: 'ig', label: 'Igbo' },
+];
 
 const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
 
-  const [notifications, setNotifications] = useState(true);
-  const [locationTracking, setLocationTracking] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [locationSharing, setLocationSharing] = useState(true);
+  const [language, setLanguage] = useState<LangCode>('en');
+
+  const bottomPadding = useMemo(() => {
+    const min = 24;
+    return Math.max(insets.bottom + Spacing.xl, min);
+  }, [insets.bottom]);
+
+  const gradientColors = Gradients.primaryVertical.colors as unknown as [string, string];
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + Spacing.base, paddingBottom: 120 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+    <LinearGradient
+      colors={gradientColors}
+      start={Gradients.primaryVertical.start}
+      end={Gradients.primaryVertical.end}
+      style={styles.gradient}
+    >
+      <View style={styles.page}>
         {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ChevronDownIcon size={24} color={Colors.textPrimary} style={{ transform: [{ rotate: '90deg' }] }} />
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10}>
+            <ArrowBackIcon size={24} color={Colors.textLight} />
           </Pressable>
-          <Text style={styles.headerTitle}>Settings</Text>
-          <View style={{ width: 40 }} />
+          <Text style={styles.headerTitle}>Settings & Support</Text>
+          <View style={styles.headerBtn} />
         </View>
 
-        {/* Notifications Section */}
-        <Animated.View entering={FadeInUp.delay(100).duration(500)}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          <GlassCard style={styles.settingsCard}>
-            <SettingsToggle
-              icon={<BellIcon size={20} color={Colors.primary} />}
-              label="Push Notifications"
-              description="Receive health alerts and reminders"
-              value={notifications}
-              onValueChange={setNotifications}
-            />
-          </GlassCard>
-        </Animated.View>
-
-        {/* Privacy Section */}
-        <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-          <Text style={styles.sectionTitle}>Privacy</Text>
-          <GlassCard style={styles.settingsCard}>
-            <SettingsToggle
-              icon={<LocationIcon size={20} color={Colors.emerald} />}
-              label="Location Tracking"
-              description="Get alerts based on your location"
-              value={locationTracking}
-              onValueChange={setLocationTracking}
-            />
-          </GlassCard>
-        </Animated.View>
-
-        {/* Appearance Section */}
-        <Animated.View entering={FadeInUp.delay(300).duration(500)}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <GlassCard style={styles.settingsCard}>
-            <SettingsToggle
-              icon={<SettingsIcon size={20} color={Colors.textSecondary} />}
-              label="Dark Mode"
-              description="Use dark theme"
-              value={darkMode}
-              onValueChange={setDarkMode}
-            />
-          </GlassCard>
-        </Animated.View>
-
-        {/* About Section */}
-        <Animated.View entering={FadeInUp.delay(400).duration(500)}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <GlassCard style={styles.settingsCard}>
-            <View style={styles.aboutRow}>
-              <Text style={styles.aboutLabel}>Version</Text>
-              <Text style={styles.aboutValue}>1.0.0</Text>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
+        >
+          {/* Location sharing */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowTop}>
+              <View style={styles.iconWrap}>
+                <ShieldOutlineIcon size={24} color={Colors.primary} />
+              </View>
+              <View style={styles.cardBody}>
+                <View style={styles.toggleHeaderRow}>
+                  <Text style={styles.toggleLabel}>Share my location for personalized alerts</Text>
+                  <Switch
+                    value={locationSharing}
+                    onValueChange={setLocationSharing}
+                    trackColor={{ false: Colors.whiteAlpha30, true: Colors.primary }}
+                    thumbColor={Colors.surfaceLight}
+                  />
+                </View>
+                <Text style={styles.cardDescription}>
+                  Helps MedGuard tailor disease forecasts for your area.
+                </Text>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <SettingsLink label="Privacy Policy" onPress={() => {}} />
-            <View style={styles.divider} />
-            <SettingsLink label="Terms of Service" onPress={() => {}} />
-            <View style={styles.divider} />
-            <SettingsLink label="Contact Support" onPress={() => {}} />
           </GlassCard>
-        </Animated.View>
-      </ScrollView>
-    </View>
+
+          {/* Language */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowCenter}>
+              <View style={styles.iconWrap}>
+                <GlobeIcon size={24} color={Colors.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Language</Text>
+            </View>
+
+            <View style={styles.chipsWrap}>
+              {LANGS.map(({ code, label }) => {
+                const active = code === language;
+                return (
+                  <Pressable
+                    key={code}
+                    onPress={() => setLanguage(code)}
+                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                  >
+                    <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </GlassCard>
+
+          {/* Support */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowTop}>
+              <View style={styles.iconWrap}>
+                <ChatHeartIcon size={24} color={Colors.primary} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.supportTitle}>Need help? Chat with a volunteer health worker.</Text>
+                <Pressable
+                  onPress={() => navigation.navigate('Chatbot')}
+                  style={styles.supportBtn}
+                >
+                  <Text style={styles.supportBtnText}>Start Chat</Text>
+                </Pressable>
+              </View>
+            </View>
+          </GlassCard>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>v1.0.0</Text>
+            <Pressable onPress={() => {}}>
+              <Text style={[styles.footerText, styles.footerLink]}>Terms & Privacy Policy</Text>
+            </Pressable>
+            <Text style={styles.footerStrong}>Powered by AI for Nigerian Health</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </LinearGradient>
   );
 };
 
-// Settings Toggle Component
-interface SettingsToggleProps {
-  icon: React.ReactNode;
-  label: string;
-  description: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
+function ShieldOutlineIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Svg>
+  );
 }
 
-const SettingsToggle: React.FC<SettingsToggleProps> = ({
-  icon,
-  label,
-  description,
-  value,
-  onValueChange,
-}) => {
+function GlobeIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
   return (
-    <View style={styles.toggleRow}>
-      <View style={styles.toggleIcon}>{icon}</View>
-      <View style={styles.toggleContent}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        <Text style={styles.toggleDescription}>{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: Colors.borderLight, true: Colors.primaryLight }}
-        thumbColor={value ? Colors.primary : Colors.textSecondary}
-      />
-    </View>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={12} cy={12} r={10} />
+      <Line x1={2} y1={12} x2={22} y2={12} />
+      <Path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </Svg>
   );
-};
-
-// Settings Link Component
-interface SettingsLinkProps {
-  label: string;
-  onPress: () => void;
 }
 
-const SettingsLink: React.FC<SettingsLinkProps> = ({ label, onPress }) => {
-  const scale = useSharedValue(1);
-
-  const handlePressIn = () => {
-    scale.value = withTiming(0.98, { duration: 100 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withTiming(1, { duration: 100 });
-  };
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
+function ChatHeartIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
   return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={animatedStyle}
-    >
-      <View style={styles.linkRow}>
-        <Text style={styles.linkLabel}>{label}</Text>
-        <ChevronDownIcon size={20} color={Colors.textSecondary} style={{ transform: [{ rotate: '-90deg' }] }} />
-      </View>
-    </AnimatedPressable>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 21.2a10 10 0 1 0-10-10v10h10z" />
+      <Path d="M15.5 9.5c.3-.9.1-1.8-.5-2.5-.8-.8-2-1-3-1-.9 0-1.8.3-2.5.8-.7.7-.9 1.7-.5 2.5l3.5 3.5Z" />
+    </Svg>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.backgroundLight,
-  },
-  scrollView: {
+  gradient: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: Spacing.base,
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
   },
   header: {
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.base,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surfaceLight,
+  headerBtn: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    paddingRight: 44,
     fontFamily: FontFamily.bold,
     fontSize: FontSize.xl,
-    color: Colors.textPrimary,
+    color: Colors.textLight,
   },
-  sectionTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
-    marginTop: Spacing.base,
+  content: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    gap: Spacing.sectionGap,
   },
-  settingsCard: {
-    padding: 0,
-    overflow: 'hidden',
+  card: {
+    width: '100%',
   },
-  toggleRow: {
+  cardRowTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.lg,
+  },
+  cardRowCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    gap: Spacing.md,
+    gap: Spacing.lg,
+    marginBottom: Spacing.base,
   },
-  toggleIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconWrap: {
+    marginTop: 2,
   },
-  toggleContent: {
+  cardBody: {
     flex: 1,
   },
+  toggleHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.base,
+  },
   toggleLabel: {
-    fontFamily: FontFamily.semibold,
+    flex: 1,
+    fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
     color: Colors.textPrimary,
   },
-  toggleDescription: {
+  cardDescription: {
+    marginTop: Spacing.xs,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    marginTop: 2,
   },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginHorizontal: Spacing.base,
+  cardTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
   },
-  aboutRow: {
+  chipsWrap: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: Spacing.base,
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
   },
-  aboutLabel: {
+  chip: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: 999,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary,
+  },
+  chipInactive: {
+    backgroundColor: Colors.whiteAlpha90,
+  },
+  chipText: {
     fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+  },
+  chipTextActive: {
+    color: Colors.textLight,
+  },
+  chipTextInactive: {
+    color: Colors.textPrimary,
+  },
+  supportTitle: {
+    fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
     color: Colors.textPrimary,
   },
-  aboutValue: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.textSecondary,
-  },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  supportBtn: {
+    marginTop: Spacing.md,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
-    padding: Spacing.base,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
   },
-  linkLabel: {
-    fontFamily: FontFamily.medium,
+  supportBtnText: {
+    fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
-    color: Colors.primary,
+    color: Colors.textLight,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    paddingBottom: Spacing.base,
+    gap: Spacing.sm,
+  },
+  footerText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: Colors.whiteAlpha80,
+  },
+  footerLink: {
+    textDecorationLine: 'underline',
+  },
+  footerStrong: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.xs,
+    color: Colors.whiteAlpha80,
   },
 });
 

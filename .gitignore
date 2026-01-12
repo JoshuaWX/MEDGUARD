@@ -6,3 +6,6 @@ node_modules
 
 # Windows reserved device filename (breaks `git add` on Windows)
 NUL
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

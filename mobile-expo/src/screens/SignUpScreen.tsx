@@ -40,6 +40,7 @@ import {
   FontFamily,
   FontSize,
   Shadows,
+  Gradients,
 } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
@@ -106,234 +107,248 @@ const SignUpScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <ArrowBackIcon size={24} color={Colors.primary} />
-          </Pressable>
-
-          {/* Progress indicator */}
-          <View style={styles.progressRow}>
-            <Text style={styles.stepText}>Step 1 of 2</Text>
-            <View style={styles.progressBars}>
-              <LinearGradient
-                colors={[Colors.primary, Colors.cyan]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.progressBarActive}
-              />
-              <View style={styles.progressBarInactive} />
-            </View>
-          </View>
-
-          {/* Hero Banner */}
-          <View style={styles.heroBanner}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80' }}
-              style={styles.heroImage}
-            />
-            <LinearGradient
-              colors={['rgba(17, 180, 212, 0.8)', 'rgba(16, 185, 129, 0.7)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>Create Your Profile</Text>
-              <Text style={styles.heroSubtitle}>Help us personalize your health experience</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Form */}
-        <ScrollView
-          style={styles.formContainer}
-          contentContainerStyle={styles.formContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+    <LinearGradient
+      colors={Gradients.background.colors as unknown as [string, string, string]}
+      start={Gradients.background.start}
+      end={Gradients.background.end}
+      style={styles.container}
+    >
+      <View style={styles.page}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
         >
-          <View style={styles.form}>
-            <Input
-              placeholder="Full Name"
-              value={fullName}
-              onChangeText={setFullName}
-              icon={<PersonIcon size={24} color={Colors.primary} />}
-            />
-
-            <Input
-              placeholder="Email address"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-              icon={<EmailIcon size={24} color={Colors.primary} />}
-            />
-
-            <Input
-              placeholder="Create password"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              icon={<LockIcon size={24} color={Colors.primary} />}
-            />
-
-            <Input
-              placeholder="Confirm password"
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              icon={<LockIcon size={24} color={Colors.primary} />}
-            />
-
-            {/* Gender and Age Row */}
-            <View style={styles.row}>
-              <View style={styles.halfInput}>
-                <Pressable
-                  style={styles.selectContainer}
-                  onPress={() => setShowGenderPicker(true)}
-                >
-                  <Text style={styles.selectIcon}>⚥</Text>
-                  <Text style={[styles.selectText, !gender && styles.selectPlaceholder]}>
-                    {gender ? genderOptions.find(g => g.value === gender)?.label : 'Gender'}
-                  </Text>
-                  <ChevronDownIcon size={20} color={Colors.textMuted} />
-                </Pressable>
-              </View>
-
-              <View style={styles.halfInput}>
-                <Input
-                  placeholder="Age"
-                  keyboardType="numeric"
-                  value={age}
-                  onChangeText={setAge}
-                  icon={<Text style={styles.inputIcon}>🎂</Text>}
-                />
-              </View>
-            </View>
-
-            {/* State Picker */}
-            <Pressable
-              style={styles.selectContainer}
-              onPress={() => setShowStatePicker(true)}
-            >
-              <Text style={styles.selectIcon}>📍</Text>
-              <Text style={[styles.selectText, !state && styles.selectPlaceholder]}>
-                {state || 'State'}
-              </Text>
-              <ChevronDownIcon size={20} color={Colors.textMuted} />
+          {/* Header */}
+          <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
+            <Pressable onPress={handleBack} style={styles.backButton} hitSlop={10}>
+              <ArrowBackIcon size={24} color={Colors.primary} />
             </Pressable>
 
-            {/* Sign in link */}
-            <View style={styles.signinRow}>
-              <Text style={styles.signinText}>Already have an account? </Text>
-              <Pressable onPress={() => navigation.navigate('SignIn')}>
-                <Text style={styles.signinLink}>Sign in</Text>
-              </Pressable>
+            {/* Progress indicator */}
+            <View style={styles.progressRow}>
+              <Text style={styles.stepText}>Step 1 of 2</Text>
+              <View style={styles.progressBars}>
+                <LinearGradient
+                  colors={[Colors.primary, Colors.cyan] as unknown as [string, string]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.progressBarActive}
+                />
+                <View style={styles.progressBarInactive} />
+              </View>
+            </View>
+
+            {/* Hero Banner */}
+            <View style={styles.heroBanner}>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80' }}
+                style={styles.heroImage}
+              />
+              <LinearGradient
+                colors={['rgba(17, 180, 212, 0.8)', 'rgba(16, 185, 129, 0.7)'] as unknown as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.heroContent}>
+                <Text style={styles.heroTitle}>Create Your Profile</Text>
+                <Text style={styles.heroSubtitle}>Help us personalize your health experience</Text>
+              </View>
             </View>
           </View>
 
-          {/* Location Access */}
-          <Pressable
-            style={styles.locationCard}
-            onPress={() => setLocationAccess(!locationAccess)}
+          {/* Form */}
+          <ScrollView
+            style={styles.formContainer}
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <LinearGradient
-              colors={['rgba(17, 180, 212, 0.1)', 'rgba(16, 185, 129, 0.1)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={[styles.checkbox, locationAccess && styles.checkboxChecked]}>
-              {locationAccess && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <View style={styles.locationText}>
-              <Text style={styles.locationTitle}>Enable location access</Text>
-              <Text style={styles.locationSubtitle}>For personalized local health alerts</Text>
-            </View>
-          </Pressable>
+            <View style={styles.form}>
+              <Input
+                placeholder="Full Name"
+                value={fullName}
+                onChangeText={setFullName}
+                icon={<PersonIcon size={24} color={Colors.primary} />}
+              />
 
-          {/* Error display */}
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+              <Input
+                placeholder="Email address"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+                icon={<EmailIcon size={24} color={Colors.primary} />}
+              />
 
-          {/* Continue Button */}
-          <Button
-            title="Continue"
-            onPress={handleContinue}
-            loading={loading}
-            icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
-            style={styles.continueButton}
-          />
-        </ScrollView>
+              <Input
+                placeholder="Create password"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                icon={<LockIcon size={24} color={Colors.primary} />}
+              />
 
-        <Modal
-          visible={showGenderPicker}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowGenderPicker(false)}
-        >
-          <Pressable style={styles.modalOverlay} onPress={() => setShowGenderPicker(false)}>
-            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-              <Text style={styles.modalTitle}>Select gender</Text>
-              {genderOptions.map((option) => (
-                <Pressable
-                  key={option.value}
-                  style={styles.modalOption}
-                  onPress={() => {
-                    setGender(option.value);
-                    setShowGenderPicker(false);
-                  }}
-                >
-                  <Text style={styles.modalOptionText}>{option.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        </Modal>
+              <Input
+                placeholder="Confirm password"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                icon={<LockIcon size={24} color={Colors.primary} />}
+              />
 
-        <Modal
-          visible={showStatePicker}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowStatePicker(false)}
-        >
-          <Pressable style={styles.modalOverlay} onPress={() => setShowStatePicker(false)}>
-            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-              <Text style={styles.modalTitle}>Select state</Text>
-              <FlatList
-                data={NIGERIAN_STATES}
-                keyExtractor={(item) => item}
-                style={styles.modalList}
-                renderItem={({ item }) => (
+              {/* Gender and Age Row */}
+              <View style={styles.row}>
+                <View style={styles.halfInput}>
                   <Pressable
+                    style={styles.selectContainer}
+                    onPress={() => setShowGenderPicker(true)}
+                  >
+                    <Text style={styles.selectIcon}>⚥</Text>
+                    <Text style={[styles.selectText, !gender && styles.selectPlaceholder]}>
+                      {gender ? genderOptions.find(g => g.value === gender)?.label : 'Gender'}
+                    </Text>
+                    <ChevronDownIcon size={20} color={Colors.textMuted} style={{ transform: [{ rotate: '0deg' }] }} />
+                  </Pressable>
+                </View>
+
+                <View style={styles.halfInput}>
+                  <Input
+                    placeholder="Age"
+                    keyboardType="numeric"
+                    value={age}
+                    onChangeText={setAge}
+                    icon={<Text style={styles.inputIcon}>🎂</Text>}
+                  />
+                </View>
+              </View>
+
+              {/* State Picker */}
+              <Pressable
+                style={styles.selectContainer}
+                onPress={() => setShowStatePicker(true)}
+              >
+                <Text style={styles.selectIcon}>📍</Text>
+                <Text style={[styles.selectText, !state && styles.selectPlaceholder]}>
+                  {state || 'State'}
+                </Text>
+                <ChevronDownIcon size={20} color={Colors.textMuted} style={{ transform: [{ rotate: '0deg' }] }} />
+              </Pressable>
+
+              <Text style={styles.alreadyText}>
+                Already have an account?{' '}
+                <Text style={styles.signinLink} onPress={() => navigation.navigate('SignIn')}>
+                  Sign in
+                </Text>
+              </Text>
+            </View>
+
+            {/* Location Access */}
+            <Pressable
+              style={styles.locationCard}
+              onPress={() => setLocationAccess(!locationAccess)}
+            >
+              <LinearGradient
+                colors={['rgba(17, 180, 212, 0.1)', 'rgba(16, 185, 129, 0.1)'] as unknown as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={[styles.checkbox, locationAccess && styles.checkboxChecked]}>
+                {locationAccess && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <View style={styles.locationText}>
+                <Text style={styles.locationTitle}>Enable location access</Text>
+                <Text style={styles.locationSubtitle}>Get personalized health alerts for your area</Text>
+              </View>
+              <Text style={styles.locationIcon}>⌖</Text>
+            </Pressable>
+
+            {/* Error display */}
+            {error && (
+              <Text style={styles.errorText}>{error}</Text>
+            )}
+          </ScrollView>
+
+          {/* Fixed footer Continue button */}
+          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
+            <Button
+              title="Continue"
+              onPress={handleContinue}
+              loading={loading}
+              icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
+            />
+          </View>
+
+          <Modal
+            visible={showGenderPicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowGenderPicker(false)}
+          >
+            <Pressable style={styles.modalOverlay} onPress={() => setShowGenderPicker(false)}>
+              <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+                <Text style={styles.modalTitle}>Select gender</Text>
+                {genderOptions.map((option) => (
+                  <Pressable
+                    key={option.value}
                     style={styles.modalOption}
                     onPress={() => {
-                      setState(item);
-                      setShowStatePicker(false);
+                      setGender(option.value);
+                      setShowGenderPicker(false);
                     }}
                   >
-                    <Text style={styles.modalOptionText}>{item}</Text>
+                    <Text style={styles.modalOptionText}>{option.label}</Text>
                   </Pressable>
-                )}
-              />
-            </View>
-          </Pressable>
-        </Modal>
-      </KeyboardAvoidingView>
-    </View>
+                ))}
+              </View>
+            </Pressable>
+          </Modal>
+
+          <Modal
+            visible={showStatePicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowStatePicker(false)}
+          >
+            <Pressable style={styles.modalOverlay} onPress={() => setShowStatePicker(false)}>
+              <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+                <Text style={styles.modalTitle}>Select state</Text>
+                <FlatList
+                  data={NIGERIAN_STATES}
+                  keyExtractor={(item) => item}
+                  style={styles.modalList}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={styles.modalOption}
+                      onPress={() => {
+                        setState(item);
+                        setShowStatePicker(false);
+                      }}
+                    >
+                      <Text style={styles.modalOptionText}>{item}</Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+            </Pressable>
+          </Modal>
+        </KeyboardAvoidingView>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+  },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
+    backgroundColor: Colors.whiteAlpha50,
   },
   flex: {
     flex: 1,
@@ -410,7 +425,7 @@ const styles = StyleSheet.create({
   },
   formContent: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing['5xl'],
   },
   form: {
     gap: Spacing.md,
@@ -483,14 +498,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textPrimary,
   },
-  signinRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  signinText: {
+  alreadyText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
   },
   signinLink: {
     fontFamily: FontFamily.semibold,
@@ -540,6 +553,10 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  locationIcon: {
+    fontSize: 18,
+    color: Colors.primary,
+  },
   errorText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
@@ -547,8 +564,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.base,
   },
-  continueButton: {
-    marginTop: Spacing.xl,
+  footer: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.surfaceLight,
   },
 });
 

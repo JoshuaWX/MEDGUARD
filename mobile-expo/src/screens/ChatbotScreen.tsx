@@ -46,6 +46,21 @@ import {
   Duration,
 } from '../../theme';
 
+// Dark theme colors matching Flask chatbot
+const DarkTheme = {
+  bgPrimary: '#212121',
+  bgSecondary: '#171717',
+  bgTertiary: '#2f2f2f',
+  bgHover: '#3a3a3a',
+  textPrimary: '#ececec',
+  textSecondary: '#b4b4b4',
+  textMuted: '#8e8e8e',
+  borderColor: '#424242',
+  accent: '#10a37f',
+  userGradientFrom: '#6366f1',
+  userGradientTo: '#8b5cf6',
+};
+
 interface Message {
   id: string;
   text: string;
@@ -60,16 +75,32 @@ const ChatbotScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: "Hello! I'm MedGuard AI, your personal health assistant. How can I help you today?",
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ]);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
+
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
+  // Initial loading overlay (parity with web chatbot.html)
+  const spinnerProgress = useSharedValue(0);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setShowLoadingOverlay(false), 700);
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (!showLoadingOverlay) return;
+    spinnerProgress.value = withRepeat(
+      withTiming(1, { duration: 1000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [showLoadingOverlay]);
+
+  const spinnerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinnerProgress.value * 360}deg` }],
+  }));
 
   // Typing indicator animation
   const dot1 = useSharedValue(0);
@@ -175,11 +206,16 @@ const ChatbotScreen: React.FC = () => {
     return "Thank you for your question. For personalized health advice, I recommend consulting with a healthcare professional. Is there anything specific about your health I can help clarify?";
   };
 
-  const quickActions = [
-    "What are malaria symptoms?",
-    "How to prevent fever?",
-    "Find nearby clinics",
+  const suggestionChips = [
+    { label: 'Headache advice', query: "I've been having headaches for the past few days" },
+    { label: 'Flu symptoms', query: 'What are the symptoms of the flu?' },
+    { label: 'Sleep tips', query: 'How can I improve my sleep quality?' },
+    { label: 'Medication info', query: 'What should I know about taking ibuprofen?' },
   ];
+
+  const handleSuggestion = (query: string) => {
+    setInputText(query);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -188,45 +224,55 @@ const ChatbotScreen: React.FC = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
-      <LinearGradient
-        colors={[Colors.primary, Colors.emerald]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + Spacing.base }]}
-      >
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronDownIcon size={24} color={Colors.textLight} style={{ transform: [{ rotate: '90deg' }] }} />
-        </Pressable>
-        <View style={styles.headerContent}>
-          <View style={styles.botAvatar}>
-            <ShieldIcon size={24} color={Colors.primary} />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>MedGuard AI</Text>
-            <Text style={styles.headerStatus}>Online • Ready to help</Text>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+        <View style={styles.headerLeft}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <ChevronDownIcon size={24} color={DarkTheme.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
+          </Pressable>
+          <View style={styles.headerLogo}>
+            <LinearGradient
+              colors={[DarkTheme.accent, '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoIcon}
+            >
+              <ShieldIcon size={20} color={Colors.textLight} />
+            </LinearGradient>
+            <Text style={styles.logoText}>MedGuard AI</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Messages */}
+      {/* Chat Container */}
       <ScrollView
         ref={scrollViewRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Quick Actions */}
-        {messages.length === 1 && (
-          <Animated.View entering={FadeInUp.delay(300).duration(500)} style={styles.quickActions}>
-            <Text style={styles.quickActionsLabel}>Quick questions:</Text>
-            <View style={styles.quickActionsRow}>
-              {quickActions.map((action, index) => (
+        {/* Welcome Screen */}
+        {messages.length === 0 && (
+          <Animated.View entering={FadeInUp.duration(500)} style={styles.welcomeScreen}>
+            <LinearGradient
+              colors={[DarkTheme.accent, '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.welcomeLogo}
+            >
+              <ShieldIcon size={36} color={Colors.textLight} />
+            </LinearGradient>
+            <Text style={styles.welcomeTitle}>How can I help you today?</Text>
+            <Text style={styles.welcomeSubtitle}>
+              I'm MedGuard, your AI health assistant. Ask me about symptoms, medications, conditions, or general health advice.
+            </Text>
+            <View style={styles.suggestionChips}>
+              {suggestionChips.map((chip, index) => (
                 <Pressable
                   key={index}
-                  style={styles.quickActionBtn}
-                  onPress={() => setInputText(action)}
+                  style={styles.suggestionChip}
+                  onPress={() => handleSuggestion(chip.query)}
                 >
-                  <Text style={styles.quickActionText}>{action}</Text>
+                  <Text style={styles.suggestionChipText}>{chip.label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -234,7 +280,7 @@ const ChatbotScreen: React.FC = () => {
         )}
 
         {/* Message Bubbles */}
-        {messages.map((message, index) => (
+        {messages.map((message) => (
           <Animated.View
             key={message.id}
             entering={message.isUser ? SlideInRight.duration(300) : SlideInLeft.duration(300)}
@@ -256,50 +302,68 @@ const ChatbotScreen: React.FC = () => {
       </ScrollView>
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Spacing.base }]}>
-        <View style={styles.inputWrapper}>
+      <View style={[styles.inputArea, { paddingBottom: insets.bottom + Spacing.base }]}>
+        <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={styles.chatInput}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Ask a health question..."
-            placeholderTextColor={Colors.textSecondary}
+            placeholder="Message MedGuard..."
+            placeholderTextColor={DarkTheme.textMuted}
             multiline
             maxLength={500}
           />
-          <AnimatedPressable
+          <Pressable
             onPress={handleSend}
             style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
             disabled={!inputText.trim()}
           >
-            <LinearGradient
-              colors={inputText.trim() ? [Colors.primary, Colors.emerald] : [Colors.borderLight, Colors.borderLight]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sendBtnGradient}
-            >
-              <ArrowRightIcon size={20} color={inputText.trim() ? Colors.textLight : Colors.textSecondary} />
-            </LinearGradient>
-          </AnimatedPressable>
+            <ArrowRightIcon size={20} color={Colors.textLight} style={{ transform: [{ rotate: '-90deg' }] }} />
+          </Pressable>
         </View>
+        <Text style={styles.inputFooter}>
+          MedGuard can make mistakes. Always consult a healthcare professional for medical advice.
+        </Text>
       </View>
+
+      {showLoadingOverlay && (
+        <View style={styles.loadingOverlay}>
+          <LinearGradient
+            colors={[Colors.primary, Colors.info]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.loadingGradient}
+          >
+            <Animated.View style={[styles.spinner, spinnerStyle]} />
+            <Text style={styles.loadingText}>Redirecting to MedGuard AI...</Text>
+          </LinearGradient>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 };
 
 // Message Bubble Component
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
+  if (message.isUser) {
+    return (
+      <View style={styles.messageUser}>
+        <LinearGradient
+          colors={[DarkTheme.userGradientFrom, DarkTheme.userGradientTo]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.userBubbleGradient}
+        >
+          <Text style={styles.userMessageText}>{message.text}</Text>
+        </LinearGradient>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.messageBubble, message.isUser && styles.userBubble]}>
-      {!message.isUser && (
-        <View style={styles.botIcon}>
-          <ShieldIcon size={16} color={Colors.primary} />
-        </View>
-      )}
-      <View style={[styles.bubbleContent, message.isUser && styles.userBubbleContent]}>
-        <Text style={[styles.messageText, message.isUser && styles.userMessageText]}>
-          {message.text}
-        </Text>
+    <View style={styles.messageAssistant}>
+      <View style={styles.assistantBubble}>
+        <Text style={styles.assistantMessageText}>{message.text}</Text>
       </View>
     </View>
   );
@@ -308,179 +372,234 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: DarkTheme.bgPrimary,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+  },
+  loadingGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 4,
+    borderColor: Colors.whiteAlpha30,
+    borderTopColor: Colors.textLight,
+  },
+  loadingText: {
+    marginTop: Spacing.lg,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.lg,
+    color: Colors.textLight,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
-    gap: Spacing.md,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: DarkTheme.borderColor,
+    backgroundColor: DarkTheme.bgPrimary,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerContent: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
   },
-  botAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.textLight,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.textLight,
+  headerLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
-  headerStatus: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    color: 'rgba(255, 255, 255, 0.8)',
+  logoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    color: DarkTheme.accent,
   },
   messagesContainer: {
     flex: 1,
   },
   messagesContent: {
+    maxWidth: 768,
+    alignSelf: 'center',
+    width: '100%',
     padding: Spacing.base,
     paddingBottom: Spacing.xl,
   },
-  quickActions: {
-    marginBottom: Spacing.xl,
-  },
-  quickActionsLabel: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-  },
-  quickActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  quickActionBtn: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primaryLight,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  quickActionText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-  },
-  messageBubble: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  userBubble: {
-    justifyContent: 'flex-end',
-  },
-  botIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.primaryLight,
+  welcomeScreen: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: Spacing['3xl'],
+    paddingHorizontal: Spacing.base,
   },
-  bubbleContent: {
-    maxWidth: '75%',
-    padding: Spacing.md,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    borderBottomLeftRadius: BorderRadius.xs,
-    ...Shadows.sm,
+  welcomeLogo: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
-  userBubbleContent: {
-    backgroundColor: Colors.primary,
-    borderBottomLeftRadius: BorderRadius.lg,
-    borderBottomRightRadius: BorderRadius.xs,
-    marginLeft: 'auto',
+  welcomeTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize['2xl'],
+    color: DarkTheme.textPrimary,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
   },
-  messageText: {
+  welcomeSubtitle: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
-    lineHeight: FontSize.base * 1.5,
+    color: DarkTheme.textSecondary,
+    textAlign: 'center',
+    lineHeight: FontSize.base * 1.6,
+    maxWidth: 500,
+  },
+  suggestionChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xl,
+    maxWidth: 600,
+  },
+  suggestionChip: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    backgroundColor: DarkTheme.bgTertiary,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: DarkTheme.borderColor,
+  },
+  suggestionChipText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: DarkTheme.textSecondary,
+  },
+  messageUser: {
+    alignItems: 'flex-end',
+    marginBottom: Spacing.sm,
+    maxWidth: '80%',
+    alignSelf: 'flex-end',
+  },
+  userBubbleGradient: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderRadius: 18,
+    borderBottomRightRadius: 6,
   },
   userMessageText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.base,
     color: Colors.textLight,
+    lineHeight: FontSize.base * 1.45,
+  },
+  messageAssistant: {
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm,
+    maxWidth: '80%',
+    alignSelf: 'flex-start',
+  },
+  assistantBubble: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    backgroundColor: DarkTheme.bgTertiary,
+    borderRadius: 18,
+    borderBottomLeftRadius: 6,
+  },
+  assistantMessageText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.base,
+    color: DarkTheme.textPrimary,
+    lineHeight: FontSize.base * 1.45,
   },
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: Spacing.sm,
+    alignSelf: 'flex-start',
   },
   typingBubble: {
     flexDirection: 'row',
     gap: 4,
     padding: Spacing.md,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    borderBottomLeftRadius: BorderRadius.xs,
+    backgroundColor: DarkTheme.bgTertiary,
+    borderRadius: 18,
+    borderBottomLeftRadius: 6,
   },
   typingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.textSecondary,
+    backgroundColor: DarkTheme.textMuted,
   },
-  inputContainer: {
+  inputArea: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
-    backgroundColor: Colors.backgroundLight,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    backgroundColor: DarkTheme.bgPrimary,
   },
-  inputWrapper: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.xl,
+    gap: Spacing.md,
+    backgroundColor: DarkTheme.bgTertiary,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: DarkTheme.borderColor,
+    borderRadius: 24,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    maxWidth: 768,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  chatInput: {
+    flex: 1,
+    minHeight: 36,
+    maxHeight: 200,
+    paddingVertical: Spacing.sm,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: DarkTheme.textPrimary,
+    lineHeight: FontSize.base * 1.5,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  sendBtnDisabled: {
-    opacity: 0.5,
-  },
-  sendBtnGradient: {
-    width: '100%',
-    height: '100%',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: DarkTheme.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: DarkTheme.bgHover,
+  },
+  inputFooter: {
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: DarkTheme.textMuted,
   },
 });
 

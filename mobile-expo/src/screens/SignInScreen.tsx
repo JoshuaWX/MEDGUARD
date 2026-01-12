@@ -12,7 +12,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Image,
+  ImageBackground,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -38,9 +38,13 @@ import {
   FontSize,
   Shadows,
   Duration,
+  Gradients,
 } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignIn'>;
+
+const HERO_BG_URI =
+  'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=800&q=80';
 
 const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -113,38 +117,50 @@ const SignInScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        {/* Hero Section */}
-        <LinearGradient
-          colors={['rgba(17, 180, 212, 0.9)', 'rgba(16, 185, 129, 0.8)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.hero}
+    <LinearGradient
+      colors={Gradients.background.colors as unknown as [string, string, string]}
+      start={Gradients.background.start}
+      end={Gradients.background.end}
+      style={styles.container}
+    >
+      <View style={styles.page}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
         >
-          {/* Floating decorative elements */}
-          <Animated.View style={[styles.floatingCircle1, float1Style]} />
-          <Animated.View style={[styles.floatingCircle2, float2Style]} />
+          {/* Hero Section */}
+          <ImageBackground
+            source={{ uri: HERO_BG_URI }}
+            style={styles.hero}
+            imageStyle={styles.heroImage}
+          >
+            <LinearGradient
+              colors={Gradients.signinHero.colors as unknown as [string, string]}
+              start={Gradients.signinHero.start}
+              end={Gradients.signinHero.end}
+              style={[StyleSheet.absoluteFill, styles.heroOverlay]}
+            />
 
-          {/* Back button */}
-          <View style={[styles.heroContent, { paddingTop: insets.top + Spacing.base }]}>
-            <Pressable onPress={handleBack} style={styles.backButton}>
-              <ArrowBackIcon size={24} color={Colors.whiteAlpha90} />
-            </Pressable>
+            {/* Floating decorative elements */}
+            <Animated.View style={[styles.floatingCircle1, float1Style]} />
+            <Animated.View style={[styles.floatingCircle2, float2Style]} />
 
-            {/* Logo and title */}
-            <View style={styles.heroCenter}>
-              <View style={styles.logoContainer}>
-                <ShieldIcon size={32} color={Colors.textLight} />
+            {/* Back button */}
+            <View style={[styles.heroContent, { paddingTop: insets.top + Spacing.base }]}>
+              <Pressable onPress={handleBack} style={styles.backButton} hitSlop={10}>
+                <ArrowBackIcon size={24} color={Colors.whiteAlpha90} />
+              </Pressable>
+
+              {/* Logo and title */}
+              <View style={styles.heroCenter}>
+                <View style={styles.logoContainer}>
+                  <ShieldIcon size={32} color={Colors.textLight} />
+                </View>
+                <Text style={styles.heroTitle}>Welcome Back</Text>
+                <Text style={styles.heroSubtitle}>Sign in to access your health dashboard</Text>
               </View>
-              <Text style={styles.heroTitle}>Welcome Back</Text>
-              <Text style={styles.heroSubtitle}>Sign in to access your health dashboard</Text>
             </View>
-          </View>
-        </LinearGradient>
+          </ImageBackground>
 
         {/* Error message */}
         {error && (
@@ -215,10 +231,9 @@ const SignInScreen: React.FC = () => {
               onPress={handleGoogleSignIn}
               variant="google"
               icon={
-                <Image
-                  source={{ uri: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg' }}
-                  style={styles.googleIcon}
-                />
+                // React Native Image can't render remote SVGs.
+                // Use a lightweight text mark so the button still renders correctly.
+                <Text style={styles.googleMark}>G</Text>
               }
               iconPosition="left"
               textStyle={{ color: Colors.textPrimary, fontFamily: FontFamily.medium }}
@@ -234,27 +249,34 @@ const SignInScreen: React.FC = () => {
           </View>
         </ScrollView>
 
-        {/* Guest button footer */}
-        <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
-          <Button
-            title="Continue as Guest"
-            onPress={handleGuest}
-            variant="outline"
-            icon={<Text style={styles.eyeIcon}>👁</Text>}
-            iconPosition="left"
-            textStyle={{ color: Colors.textSecondary }}
-            style={styles.guestButton}
-          />
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+          {/* Guest button footer */}
+          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
+            <Button
+              title="Continue as Guest"
+              onPress={handleGuest}
+              variant="outline"
+              icon={<Text style={styles.eyeIcon}>👁</Text>}
+              iconPosition="left"
+              textStyle={{ color: Colors.textSecondary }}
+              style={styles.guestButton}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+  },
+  page: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
+    backgroundColor: Colors.whiteAlpha50,
   },
   flex: {
     flex: 1,
@@ -263,6 +285,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['3xl'],
     position: 'relative',
     overflow: 'hidden',
+  },
+  heroImage: {
+    resizeMode: 'cover',
+  },
+  heroOverlay: {
+    opacity: 1,
   },
   heroContent: {
     paddingHorizontal: Spacing.xl,
@@ -397,6 +425,16 @@ const styles = StyleSheet.create({
   googleIcon: {
     width: 20,
     height: 20,
+  },
+  googleMark: {
+    width: 20,
+    height: 20,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    color: Colors.textPrimary,
+    fontFamily: FontFamily.bold,
+    fontSize: 14,
+    lineHeight: 20,
   },
   signupRow: {
     flexDirection: 'row',
