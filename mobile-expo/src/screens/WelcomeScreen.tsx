@@ -3,7 +3,7 @@
  * Recreates the welcome page with full intro animation sequence
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   Dimensions,
   StatusBar,
   ImageBackground,
+  Pressable,
 } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -31,6 +33,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { Button, FloatingShape, GlassCard, ShieldIcon, ArrowRightIcon } from '../components';
+import { LangCode, useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -53,9 +56,19 @@ const HERO_BG_URI =
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
+// Language options
+const LANGUAGES = [
+  { code: 'en' as LangCode, label: '🌐 English' },
+  { code: 'yo' as LangCode, label: '🌐 Yorùbá' },
+  { code: 'ha' as LangCode, label: '🌐 Hausa' },
+  { code: 'ig' as LangCode, label: '🌐 Igbo' },
+];
+
 const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { lang, setLang, t } = useI18n();
+  const [showLangPicker, setShowLangPicker] = useState(false);
 
   // Animation values
   const overlayOpacity = useSharedValue(1);
@@ -377,69 +390,96 @@ const WelcomeScreen: React.FC = () => {
           </Animated.View>
 
           {/* Title */}
-          <Animated.Text style={[styles.title, titleStyle]}>MedGuard</Animated.Text>
+          <Animated.Text style={[styles.title, titleStyle]}>{t('app_name')}</Animated.Text>
           
           {/* Subtitle */}
           <Animated.Text style={[styles.subtitle, subtitleStyle]}>
-            Your Health, Simplified.
+            {t('tagline')}
           </Animated.Text>
 
           {/* Description */}
           <Animated.Text style={[styles.description, descStyle]}>
             Stay informed with real-time health alerts tailored to your location
           </Animated.Text>
+
+          {/* Language Selector */}
+          <Animated.View style={[styles.langContainer, langStyle]}>
+            <Pressable
+              style={styles.langSelector}
+              onPress={() => setShowLangPicker(!showLangPicker)}
+            >
+              <Text style={styles.langText}>
+                {LANGUAGES.find(l => l.code === lang)?.label || '🌐 English'}
+              </Text>
+              <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2}>
+                <Path d="M6 9l6 6 6-6" />
+              </Svg>
+            </Pressable>
+            {showLangPicker && (
+              <View style={styles.langDropdown}>
+                {LANGUAGES.map(opt => (
+                  <Pressable
+                    key={opt.code}
+                    style={styles.langOption}
+                    onPress={() => {
+                      void setLang(opt.code);
+                      setShowLangPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.langOptionText, opt.code === lang && styles.langOptionActive]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </Animated.View>
         </View>
 
         {/* Footer */}
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
           {/* Feature Highlights */}
           <Animated.View style={featureCardStyle}>
-            <GlassCard style={styles.featureCard} padding={Spacing.base}>
+            <View style={styles.featureCardGlass}>
               <View style={styles.featureRow}>
-                <FeatureIcon emoji="🔔" label="Real-time Alerts" index={0} />
-                <FeatureIcon emoji="📍" label="Location Based" index={1} />
-                <FeatureIcon emoji="❤️" label="Health Tracking" index={2} />
+                <FeatureIconSvg type="bell" label={t('feature_realtime_alerts')} index={0} />
+                <FeatureIconSvg type="location" label={t('feature_location_based')} index={1} />
+                <FeatureIconSvg type="heart" label={t('feature_health_tracking')} index={2} />
               </View>
-            </GlassCard>
+            </View>
           </Animated.View>
 
           {/* Buttons */}
           <View style={styles.buttonContainer}>
             <Animated.View style={signupStyle}>
-              <Button
-                title="Get Started"
-                onPress={handleSignUp}
-                variant="outline"
-                icon={<ArrowRightIcon size={20} color={Colors.primary} />}
-                textStyle={{ color: Colors.primary }}
-                style={styles.signupButton}
-              />
+              <Pressable onPress={handleSignUp} style={styles.getStartedBtn}>
+                <Text style={styles.getStartedText}>{t('get_started')}</Text>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={Colors.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <Path d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </Svg>
+              </Pressable>
             </Animated.View>
 
             <Animated.View style={signinStyle}>
-              <Button
-                title="Sign In"
-                onPress={handleSignIn}
-                variant="secondary"
-                icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
-                iconPosition="left"
-              />
+              <Pressable onPress={handleSignIn} style={styles.signInBtn}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <Path d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </Svg>
+                <Text style={styles.signInText}>{t('login')}</Text>
+              </Pressable>
             </Animated.View>
 
             <Animated.View style={guestStyle}>
-              <Button
-                title="Continue as Guest →"
-                onPress={handleGuest}
-                variant="ghost"
-                style={styles.guestButton}
-                textStyle={styles.guestText}
-              />
+              <Pressable onPress={handleGuest} style={styles.guestBtn}>
+                <Text style={styles.guestBtnText}>{t('guest_continue')}</Text>
+                <Text style={styles.guestArrow}>→</Text>
+              </Pressable>
             </Animated.View>
           </View>
 
           {/* Terms */}
           <Animated.Text style={[styles.terms, termsStyle]}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            {t('terms_privacy')}
           </Animated.Text>
         </View>
         </View>
@@ -486,6 +526,74 @@ const FeatureIcon: React.FC<FeatureIconProps> = ({ emoji, label, index }) => {
     <Animated.View style={[styles.featureItem, animatedStyle]}>
       <View style={styles.featureIconCircle}>
         <Text style={styles.featureEmoji}>{emoji}</Text>
+      </View>
+      <Text style={styles.featureLabel}>{label}</Text>
+    </Animated.View>
+  );
+};
+
+// SVG Feature Icon Component matching welcome.html
+interface FeatureIconSvgProps {
+  type: 'bell' | 'location' | 'heart';
+  label: string;
+  index: number;
+}
+
+const FeatureIconSvg: React.FC<FeatureIconSvgProps> = ({ type, label, index }) => {
+  const scale = useSharedValue(0);
+  const rotate = useSharedValue(-10);
+
+  useEffect(() => {
+    const delay = Delay.footer1 + 100 + index * 100;
+    scale.value = withDelay(
+      delay,
+      withSequence(
+        withTiming(1.15, { duration: Duration.iconBounceIn * 0.6, easing: CustomEasing.springBounce }),
+        withTiming(1, { duration: Duration.iconBounceIn * 0.4 })
+      )
+    );
+    rotate.value = withDelay(
+      delay,
+      withSequence(
+        withTiming(5, { duration: Duration.iconBounceIn * 0.6 }),
+        withTiming(0, { duration: Duration.iconBounceIn * 0.4 })
+      )
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scale.value, [0, 1], [0, 1]),
+    transform: [{ scale: scale.value }, { rotate: `${rotate.value}deg` }],
+  }));
+
+  const renderIcon = () => {
+    switch (type) {
+      case 'bell':
+        return (
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </Svg>
+        );
+      case 'location':
+        return (
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <Path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </Svg>
+        );
+      case 'heart':
+        return (
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </Svg>
+        );
+    }
+  };
+
+  return (
+    <Animated.View style={[styles.featureItem, animatedStyle]}>
+      <View style={styles.featureIconCircle}>
+        {renderIcon()}
       </View>
       <Text style={styles.featureLabel}>{label}</Text>
     </Animated.View>
@@ -585,12 +693,63 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
+  langContainer: {
+    marginTop: Spacing.lg,
+    zIndex: 10,
+  },
+  langSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
+    backgroundColor: Colors.whiteAlpha20,
+  },
+  langText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.textLight,
+  },
+  langDropdown: {
+    position: 'absolute',
+    top: 48,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.lg,
+    overflow: 'hidden',
+  },
+  langOption: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+  },
+  langOptionText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+  },
+  langOptionActive: {
+    fontFamily: FontFamily.semibold,
+    color: Colors.primary,
+  },
   footer: {
     width: '100%',
     maxWidth: 360,
     alignSelf: 'center',
   },
   featureCard: {
+    marginBottom: Spacing.xl,
+  },
+  featureCardGlass: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
     marginBottom: Spacing.xl,
   },
   featureRow: {
@@ -604,7 +763,9 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.whiteAlpha20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
@@ -620,6 +781,55 @@ const styles = StyleSheet.create({
   buttonContainer: {
     gap: Spacing.md,
     marginBottom: Spacing.xl,
+  },
+  getStartedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    backgroundColor: Colors.textLight,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.xl,
+  },
+  getStartedText: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    color: Colors.primary,
+  },
+  signInBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    backgroundColor: Colors.whiteAlpha20,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
+  },
+  signInText: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    color: Colors.textLight,
+  },
+  guestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    height: 48,
+    backgroundColor: 'transparent',
+  },
+  guestBtnText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.base,
+    color: Colors.whiteAlpha80,
+  },
+  guestArrow: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.base,
+    color: Colors.whiteAlpha80,
   },
   signupButton: {
     backgroundColor: Colors.textLight,

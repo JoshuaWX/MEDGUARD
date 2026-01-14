@@ -2,12 +2,14 @@
  * MedGuard Navigation Types
  */
 
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export type RootStackParamList = {
   Welcome: undefined;
   SignIn: undefined;
   SignUp: undefined;
   SignUp2: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Chatbot: undefined;
   Alerts: undefined;
   Settings: undefined;

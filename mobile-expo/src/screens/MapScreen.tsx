@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { ArrowBackIcon, ChevronDownIcon, LocationIcon } from '../components';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -42,6 +43,7 @@ const SearchIcon: React.FC<{ size?: number; color?: string }> = ({
 const MapScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { t } = useI18n();
 
   const handleBack = () => {
     // Keep behavior safe for tab usage.
@@ -65,7 +67,7 @@ const MapScreen: React.FC = () => {
         >
           <ArrowBackIcon size={24} color={Colors.textPrimary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Disease Map</Text>
+        <Text style={styles.headerTitle}>{t('disease_map')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -83,7 +85,7 @@ const MapScreen: React.FC = () => {
                 <SearchIcon />
               </View>
               <TextInput
-                placeholder="Search for a location"
+                placeholder={t('search_location')}
                 placeholderTextColor={Colors.textMuted}
                 style={styles.searchInput}
               />
@@ -117,34 +119,34 @@ const MapScreen: React.FC = () => {
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + Spacing.base }]}>
         <View style={styles.chipsRow}>
           <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
-            <Text style={styles.chipText}>Month: June</Text>
+            <Text style={styles.chipText}>{t('map_month')}: {t('month_june')}</Text>
             <ChevronDownIcon size={18} color={Colors.textMuted} />
           </Pressable>
           <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
-            <Text style={styles.chipText}>Season: Rainy</Text>
+            <Text style={styles.chipText}>{t('map_season')}: {t('season_rainy')}</Text>
             <ChevronDownIcon size={18} color={Colors.textMuted} />
           </Pressable>
         </View>
 
         <View style={styles.legendCard}>
-          <Text style={styles.legendTitle}>Legend</Text>
+          <Text style={styles.legendTitle}>{t('legend')}</Text>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
-            <Text style={styles.legendLabel}>Malaria</Text>
+            <Text style={styles.legendLabel}>{t('legend_malaria')}</Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors.danger }]} />
-            <Text style={styles.legendLabel}>Cholera</Text>
+            <Text style={styles.legendLabel}>{t('legend_cholera')}</Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
-            <Text style={styles.legendLabel}>Lassa Fever</Text>
+            <Text style={styles.legendLabel}>{t('legend_lassa')}</Text>
           </View>
 
-          <Text style={[styles.legendTitle, { marginTop: Spacing.base }]}>Weather</Text>
+          <Text style={[styles.legendTitle, { marginTop: Spacing.base }]}>{t('map_weather')}</Text>
           <View style={styles.weatherRow}>
             <Text style={styles.weatherIcon}>💧</Text>
-            <Text style={styles.weatherLabel}>Rainy Conditions</Text>
+            <Text style={styles.weatherLabel}>{t('weather_rainy_conditions')}</Text>
           </View>
         </View>
       </View>

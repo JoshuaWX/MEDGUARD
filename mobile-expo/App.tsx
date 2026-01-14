@@ -2,6 +2,9 @@ import React, { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import RootNavigator from './src/navigation/RootNavigator';
+import { AuthProvider } from './src/hooks/useAuth';
+import { LocationProvider } from './src/hooks/LocationContext';
+import { I18nProvider } from './src/i18n';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,5 +24,13 @@ export default function App() {
 
   if (!fontsLoaded) return null;
 
-  return <RootNavigator />;
+  return (
+    <I18nProvider>
+      <AuthProvider>
+        <LocationProvider>
+          <RootNavigator />
+        </LocationProvider>
+      </AuthProvider>
+    </I18nProvider>
+  );
 }

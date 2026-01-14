@@ -3,39 +3,27 @@
  * AI health assistant chat interface
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withRepeat,
-  withSequence,
-  Easing,
-  FadeIn,
-  FadeInUp,
-  SlideInRight,
-  SlideInLeft,
-} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { WebView } from 'react-native-webview';
 
 import {
-  GlassCard,
   ShieldIcon,
-  ArrowRightIcon,
   ChevronDownIcon,
 } from '../components';
+import { useAuth } from '../hooks/useAuth';
+import { useUser } from '../hooks/useUser';
+import { useI18n } from '../i18n';
+import { buildChatbotUrl } from '../services/api';
 import {
   Colors,
   Spacing,
@@ -61,168 +49,32 @@ const DarkTheme = {
   userGradientTo: '#8b5cf6',
 };
 
-interface Message {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-}
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 const ChatbotScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const { user } = useUser();
+  const { user: authUser } = useAuth();
+  const { t } = useI18n();
 
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const chatbotUrl = useMemo(() => {
+    const meta: any = (authUser as any)?.user_metadata || {};
+    const fullName = user?.name || meta.full_name || meta.name || '';
+    const firstName = String(fullName).split(/\s+/)[0] || '';
 
-  // Initial loading overlay (parity with web chatbot.html)
-  const spinnerProgress = useSharedValue(0);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => setShowLoadingOverlay(false), 700);
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  useEffect(() => {
-    if (!showLoadingOverlay) return;
-    spinnerProgress.value = withRepeat(
-      withTiming(1, { duration: 1000, easing: Easing.linear }),
-      -1,
-      false
-    );
-  }, [showLoadingOverlay]);
-
-  const spinnerStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${spinnerProgress.value * 360}deg` }],
-  }));
-
-  // Typing indicator animation
-  const dot1 = useSharedValue(0);
-  const dot2 = useSharedValue(0);
-  const dot3 = useSharedValue(0);
-
-  useEffect(() => {
-    if (isTyping) {
-      dot1.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 400 }),
-          withTiming(0, { duration: 400 })
-        ),
-        -1
-      );
-      dot2.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 200 }),
-          withTiming(1, { duration: 400 }),
-          withTiming(0, { duration: 400 })
-        ),
-        -1
-      );
-      dot3.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 400 }),
-          withTiming(1, { duration: 400 }),
-          withTiming(0, { duration: 200 })
-        ),
-        -1
-      );
-    }
-  }, [isTyping]);
-
-  const dot1Style = useAnimatedStyle(() => ({
-    opacity: 0.4 + dot1.value * 0.6,
-    transform: [{ scale: 0.8 + dot1.value * 0.4 }],
-  }));
-
-  const dot2Style = useAnimatedStyle(() => ({
-    opacity: 0.4 + dot2.value * 0.6,
-    transform: [{ scale: 0.8 + dot2.value * 0.4 }],
-  }));
-
-  const dot3Style = useAnimatedStyle(() => ({
-    opacity: 0.4 + dot3.value * 0.6,
-    transform: [{ scale: 0.8 + dot3.value * 0.4 }],
-  }));
-
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText.trim(),
-      isUser: true,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputText('');
-    setIsTyping(true);
-
-    // Scroll to bottom
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-
-    // Simulate AI response (in production, this would call the RAG API)
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: getAIResponse(inputText),
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, aiResponse]);
-      setIsTyping(false);
-
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }, 1500);
-  };
-
-  // Simple placeholder responses
-  const getAIResponse = (input: string): string => {
-    const lowered = input.toLowerCase();
-    
-    if (lowered.includes('fever') || lowered.includes('temperature')) {
-      return "A fever can be a sign of infection. If your temperature is above 38°C (100.4°F), stay hydrated, rest, and consider taking paracetamol. Seek medical attention if the fever persists for more than 3 days or is accompanied by severe symptoms.";
-    }
-    if (lowered.includes('headache')) {
-      return "For headaches, try resting in a quiet, dark room and staying hydrated. Over-the-counter pain relievers like paracetamol can help. If headaches are severe, frequent, or accompanied by other symptoms, please consult a healthcare provider.";
-    }
-    if (lowered.includes('malaria')) {
-      return "Malaria is transmitted through mosquito bites. Symptoms include fever, chills, and body aches. Prevention includes using mosquito nets, repellent, and eliminating stagnant water. If you suspect malaria, get tested immediately at a health facility.";
-    }
-    if (lowered.includes('clinic') || lowered.includes('hospital') || lowered.includes('doctor')) {
-      return "You can find nearby health facilities in the Map section of the app. For emergencies, please call emergency services or visit the nearest hospital immediately.";
-    }
-    
-    return "Thank you for your question. For personalized health advice, I recommend consulting with a healthcare professional. Is there anything specific about your health I can help clarify?";
-  };
-
-  const suggestionChips = [
-    { label: 'Headache advice', query: "I've been having headaches for the past few days" },
-    { label: 'Flu symptoms', query: 'What are the symptoms of the flu?' },
-    { label: 'Sleep tips', query: 'How can I improve my sleep quality?' },
-    { label: 'Medication info', query: 'What should I know about taking ibuprofen?' },
-  ];
-
-  const handleSuggestion = (query: string) => {
-    setInputText(query);
-  };
+    return buildChatbotUrl({
+      first_name: firstName,
+      location: user?.state || meta.state || '',
+      age: meta.age != null ? String(meta.age) : '',
+      gender: meta.gender != null ? String(meta.gender) : '',
+      user_id: authUser?.id || '',
+    });
+  }, [authUser, user?.name, user?.state]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
+    <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={styles.headerLeft}>
@@ -238,93 +90,36 @@ const ChatbotScreen: React.FC = () => {
             >
               <ShieldIcon size={20} color={Colors.textLight} />
             </LinearGradient>
-            <Text style={styles.logoText}>MedGuard AI</Text>
+            <Text style={styles.logoText}>{t('chatbot_title')}</Text>
           </View>
         </View>
       </View>
 
-      {/* Chat Container */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Welcome Screen */}
-        {messages.length === 0 && (
-          <Animated.View entering={FadeInUp.duration(500)} style={styles.welcomeScreen}>
-            <LinearGradient
-              colors={[DarkTheme.accent, '#059669']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.welcomeLogo}
-            >
-              <ShieldIcon size={36} color={Colors.textLight} />
-            </LinearGradient>
-            <Text style={styles.welcomeTitle}>How can I help you today?</Text>
-            <Text style={styles.welcomeSubtitle}>
-              I'm MedGuard, your AI health assistant. Ask me about symptoms, medications, conditions, or general health advice.
-            </Text>
-            <View style={styles.suggestionChips}>
-              {suggestionChips.map((chip, index) => (
-                <Pressable
-                  key={index}
-                  style={styles.suggestionChip}
-                  onPress={() => handleSuggestion(chip.query)}
-                >
-                  <Text style={styles.suggestionChipText}>{chip.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Message Bubbles */}
-        {messages.map((message) => (
-          <Animated.View
-            key={message.id}
-            entering={message.isUser ? SlideInRight.duration(300) : SlideInLeft.duration(300)}
-          >
-            <MessageBubble message={message} />
-          </Animated.View>
-        ))}
-
-        {/* Typing Indicator */}
-        {isTyping && (
-          <Animated.View entering={FadeIn.duration(200)} style={styles.typingContainer}>
-            <View style={styles.typingBubble}>
-              <Animated.View style={[styles.typingDot, dot1Style]} />
-              <Animated.View style={[styles.typingDot, dot2Style]} />
-              <Animated.View style={[styles.typingDot, dot3Style]} />
-            </View>
-          </Animated.View>
-        )}
-      </ScrollView>
-
-      {/* Input Area */}
-      <View style={[styles.inputArea, { paddingBottom: insets.bottom + Spacing.base }]}>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.chatInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Message MedGuard..."
-            placeholderTextColor={DarkTheme.textMuted}
-            multiline
-            maxLength={500}
-          />
-          <Pressable
-            onPress={handleSend}
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
-            disabled={!inputText.trim()}
-          >
-            <ArrowRightIcon size={20} color={Colors.textLight} style={{ transform: [{ rotate: '-90deg' }] }} />
-          </Pressable>
+      {loadError ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>{t('chatbot_unavailable')}</Text>
+          <Text style={styles.errorBody}>{loadError}</Text>
+          <Text style={styles.errorBody}>URL: {chatbotUrl}</Text>
         </View>
-        <Text style={styles.inputFooter}>
-          MedGuard can make mistakes. Always consult a healthcare professional for medical advice.
-        </Text>
-      </View>
+      ) : (
+        <WebView
+          source={{ uri: chatbotUrl }}
+          originWhitelist={['*']}
+          javaScriptEnabled
+          domStorageEnabled
+          sharedCookiesEnabled
+          onLoadStart={() => {
+            setShowLoadingOverlay(true);
+            setLoadError(null);
+          }}
+          onLoadEnd={() => setShowLoadingOverlay(false)}
+          onError={(e) => {
+            setShowLoadingOverlay(false);
+            setLoadError(e?.nativeEvent?.description || 'WebView load error');
+          }}
+          style={styles.webview}
+        />
+      )}
 
       {showLoadingOverlay && (
         <View style={styles.loadingOverlay}>
@@ -334,37 +129,11 @@ const ChatbotScreen: React.FC = () => {
             end={{ x: 1, y: 1 }}
             style={styles.loadingGradient}
           >
-            <Animated.View style={[styles.spinner, spinnerStyle]} />
-            <Text style={styles.loadingText}>Redirecting to MedGuard AI...</Text>
+            <ActivityIndicator size="large" color={Colors.textLight} />
+            <Text style={styles.loadingText}>{t('chatbot_loading')}</Text>
           </LinearGradient>
         </View>
       )}
-    </KeyboardAvoidingView>
-  );
-};
-
-// Message Bubble Component
-const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
-  if (message.isUser) {
-    return (
-      <View style={styles.messageUser}>
-        <LinearGradient
-          colors={[DarkTheme.userGradientFrom, DarkTheme.userGradientTo]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.userBubbleGradient}
-        >
-          <Text style={styles.userMessageText}>{message.text}</Text>
-        </LinearGradient>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.messageAssistant}>
-      <View style={styles.assistantBubble}>
-        <Text style={styles.assistantMessageText}>{message.text}</Text>
-      </View>
     </View>
   );
 };
@@ -373,6 +142,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: DarkTheme.bgPrimary,
+  },
+  webview: {
+    flex: 1,
+    backgroundColor: DarkTheme.bgPrimary,
+  },
+  errorContainer: {
+    flex: 1,
+    padding: Spacing.base,
+    justifyContent: 'center',
+  },
+  errorTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.lg,
+    color: DarkTheme.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  errorBody: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: DarkTheme.textSecondary,
+    marginBottom: Spacing.sm,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

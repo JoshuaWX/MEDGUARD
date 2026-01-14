@@ -11,23 +11,77 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
 // Read from Expo public environment variables (configured in app.json or .env)
-const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL =
+  Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY =
+  Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+const isValidUrl = (value: string) => {
+  try {
+    // eslint-disable-next-line no-new
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const isSupabaseConfigured =
+  Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY) && isValidUrl(SUPABASE_URL);
+
+const createUnconfiguredSupabase = () => {
+  const makeError = () =>
+    new Error(
+      'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY (e.g. in mobile-expo/.env), then restart Metro with --clear.'
+    );
+
+  const subscription = { unsubscribe: () => {} };
+
+  return {
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: makeError() }),
+      onAuthStateChange: () => ({ data: { subscription } }),
+      signInWithPassword: async () => ({ data: null, error: makeError() }),
+      signUp: async () => ({ data: null, error: makeError() }),
+      signInWithOAuth: async () => ({ data: null, error: makeError() }),
+      signOut: async () => ({ error: makeError() }),
+      resetPasswordForEmail: async () => ({ error: makeError() }),
+    },
+    from: () => {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        single: async () => ({ data: null, error: makeError() }),
+        insert: async () => ({ data: null, error: makeError() }),
+        upsert: async () => ({ data: null, error: makeError() }),
+      };
+      return chain;
+    },
+    storage: {
+      from: () => ({
+        upload: async () => ({ data: null, error: makeError() }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+      }),
+    },
+  };
+};
+
+if (!isSupabaseConfigured) {
   console.warn(
-    'Supabase credentials not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your environment.'
+    'Supabase credentials not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in mobile-expo/.env (or app config), then restart the dev server.'
   );
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+export const supabase = isSupabaseConfigured
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    })
+  : (createUnconfiguredSupabase() as any);
 
 export type Database = {
   public: {

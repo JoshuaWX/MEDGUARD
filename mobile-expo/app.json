@@ -13,7 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,6 +26,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.medguard"
     },
@@ -29,6 +35,10 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "apiBaseUrl": "http://10.253.154.55:3000",
+      "chatbotUrl": "http://10.253.154.55:8080/"
+    }
   }
 }

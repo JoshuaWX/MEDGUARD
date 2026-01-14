@@ -40,6 +40,7 @@ import {
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -54,20 +55,21 @@ import {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const SYMPTOMS = [
-  { id: 'fever', label: 'Fever', emoji: '🤒' },
-  { id: 'headache', label: 'Headache', emoji: '🤕' },
-  { id: 'fatigue', label: 'Fatigue', emoji: '😩' },
-  { id: 'cough', label: 'Cough', emoji: '🤧' },
-  { id: 'bodyPain', label: 'Body Pain', emoji: '💪' },
-  { id: 'nausea', label: 'Nausea', emoji: '🤢' },
-  { id: 'dizziness', label: 'Dizziness', emoji: '😵' },
-  { id: 'chills', label: 'Chills', emoji: '🥶' },
+  { id: 'fever', key: 'symptom_fever', emoji: '🤒' },
+  { id: 'headache', key: 'symptom_headache', emoji: '🤕' },
+  { id: 'fatigue', key: 'symptom_fatigue', emoji: '😩' },
+  { id: 'cough', key: 'symptom_cough', emoji: '🤧' },
+  { id: 'bodyPain', key: 'symptom_body_pain', emoji: '💪' },
+  { id: 'nausea', key: 'symptom_nausea', emoji: '🤢' },
+  { id: 'dizziness', key: 'symptom_dizziness', emoji: '😵' },
+  { id: 'chills', key: 'symptom_chills', emoji: '🥶' },
 ];
 
 const MyHealthScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { logSymptoms, loading } = useSymptoms();
+  const { t } = useI18n();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const healthScore = user?.healthScore ?? 85;
@@ -154,7 +156,7 @@ const MyHealthScreen: React.FC = () => {
             <View style={styles.headerOverlay} />
 
             <View style={styles.headerTopRow}>
-              <Text style={styles.headerTitle}>My Health</Text>
+              <Text style={styles.headerTitle}>{t('my_health')}</Text>
               <View style={styles.userChip}>
                 <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
                 <View style={styles.userAvatarWrap}>
@@ -167,9 +169,9 @@ const MyHealthScreen: React.FC = () => {
             <View style={styles.scoreWrap}>
               <Animated.View style={[styles.scorePulseRing, pulseStyle]} />
               <GlassCard style={styles.scoreCard} padding={Spacing.xl} intensity={22}>
-                <Text style={styles.scoreMeta}>Wellness Score</Text>
+                <Text style={styles.scoreMeta}>{t('health_score_label')}</Text>
                 <Text style={styles.scoreValue}>{healthScore}</Text>
-                <Text style={styles.scoreDesc}>Keep tracking daily to improve.</Text>
+                <Text style={styles.scoreDesc}>{t('health_score_desc')}</Text>
               </GlassCard>
             </View>
           </ImageBackground>
@@ -190,7 +192,7 @@ const MyHealthScreen: React.FC = () => {
                 <View style={styles.tipBadgeIcon}>
                   <HeartIcon size={18} color={Colors.textLight} />
                 </View>
-                <Text style={styles.tipHeaderTitle}>Today's Health Tip</Text>
+                <Text style={styles.tipHeaderTitle}>{t('todays_health_tip')}</Text>
               </View>
               <View style={styles.tipRow}>
                 <Image
@@ -198,11 +200,11 @@ const MyHealthScreen: React.FC = () => {
                   style={styles.tipImage}
                 />
                 <View style={styles.tipContent}>
-                  <Text style={styles.tipTitle}>Stay Hydrated</Text>
+                  <Text style={styles.tipTitle}>{t('tip_stay_hydrated_title')}</Text>
                   <Text style={styles.tipText}>
-                    Drinking enough water helps maintain body temperature, lubricates joints, and aids digestion.
+                    {t('tip_stay_hydrated_body')}
                   </Text>
-                  <Text style={styles.tipHint}>💡 Aim for 8 glasses daily</Text>
+                  <Text style={styles.tipHint}>{t('tip_stay_hydrated_hint')}</Text>
                 </View>
               </View>
             </GlassCard>
@@ -210,8 +212,8 @@ const MyHealthScreen: React.FC = () => {
 
         {/* Symptom Logging */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How are you feeling today?</Text>
-          <Text style={styles.sectionSubtitle}>Select any symptoms you're experiencing</Text>
+          <Text style={styles.sectionTitle}>{t('how_feeling_today')}</Text>
+          <Text style={styles.sectionSubtitle}>{t('select_symptoms')}</Text>
 
           <View style={styles.symptomsGrid}>
             {SYMPTOMS.map((symptom, index) => (
@@ -220,7 +222,7 @@ const MyHealthScreen: React.FC = () => {
                 entering={FadeInUp.delay(300 + index * 50).duration(400)}
               >
                 <SymptomButton
-                  label={symptom.label}
+                  label={t(symptom.key)}
                   emoji={symptom.emoji}
                   selected={selectedSymptoms.includes(symptom.id)}
                   onPress={() => toggleSymptom(symptom.id)}
@@ -232,7 +234,7 @@ const MyHealthScreen: React.FC = () => {
           {selectedSymptoms.length > 0 && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.logButtonContainer}>
               <Button
-                title={`Log ${selectedSymptoms.length} Symptom${selectedSymptoms.length > 1 ? 's' : ''}`}
+                title={`${t(selectedSymptoms.length > 1 ? 'log_symptoms' : 'log_symptom')}: ${selectedSymptoms.length}`}
                 onPress={handleLogSymptoms}
                 loading={loading}
               />
@@ -243,9 +245,9 @@ const MyHealthScreen: React.FC = () => {
         {/* Nearby Clinics */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Nearby Clinics</Text>
+            <Text style={styles.sectionTitle}>{t('nearby_clinics')}</Text>
             <Pressable style={styles.seeAllBtn}>
-              <Text style={styles.seeAllText}>See all</Text>
+              <Text style={styles.seeAllText}>{t('see_all')}</Text>
               <ArrowRightIcon size={16} color={Colors.primary} />
             </Pressable>
           </View>

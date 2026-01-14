@@ -6,8 +6,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
+  Image,
   ImageBackground,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +36,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
 
 import { RootStackParamList } from '../navigation/types';
 import {
@@ -50,6 +55,7 @@ import {
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
+import { useI18n } from '../i18n';
 import {
   BorderRadius,
   Colors,
@@ -71,7 +77,10 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
-  const { user, loading, refresh, updateProfile } = useUser();
+  const { user, loading, refresh, updateProfile, updateAvatar } = useUser();
+  const { t } = useI18n();
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -133,6 +142,8 @@ const ProfileScreen: React.FC = () => {
       email: user.email || '',
       state: user.state || '',
     });
+    setGender((user.gender as Gender) || '');
+    setAge(user.age != null ? String(user.age) : '');
   }, [user]);
 
   const floatStyle1 = useAnimatedStyle(() => ({
@@ -192,7 +203,7 @@ const ProfileScreen: React.FC = () => {
             await signOut();
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Welcome' }],
+              routes: [{ name: 'SignIn' }],
             });
           } catch {
             Alert.alert('Error', 'Failed to sign out. Please try again.');
@@ -204,13 +215,94 @@ const ProfileScreen: React.FC = () => {
 
   const handleSaveProfile = async () => {
     try {
-      await updateProfile(formData);
+      const ageNum = age ? Number(age) : null;
+      await updateProfile({
+        ...formData,
+        gender: gender || null,
+        age: Number.isFinite(ageNum) ? ageNum : null,
+      });
       setEditMode(false);
       Alert.alert('Success', 'Profile updated successfully!');
     } catch {
       Alert.alert('Error', 'Failed to update profile. Please try again.');
     }
   };
+
+  const handleAvatarPress = useCallback(() => {
+    const options = ['Take Photo', 'Choose from Library', 'Cancel'];
+    const cancelButtonIndex = 2;
+
+    const handleSelection = async (index: number) => {
+      if (index === cancelButtonIndex) return;
+
+      try {
+        let result: ImagePicker.ImagePickerResult;
+
+        if (index === 0) {
+          // Take photo
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission Required', 'Camera permission is needed to take a photo.');
+            return;
+          }
+          result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+        } else {
+          // Choose from library
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission Required', 'Photo library permission is needed to select a photo.');
+            return;
+          }
+          result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+        }
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const uri = result.assets[0].uri;
+          setAvatarUploading(true);
+          try {
+            await updateAvatar(uri);
+            Alert.alert('Success', 'Profile picture updated!');
+          } catch (err) {
+            console.error('Avatar upload failed:', err);
+            Alert.alert('Error', 'Failed to upload profile picture. Please try again.');
+          } finally {
+            setAvatarUploading(false);
+          }
+        }
+      } catch (err) {
+        console.error('Image picker error:', err);
+        Alert.alert('Error', 'Failed to open image picker.');
+      }
+    };
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex },
+        handleSelection
+      );
+    } else {
+      // Android: use Alert as a simple action sheet
+      Alert.alert(
+        'Change Profile Picture',
+        'Choose an option',
+        [
+          { text: 'Take Photo', onPress: () => handleSelection(0) },
+          { text: 'Choose from Library', onPress: () => handleSelection(1) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  }, [updateAvatar]);
 
   return (
     <LinearGradient
@@ -250,20 +342,30 @@ const ProfileScreen: React.FC = () => {
                 <Pressable onPress={handleBack} style={styles.heroIconBtn} hitSlop={10}>
                   <ArrowBackIcon size={24} color={Colors.textLight} />
                 </Pressable>
-                <Text style={styles.heroTitle}>My Profile</Text>
+                <Text style={styles.heroTitle}>{t('my_profile')}</Text>
                 <Pressable onPress={handleSignOut} style={styles.signOutPill} hitSlop={10}>
-                  <Text style={styles.signOutText}>Sign out</Text>
+                  <Text style={styles.signOutText}>{t('sign_out')}</Text>
                 </Pressable>
               </View>
 
               <View style={styles.heroProfile}>
                 <View style={styles.avatarContainer}>
                   <Animated.View style={[styles.avatarPulse, avatarPulseStyle]} />
-                  <View style={styles.avatarRing}>
+                  <Pressable
+                    onPress={() => setAvatarPreviewOpen(true)}
+                    disabled={!user?.avatarUrl}
+                    style={styles.avatarRing}
+                    hitSlop={10}
+                  >
                     <Avatar source={user?.avatarUrl} size={96} />
-                  </View>
-                  <Pressable onPress={() => setEditMode(true)} style={styles.avatarEditBtn} hitSlop={10}>
-                    <CameraIcon size={18} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable 
+                    onPress={handleAvatarPress} 
+                    style={[styles.avatarEditBtn, avatarUploading && styles.avatarEditBtnDisabled]} 
+                    hitSlop={10}
+                    disabled={avatarUploading}
+                  >
+                    <CameraIcon size={18} color={avatarUploading ? Colors.textSecondary : Colors.primary} />
                   </Pressable>
                 </View>
                 <Text style={styles.userName}>{user?.name || 'Loading…'}</Text>
@@ -271,6 +373,25 @@ const ProfileScreen: React.FC = () => {
               </View>
             </ImageBackground>
           </Animated.View>
+
+          <Modal
+            visible={avatarPreviewOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setAvatarPreviewOpen(false)}
+          >
+            <Pressable style={styles.avatarModalBackdrop} onPress={() => setAvatarPreviewOpen(false)}>
+              <Pressable style={styles.avatarModalCard} onPress={(e) => e.stopPropagation()}>
+                <Image
+                  source={{ uri: user?.avatarUrl || undefined }}
+                  style={styles.avatarModalImage}
+                />
+                <Pressable onPress={() => setAvatarPreviewOpen(false)} style={styles.avatarModalClose} hitSlop={10}>
+                  <Text style={styles.avatarModalCloseText}>×</Text>
+                </Pressable>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           {/* Main */}
           <View style={styles.main}>
@@ -283,14 +404,14 @@ const ProfileScreen: React.FC = () => {
                       <UserIcon size={20} color={Colors.primary} />
                     </View>
                     <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardTitle}>Personal Details</Text>
-                      <Text style={styles.cardSubtitle}>Keep your details updated</Text>
+                      <Text style={styles.cardTitle}>{t('personal_details')}</Text>
+                      <Text style={styles.cardSubtitle}>{t('keep_details_updated')}</Text>
                     </View>
                   </View>
 
                   <View style={styles.formGroup}>
                     <View style={styles.fieldGroup}>
-                      <Text style={styles.inputLabel}>Full Name</Text>
+                      <Text style={styles.inputLabel}>{t('full_name')}</Text>
                       <Input
                         value={formData.name}
                         onChangeText={(text) => setFormData({ ...formData, name: text })}
@@ -302,7 +423,7 @@ const ProfileScreen: React.FC = () => {
 
                     <View style={styles.twoColRow}>
                       <View style={styles.twoCol}>
-                        <Text style={styles.inputLabel}>Gender</Text>
+                        <Text style={styles.inputLabel}>{t('gender')}</Text>
                         <Input
                           value={gender}
                           onChangeText={(text) => setGender(text as Gender)}
@@ -312,7 +433,7 @@ const ProfileScreen: React.FC = () => {
                         />
                       </View>
                       <View style={styles.twoCol}>
-                        <Text style={styles.inputLabel}>Age</Text>
+                        <Text style={styles.inputLabel}>{t('age')}</Text>
                         <Input
                           value={age}
                           onChangeText={setAge}
@@ -326,7 +447,7 @@ const ProfileScreen: React.FC = () => {
 
                     <View style={styles.twoColRow}>
                       <View style={styles.twoCol}>
-                        <Text style={styles.inputLabel}>State</Text>
+                        <Text style={styles.inputLabel}>{t('state')}</Text>
                         <Input
                           value={formData.state}
                           onChangeText={(text) => setFormData({ ...formData, state: text })}
@@ -336,7 +457,7 @@ const ProfileScreen: React.FC = () => {
                         />
                       </View>
                       <View style={styles.twoCol}>
-                        <Text style={styles.inputLabel}>LGA</Text>
+                        <Text style={styles.inputLabel}>{t('lga')}</Text>
                         <Input
                           value={lga}
                           onChangeText={setLga}
@@ -360,15 +481,15 @@ const ProfileScreen: React.FC = () => {
                       <SettingsIcon size={20} color={Colors.primary} />
                     </View>
                     <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardTitle}>Health Preferences</Text>
-                      <Text style={styles.cardSubtitle}>Notifications & privacy</Text>
+                      <Text style={styles.cardTitle}>{t('health_preferences')}</Text>
+                      <Text style={styles.cardSubtitle}>{t('notifications_privacy')}</Text>
                     </View>
                   </View>
 
                   <View style={styles.prefRow}>
                     <View style={styles.prefLeft}>
                       <BellIcon size={18} color={Colors.primary} />
-                      <Text style={styles.prefLabel}>Health alerts</Text>
+                      <Text style={styles.prefLabel}>{t('health_alerts')}</Text>
                     </View>
                     <Switch
                       value={prefHealthAlerts}
@@ -381,7 +502,7 @@ const ProfileScreen: React.FC = () => {
                   <View style={styles.prefRow}>
                     <View style={styles.prefLeft}>
                       <InfoCircleIcon size={18} color={Colors.primary} />
-                      <Text style={styles.prefLabel}>Daily tips</Text>
+                      <Text style={styles.prefLabel}>{t('daily_tips')}</Text>
                     </View>
                     <Switch
                       value={prefDailyTips}
@@ -403,26 +524,26 @@ const ProfileScreen: React.FC = () => {
                       <InfoCircleIcon size={20} color={Colors.primary} />
                     </View>
                     <View style={styles.cardHeaderText}>
-                      <Text style={styles.cardTitle}>Medical Info</Text>
-                      <Text style={styles.cardSubtitle}>Conditions & allergies</Text>
+                      <Text style={styles.cardTitle}>{t('medical_info')}</Text>
+                      <Text style={styles.cardSubtitle}>{t('conditions')} & {t('allergies')}</Text>
                     </View>
                   </View>
 
                   <View style={styles.kvRow}>
-                    <Text style={styles.kvLabel}>Conditions</Text>
+                    <Text style={styles.kvLabel}>{t('conditions')}</Text>
                     <View style={styles.kvPill}>
-                      <Text style={styles.kvPillText}>None</Text>
+                      <Text style={styles.kvPillText}>{t('none')}</Text>
                     </View>
                   </View>
                   <View style={styles.kvRow}>
-                    <Text style={styles.kvLabel}>Allergies</Text>
+                    <Text style={styles.kvLabel}>{t('allergies')}</Text>
                     <View style={styles.kvPill}>
-                      <Text style={styles.kvPillText}>None</Text>
+                      <Text style={styles.kvPillText}>{t('none')}</Text>
                     </View>
                   </View>
 
                   <Pressable onPress={() => {}} style={styles.editMedicalBtn}>
-                    <Text style={styles.editMedicalText}>Edit Medical Info</Text>
+                    <Text style={styles.editMedicalText}>{t('edit_medical_info')}</Text>
                   </Pressable>
                 </View>
               </GlassCard>
@@ -442,7 +563,7 @@ const ProfileScreen: React.FC = () => {
                       <View style={styles.quickLinkIconWrap}>
                         <BellIcon size={20} color={Colors.textLight} />
                       </View>
-                      <Text style={styles.quickLinkText}>Alerts & Notifications</Text>
+                      <Text style={styles.quickLinkText}>{t('alerts_notifications')}</Text>
                     </View>
                     <Text style={styles.quickLinkArrow}>›</Text>
                   </LinearGradient>
@@ -459,7 +580,7 @@ const ProfileScreen: React.FC = () => {
                       <View style={styles.quickLinkIconWrap}>
                         <SettingsIcon size={20} color={Colors.textLight} />
                       </View>
-                      <Text style={styles.quickLinkText}>Settings & Support</Text>
+                      <Text style={styles.quickLinkText}>{t('settings_support')}</Text>
                     </View>
                     <Text style={styles.quickLinkArrow}>›</Text>
                   </LinearGradient>
@@ -471,18 +592,18 @@ const ProfileScreen: React.FC = () => {
             <Animated.View entering={FadeInUp.delay(430).duration(450)}>
               <View style={styles.actions}>
                 <Pressable onPress={() => setEditMode(true)} style={styles.editProfileBtn}>
-                  <Text style={styles.editProfileText}>Edit Profile</Text>
+                  <Text style={styles.editProfileText}>{t('edit_profile')}</Text>
                 </Pressable>
                 <Pressable onPress={handleSignOut} style={styles.logoutBtn}>
                   <LogoutIcon size={18} color={Colors.danger} />
-                  <Text style={styles.logoutText}>Log Out</Text>
+                  <Text style={styles.logoutText}>{t('log_out')}</Text>
                 </Pressable>
               </View>
             </Animated.View>
 
             {editMode ? (
               <View style={styles.saveChangesWrap}>
-                <Button title="Save Changes" onPress={handleSaveProfile} loading={loading} />
+                <Button title={t('save_changes')} onPress={handleSaveProfile} loading={loading} />
               </View>
             ) : null}
           </View>
@@ -604,6 +725,48 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarEditBtnDisabled: {
+    opacity: 0.5,
+  },
+  avatarModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.base,
+  },
+  avatarModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    aspectRatio: 1,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.surfaceLight,
+    overflow: 'hidden',
+  },
+  avatarModalImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+    backgroundColor: Colors.surfaceLight,
+  },
+  avatarModalClose: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.whiteAlpha20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarModalCloseText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 26,
+    color: Colors.textLight,
+    lineHeight: 28,
+    marginTop: -2,
   },
   userName: {
     fontFamily: FontFamily.bold,

@@ -36,6 +36,7 @@ import {
   WarningIcon,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -59,6 +60,7 @@ const AlertsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { alerts, loading, refresh } = useAlerts();
+  const { t } = useI18n();
   const [refreshing, setRefreshing] = useState(false);
 
   // Badge pulse animation
@@ -160,14 +162,14 @@ const AlertsScreen: React.FC = () => {
                   <Pressable onPress={() => navigation.goBack()} style={styles.heroBackBtn} hitSlop={10}>
                     <ArrowBackIcon size={22} color={Colors.textLight} />
                   </Pressable>
-                  <Text style={styles.heroTitle}>Alerts & Notifications</Text>
+                  <Text style={styles.heroTitle}>{t('alerts_notifications')}</Text>
                   <View style={styles.heroRightSpacer} />
                 </View>
 
                 <View style={styles.heroBadgeRow}>
                   <Animated.View style={[styles.activeBadge, badgePulseStyle]}>
                     <View style={styles.activeDot} />
-                    <Text style={styles.activeBadgeText}>{sampleAlerts.length} Active Alerts</Text>
+                    <Text style={styles.activeBadgeText}>{sampleAlerts.length} {t('active_alerts')}</Text>
                   </Animated.View>
                 </View>
               </View>
@@ -178,7 +180,7 @@ const AlertsScreen: React.FC = () => {
           <View style={styles.contentWrap}>
             <View style={styles.sectionHeaderRow}>
               <InfoCircleIcon size={18} color={Colors.primary} />
-              <Text style={styles.sectionHeading}>Community Alerts</Text>
+              <Text style={styles.sectionHeading}>{t('community_alerts')}</Text>
             </View>
             <View style={styles.cardStack}>
               {communityAlerts.map((alert, index) => (
@@ -205,7 +207,7 @@ const AlertsScreen: React.FC = () => {
             {/* Personal Reminders */}
             <View style={styles.sectionHeaderRow}>
               <BellIcon size={18} color={Colors.primary} />
-              <Text style={styles.sectionHeading}>Personal Reminders</Text>
+              <Text style={styles.sectionHeading}>{t('personal_reminders')}</Text>
             </View>
             <GlassCard style={styles.reminderCard}>
               <View style={styles.reminderIcon}>

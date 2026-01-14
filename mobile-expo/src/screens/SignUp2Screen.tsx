@@ -18,6 +18,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Button, GlassCard, ArrowRightIcon } from '../components';
 import { useUser } from '../hooks/useUser';
+import { useAuth } from '../hooks/useAuth';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -52,16 +54,22 @@ const SignUp2Screen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
+  const { completeOnboarding, loading } = useAuth();
+  const { t } = useI18n();
 
   const [notifications, setNotifications] = useState(true);
   const firstName = user?.name?.split(' ')[0] || 'there';
   const location = user?.state || 'your area';
 
-  const handleFinish = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' }],
-    });
+  const handleFinish = async () => {
+    try {
+      await completeOnboarding();
+    } finally {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
+    }
   };
 
   return (
@@ -70,7 +78,7 @@ const SignUp2Screen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.progressRow}>
-            <Text style={styles.stepText}>Step 2 of 2</Text>
+            <Text style={styles.stepText}>{t('step_2_of_2')}</Text>
             <View style={styles.progressBars}>
               <View style={styles.progressBarFilled} />
               <View style={styles.progressBarFilled} />
@@ -86,10 +94,10 @@ const SignUp2Screen: React.FC = () => {
           {/* Welcome Message */}
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeTitle}>
-              Hi {firstName}! 👋 Welcome to MedGuard
+              {t('signup2_welcome_title', { name: firstName, app: t('app_name') })}
             </Text>
             <Text style={styles.welcomeSubtitle}>
-              Here's how we'll help protect your health in {location}.
+              {t('signup2_welcome_subtitle', { location })}
             </Text>
           </View>
 
@@ -97,24 +105,24 @@ const SignUp2Screen: React.FC = () => {
           <View style={styles.featuresContainer}>
             <FeatureCard
               number="1️⃣"
-              title="Seasonal Health Alerts"
-              description="Receive timely updates on seasonal health risks and preventive measures."
+              title={t('seasonal_health_alerts')}
+              description={t('feature_seasonal_desc')}
             />
             <FeatureCard
               number="2️⃣"
-              title="AI Chatbot"
-              description="Get instant answers to your health questions with our AI-powered chatbot."
+              title={t('ai_chatbot')}
+              description={t('feature_chatbot_desc')}
             />
             <FeatureCard
               number="3️⃣"
-              title="Daily Health Feed"
-              description="Access a curated feed of health tips, news, and local resources."
+              title={t('daily_health_feed')}
+              description={t('feature_feed_desc')}
             />
           </View>
 
           {/* Notifications Toggle (web-like) */}
           <View style={styles.notificationCard}>
-            <Text style={styles.notificationText}>Send me important notifications</Text>
+            <Text style={styles.notificationText}>{t('notifications_opt_in')}</Text>
             <Pressable
               accessibilityRole="switch"
               accessibilityState={{ checked: notifications }}
@@ -132,8 +140,9 @@ const SignUp2Screen: React.FC = () => {
         {/* Footer */}
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.xl }]}>
           <Button
-            title="Finish Setup"
+            title={t('finish_setup')}
             onPress={handleFinish}
+            loading={loading}
             icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
           />
         </View>

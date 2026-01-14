@@ -13,11 +13,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { GlassCard, ArrowBackIcon } from '../components';
 import { RootStackParamList } from '../navigation/types';
+import { LangCode, useI18n } from '../i18n';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-type LangCode = 'en' | 'yo' | 'ha' | 'ig';
 
 const LANGS: Array<{ code: LangCode; label: string }> = [
   { code: 'en', label: 'English' },
@@ -29,9 +28,9 @@ const LANGS: Array<{ code: LangCode; label: string }> = [
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { lang, setLang, t } = useI18n();
 
   const [locationSharing, setLocationSharing] = useState(true);
-  const [language, setLanguage] = useState<LangCode>('en');
 
   const bottomPadding = useMemo(() => {
     const min = 24;
@@ -53,7 +52,7 @@ const SettingsScreen: React.FC = () => {
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10}>
             <ArrowBackIcon size={24} color={Colors.textLight} />
           </Pressable>
-          <Text style={styles.headerTitle}>Settings & Support</Text>
+          <Text style={styles.headerTitle}>{t('settings_support')}</Text>
           <View style={styles.headerBtn} />
         </View>
 
@@ -69,7 +68,7 @@ const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.cardBody}>
                 <View style={styles.toggleHeaderRow}>
-                  <Text style={styles.toggleLabel}>Share my location for personalized alerts</Text>
+                  <Text style={styles.toggleLabel}>{t('share_location_toggle')}</Text>
                   <Switch
                     value={locationSharing}
                     onValueChange={setLocationSharing}
@@ -78,7 +77,7 @@ const SettingsScreen: React.FC = () => {
                   />
                 </View>
                 <Text style={styles.cardDescription}>
-                  Helps MedGuard tailor disease forecasts for your area.
+                  {t('share_location_desc')}
                 </Text>
               </View>
             </View>
@@ -90,16 +89,16 @@ const SettingsScreen: React.FC = () => {
               <View style={styles.iconWrap}>
                 <GlobeIcon size={24} color={Colors.primary} />
               </View>
-              <Text style={styles.cardTitle}>Language</Text>
+              <Text style={styles.cardTitle}>{t('language')}</Text>
             </View>
 
             <View style={styles.chipsWrap}>
               {LANGS.map(({ code, label }) => {
-                const active = code === language;
+                const active = code === lang;
                 return (
                   <Pressable
                     key={code}
-                    onPress={() => setLanguage(code)}
+                    onPress={() => void setLang(code)}
                     style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                   >
                     <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
@@ -118,12 +117,12 @@ const SettingsScreen: React.FC = () => {
                 <ChatHeartIcon size={24} color={Colors.primary} />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.supportTitle}>Need help? Chat with a volunteer health worker.</Text>
+                <Text style={styles.supportTitle}>{t('need_help')}</Text>
                 <Pressable
                   onPress={() => navigation.navigate('Chatbot')}
                   style={styles.supportBtn}
                 >
-                  <Text style={styles.supportBtnText}>Start Chat</Text>
+                  <Text style={styles.supportBtnText}>{t('start_chat')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -133,9 +132,9 @@ const SettingsScreen: React.FC = () => {
           <View style={styles.footer}>
             <Text style={styles.footerText}>v1.0.0</Text>
             <Pressable onPress={() => {}}>
-              <Text style={[styles.footerText, styles.footerLink]}>Terms & Privacy Policy</Text>
+              <Text style={[styles.footerText, styles.footerLink]}>{t('terms_privacy_short')}</Text>
             </Pressable>
-            <Text style={styles.footerStrong}>Powered by AI for Nigerian Health</Text>
+            <Text style={styles.footerStrong}>{t('powered_by')}</Text>
           </View>
         </ScrollView>
       </View>

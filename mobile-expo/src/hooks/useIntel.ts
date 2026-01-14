@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useUser } from './useUser';
+import { apiFetch } from '../services/api';
 
 interface Advisory {
   title: string;
@@ -113,72 +114,82 @@ export const useIntel = (): UseIntelReturn => {
 
 // Fetch fresh intel from API
 async function fetchFreshIntel(state: string): Promise<Intel> {
-  // In production, this would make an API call
-  // For now, return mock data based on current date/season
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
 
-  const now = new Date();
-  const month = now.getMonth();
+  const r = await apiFetch(`/api/intel?state=${encodeURIComponent(state)}`,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+  );
+  if (!r.ok) {
+    const msg = await r.text();
+    throw new Error(msg || 'Failed to fetch intel');
+  }
 
-  // Determine season (Nigeria has wet and dry seasons)
-  const isRainySeason = month >= 3 && month <= 10;
-
-  const season: Season = isRainySeason
+  const raw = await r.json();
+  const seasonLabel = String(raw?.season?.label || '').toLowerCase();
+  const season: Season | null = raw?.season
     ? {
-        label: 'Rainy Season',
-        description: 'Increased mosquito activity. Higher risk of waterborne diseases.',
-        icon: '🌧️',
+        label:
+          seasonLabel === 'rainy' ? 'Rainy Season'
+          : seasonLabel === 'dry' ? 'Dry Season'
+          : seasonLabel === 'harmattan' ? 'Harmattan'
+          : String(raw.season.label),
+        description: String(raw.season.description || ''),
+        icon: seasonLabel === 'rainy' ? '🌧️' : seasonLabel === 'harmattan' ? '💨' : '☀️',
       }
-    : {
-        label: 'Dry Season',
-        description: 'Dusty conditions. Higher risk of respiratory issues.',
-        icon: '☀️',
-      };
+    : null;
 
-  const advisory: Advisory = isRainySeason
-    ? {
-        title: 'Malaria Prevention Alert',
-        message: 'Malaria risk is elevated during rainy season. Use mosquito nets and insect repellent.',
-        emoji: '⚠️',
-        source: 'Nigeria CDC',
-        severity: 'caution',
-      }
-    : {
-        title: 'Respiratory Health Advisory',
-        message: 'Dry, dusty conditions may affect respiratory health. Stay hydrated and use face masks when needed.',
-        emoji: 'ℹ️',
-        source: 'State Health Ministry',
-        severity: 'info',
-      };
-
-  const tips = isRainySeason
-    ? [
-        'Use mosquito nets while sleeping',
-        'Apply insect repellent on exposed skin',
-        'Eliminate stagnant water around your home',
-        'Wear long sleeves and pants in the evening',
-        'Keep doors and windows screened',
-      ]
-    : [
-        'Drink plenty of water',
-        'Use moisturizer for dry skin',
-        'Wear face masks in dusty conditions',
-        'Keep windows closed during dust storms',
-        'Use air purifiers indoors if available',
-      ];
-
-  // Mock weather data
-  const weather: Weather = {
-    temp: isRainySeason ? 26 : 32,
-    humidity: isRainySeason ? 80 : 45,
-    description: isRainySeason ? 'Partly cloudy with chance of rain' : 'Sunny and clear',
+  const advisories: any[] = Array.isArray(raw?.advisories) ? raw.advisories : [];
+  const pickSeverityRank = (sev: string) => {
+    const s = String(sev || '').toLowerCase();
+    if (s === 'high') return 3;
+    if (s === 'moderate' || s === 'medium') return 2;
+    return 1;
   };
+
+  const top = advisories
+    .slice()
+    .sort((a, b) => pickSeverityRank(b?.severity) - pickSeverityRank(a?.severity))[0];
+
+  const mapSeverity = (sev: string): Advisory['severity'] => {
+    const s = String(sev || '').toLowerCase();
+    if (s === 'high') return 'urgent';
+    if (s === 'moderate' || s === 'medium') return 'caution';
+    return 'info';
+  };
+
+  const advisory: Advisory | null = top
+    ? {
+        title: String(top.disease || 'Health advisory'),
+        message: [top.summary, top.recommendation].filter(Boolean).join(' '),
+        emoji: mapSeverity(top.severity) === 'urgent' ? '⚠️' : mapSeverity(top.severity) === 'caution' ? 'ℹ️' : '💚',
+        source: top.source ? String(top.source) : undefined,
+        severity: mapSeverity(top.severity),
+      }
+    : null;
+
+  const weatherRaw = raw?.weather?.current;
+  const weather: Weather | null = weatherRaw
+    ? {
+        temp: Number(weatherRaw.temperature_2m ?? weatherRaw.temp ?? weatherRaw.temperature ?? NaN),
+        humidity: Number(weatherRaw.relative_humidity_2m ?? weatherRaw.humidity ?? NaN),
+        description:
+          String(raw?.weather?.source || '') ||
+          (season?.description ? season.description : 'Weather update'),
+      }
+    : null;
+
+  const tips: string[] = advisories
+    .map((a) => a?.recommendation)
+    .filter((v) => typeof v === 'string' && v.trim().length > 0)
+    .slice(0, 6);
 
   return {
     advisory,
     season,
     weather,
     tips,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: String(raw?.generatedAt || new Date().toISOString()),
   };
 }
 

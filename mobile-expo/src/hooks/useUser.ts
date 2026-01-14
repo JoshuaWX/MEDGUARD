@@ -3,15 +3,20 @@
  * User profile data and mutations
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Buffer } from 'buffer';
 import { supabase } from '../services/supabase';
 import { useAuth } from './useAuth';
+import { apiFetch } from '../services/api';
 
 export interface UserProfile {
   id: string;
   name: string | null;
   email: string | null;
   state: string | null;
+  gender: string | null;
+  age: number | null;
   avatarUrl: string | null;
   avatarPath: string | null;
   useLocation: boolean;
@@ -34,11 +39,22 @@ export const useUser = (): UseUserReturn => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const attemptedBootstrapRef = useRef(false);
+
+  const getAccessToken = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      return data.session?.access_token || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     if (!authUser?.id) {
       setUser(null);
       setLoading(false);
+      attemptedBootstrapRef.current = false;
       return;
     }
 
@@ -46,26 +62,129 @@ export const useUser = (): UseUserReturn => {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      let { data, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
 
       if (fetchError) throw fetchError;
 
+      // If the profile row doesn't exist yet, try a best-effort bootstrap once.
+      if (!data && !attemptedBootstrapRef.current) {
+        attemptedBootstrapRef.current = true;
+        const meta: any = (authUser as any)?.user_metadata || {};
+        const fullName =
+          meta.full_name ||
+          meta.name ||
+          meta.fullName ||
+          (authUser.email ? String(authUser.email).split('@')[0] : null);
+
+        const toNumOrNull = (v: unknown) => {
+          const n = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : NaN);
+          return Number.isFinite(n) ? n : null;
+        };
+
+        // Only include columns that exist in the profiles table
+        const payload: Record<string, unknown> = {
+          id: authUser.id,
+          email: authUser.email ?? null,
+          name: fullName ?? null,
+          full_name: fullName ?? null,
+        };
+        
+        // Add optional fields only if they have values
+        if (meta.state) payload.state = meta.state;
+        if (meta.gender) payload.gender = meta.gender;
+        
+        const ageVal = toNumOrNull(meta.age);
+        if (ageVal !== null) payload.age = ageVal;
+        
+        const latVal = toNumOrNull(meta.latitude);
+        if (latVal !== null) payload.latitude = latVal;
+        
+        const lonVal = toNumOrNull(meta.longitude);
+        if (lonVal !== null) payload.longitude = lonVal;
+
+        try {
+          const { error: upsertErr } = await supabase.from('profiles').upsert([payload] as any, { onConflict: 'id' });
+          if (upsertErr) {
+            console.error('useUser bootstrap upsert failed:', upsertErr.message, upsertErr.details, upsertErr.hint);
+          }
+          const retry = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          data = retry.data as any;
+          fetchError = retry.error as any;
+          if (fetchError) throw fetchError;
+        } catch (e) {
+          console.error('useUser bootstrap exception:', e);
+          // If RLS blocks this, we'll continue with a minimal local profile.
+        }
+      }
+
       if (data) {
+        let resolvedAvatarUrl: string | null = data.avatar_url;
+
+        // Web parity: avatars bucket is private; prefer signed URLs derived from avatar_path.
+        if (data.avatar_path) {
+          const token = await getAccessToken();
+          if (token) {
+            try {
+              const r = await apiFetch('/api/avatar/sign', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ path: data.avatar_path, expiresIn: 3600 }),
+              });
+              if (r.ok) {
+                const j = await r.json();
+                if (j?.url) resolvedAvatarUrl = j.url;
+              }
+            } catch {
+              // Fall back to stored avatar_url when signing fails.
+            }
+          }
+        }
+
         setUser({
           id: data.id,
-          name: data.name,
+          name: data.name ?? data.full_name ?? null,
           email: data.email ?? authUser.email ?? null,
           state: data.state,
-          avatarUrl: data.avatar_url,
+          gender: data.gender ?? null,
+          age: typeof data.age === 'number' ? data.age : null,
+          avatarUrl: resolvedAvatarUrl,
           avatarPath: data.avatar_path,
           useLocation: data.use_location ?? false,
           healthScore: data.health_score,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
+        });
+      } else {
+        // Fall back to a minimal profile so the app can render while DB catches up.
+        const meta: any = (authUser as any)?.user_metadata || {};
+        const toNum = (v: unknown) => {
+          const n = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : NaN);
+          return Number.isFinite(n) ? n : null;
+        };
+        setUser({
+          id: authUser.id,
+          name: meta.full_name || meta.name || null,
+          email: authUser.email ?? null,
+          state: meta.state ?? null,
+          gender: meta.gender ?? null,
+          age: toNum(meta.age),
+          avatarUrl: null,
+          avatarPath: null,
+          useLocation: Boolean(meta.use_location ?? meta.useLocation ?? false),
+          healthScore: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
       }
     } catch (err) {
@@ -74,7 +193,7 @@ export const useUser = (): UseUserReturn => {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, authUser?.email]);
+  }, [authUser?.id, authUser?.email, getAccessToken]);
 
   useEffect(() => {
     fetchProfile();
@@ -87,8 +206,13 @@ export const useUser = (): UseUserReturn => {
       setLoading(true);
 
       const updateData: Record<string, unknown> = {};
-      if (data.name !== undefined) updateData.name = data.name;
+      if (data.name !== undefined) {
+        updateData.name = data.name;
+        updateData.full_name = data.name;
+      }
       if (data.state !== undefined) updateData.state = data.state;
+      if (data.gender !== undefined) updateData.gender = data.gender;
+      if (data.age !== undefined) updateData.age = data.age;
       if (data.useLocation !== undefined) updateData.use_location = data.useLocation;
       if (data.healthScore !== undefined) updateData.health_score = data.healthScore;
 
@@ -114,30 +238,34 @@ export const useUser = (): UseUserReturn => {
     try {
       setLoading(true);
 
-      // Upload image to Supabase Storage
-      const fileName = `${authUser.id}-${Date.now()}.jpg`;
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // Read file as base64 (React Native compatible)
+      // NOTE: Using the literal 'base64' avoids issues where FileSystem.EncodingType is undefined in some builds.
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64',
+      } as any);
+
+      // Convert base64 to a true ArrayBuffer for Supabase upload
+      const bytes = Buffer.from(base64, 'base64');
+      const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+
+      // Generate unique filename
+      const fileName = `${Date.now()}.jpg`;
+      const objectPath = `${authUser.id}/${fileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, {
+        .upload(objectPath, arrayBuffer, {
           contentType: 'image/jpeg',
           upsert: true,
         });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
       // Update profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          avatar_url: publicUrl,
+          avatar_url: null,
           avatar_path: uploadData.path,
         })
         .eq('id', authUser.id);

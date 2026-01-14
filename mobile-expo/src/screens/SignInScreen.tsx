@@ -30,6 +30,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -50,6 +51,7 @@ const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { signIn, signInWithGoogle, loading } = useAuth();
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
@@ -91,12 +93,8 @@ const SignInScreen: React.FC = () => {
     setError(null);
     const result = await signIn(email, password);
     if (result.error) {
-      setError(result.error.message);
-    } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
+      const msg = (result.error as any)?.hint || result.error.message;
+      setError(msg);
     }
   };
 
@@ -156,8 +154,8 @@ const SignInScreen: React.FC = () => {
                 <View style={styles.logoContainer}>
                   <ShieldIcon size={32} color={Colors.textLight} />
                 </View>
-                <Text style={styles.heroTitle}>Welcome Back</Text>
-                <Text style={styles.heroSubtitle}>Sign in to access your health dashboard</Text>
+                <Text style={styles.heroTitle}>{t('welcome_back')}</Text>
+                <Text style={styles.heroSubtitle}>{t('signin_subtitle')}</Text>
               </View>
             </View>
           </ImageBackground>
@@ -178,7 +176,7 @@ const SignInScreen: React.FC = () => {
         >
           <View style={styles.form}>
             <Input
-              placeholder="Email address"
+              placeholder={t('email_address')}
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
@@ -187,7 +185,7 @@ const SignInScreen: React.FC = () => {
             />
 
             <Input
-              placeholder="Password"
+              placeholder={t('password')}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
@@ -203,16 +201,16 @@ const SignInScreen: React.FC = () => {
                 <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
                   {rememberMe && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.rememberText}>Remember me</Text>
+                <Text style={styles.rememberText}>{t('remember_me')}</Text>
               </Pressable>
               <Pressable>
-                <Text style={styles.forgotText}>Forgot password?</Text>
+                <Text style={styles.forgotText}>{t('forgot_password')}</Text>
               </Pressable>
             </View>
 
             {/* Sign In Button */}
             <Button
-              title="Sign In"
+              title={t('login')}
               onPress={handleSignIn}
               loading={loading}
               icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
@@ -221,13 +219,13 @@ const SignInScreen: React.FC = () => {
             {/* Divider */}
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
+              <Text style={styles.dividerText}>{t('or_continue_with')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
             {/* Google Sign In */}
             <Button
-              title="Continue with Google"
+              title={t('continue_with_google')}
               onPress={handleGoogleSignIn}
               variant="google"
               icon={
@@ -241,9 +239,9 @@ const SignInScreen: React.FC = () => {
 
             {/* Sign up link */}
             <View style={styles.signupRow}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
+              <Text style={styles.signupText}>{t('dont_have_account')} </Text>
               <Pressable onPress={() => navigation.navigate('SignUp')}>
-                <Text style={styles.signupLink}>Create one</Text>
+                <Text style={styles.signupLink}>{t('create_one')}</Text>
               </Pressable>
             </View>
           </View>
@@ -252,7 +250,7 @@ const SignInScreen: React.FC = () => {
           {/* Guest button footer */}
           <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
             <Button
-              title="Continue as Guest"
+              title={t('guest_continue')}
               onPress={handleGuest}
               variant="outline"
               icon={<Text style={styles.eyeIcon}>👁</Text>}

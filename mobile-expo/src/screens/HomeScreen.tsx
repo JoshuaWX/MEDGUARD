@@ -44,6 +44,8 @@ import {
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useIntel } from '../hooks/useIntel';
+import { useLocationContext } from '../hooks/LocationContext';
+import { useI18n } from '../i18n';
 import {
   Colors,
   Spacing,
@@ -54,7 +56,7 @@ import {
   Duration,
 } from '../../theme';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -63,6 +65,8 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user, loading: userLoading } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
+  const { geocoded, refreshLocation } = useLocationContext();
+  const { t } = useI18n();
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -86,7 +90,7 @@ const HomeScreen: React.FC = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refresh();
+    await Promise.all([refresh(), refreshLocation()]);
     setRefreshing(false);
   };
 
@@ -98,8 +102,13 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Chatbot');
   };
 
+  const handleProfile = () => {
+    navigation.navigate('MainTabs', { screen: 'Profile' });
+  };
+
   const firstName = user?.name?.split(' ')[0] || 'User';
-  const location = user?.state || 'Nigeria';
+  // Prefer real-time geocoded location, fall back to user profile state
+  const location = geocoded?.state || user?.state || 'Nigeria';
 
   const isLoading = userLoading || intelLoading;
 
@@ -117,7 +126,7 @@ const HomeScreen: React.FC = () => {
             >
               <ShieldIcon size={24} color={Colors.textLight} />
             </LinearGradient>
-            <Text style={styles.logoText}>MedGuard</Text>
+            <Text style={styles.logoText}>{t('app_name')}</Text>
           </View>
 
           <View style={styles.headerRight}>
@@ -125,7 +134,9 @@ const HomeScreen: React.FC = () => {
               <BellIcon size={24} color={Colors.textSecondary} />
               <View style={styles.notificationBadge} />
             </Pressable>
-            <Avatar source={user?.avatarUrl} size={40} />
+            <Pressable onPress={handleProfile} hitSlop={10}>
+              <Avatar source={user?.avatarUrl} size={40} />
+            </Pressable>
           </View>
         </View>
       </BlurView>
@@ -153,7 +164,7 @@ const HomeScreen: React.FC = () => {
             {/* Greeting */}
             <Animated.View entering={FadeInUp.delay(100).duration(500)}>
               <View style={styles.greeting}>
-                <Text style={styles.welcomeText}>Welcome</Text>
+                <Text style={styles.welcomeText}>{t('welcome_label')}</Text>
                 <Text style={styles.nameText}>{firstName}</Text>
               </View>
             </Animated.View>
@@ -188,16 +199,16 @@ const HomeScreen: React.FC = () => {
 
                     <View style={styles.alertTextContent}>
                       <Text style={styles.alertTitle}>
-                        {intel?.advisory?.emoji || '⚠️'} {intel?.advisory?.title || 'Seasonal Disease Alert'}
+                        {intel?.advisory?.emoji || '⚠️'} {intel?.advisory?.title || t('seasonal_alert_title')}
                       </Text>
                       <Text style={styles.alertBody}>
-                        {intel?.advisory?.message || 'Malaria risk is high this week.'}
+                        {intel?.advisory?.message || t('seasonal_alert_body_malaria_high')}
                       </Text>
                       {intel?.advisory?.source && (
                         <Text style={styles.alertSource}>Source: {intel.advisory.source}</Text>
                       )}
                       <View style={styles.alertLink}>
-                        <Text style={styles.alertLinkText}>View all alerts</Text>
+                        <Text style={styles.alertLinkText}>{t('view_all_alerts')}</Text>
                         <ArrowRightIcon size={16} color={Colors.primary} />
                       </View>
                     </View>
@@ -208,7 +219,7 @@ const HomeScreen: React.FC = () => {
 
             {/* Quick Tips Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Quick Tips & Prevention</Text>
+              <Text style={styles.sectionTitle}>{t('quick_tips_heading')}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -216,17 +227,17 @@ const HomeScreen: React.FC = () => {
               >
                 <TipCard
                   image="https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=300&q=80"
-                  label="Use mosquito nets"
+                  label={t('tip_nets')}
                   delay={0}
                 />
                 <TipCard
                   image="https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=300&q=80"
-                  label="Apply insect repellent"
+                  label={t('tip_repellent')}
                   delay={100}
                 />
                 <TipCard
                   image="https://images.unsplash.com/photo-1559825481-12a05cc00344?auto=format&fit=crop&w=300&q=80"
-                  label="Eliminate stagnant water"
+                  label={t('tip_stagnant_water')}
                   delay={200}
                 />
               </ScrollView>
@@ -234,13 +245,13 @@ const HomeScreen: React.FC = () => {
 
             {/* Weather & Health Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Weather & Health</Text>
+              <Text style={styles.sectionTitle}>{t('weather_health_heading')}</Text>
               <Animated.View entering={FadeInUp.delay(300).duration(500)}>
                 <View style={styles.weatherCard}>
                   <View style={styles.weatherContent}>
-                    <Text style={styles.weatherTitle}>{intel?.season?.label || 'Rainy Season'}</Text>
+                    <Text style={styles.weatherTitle}>{intel?.season?.label || t('rainy_season')}</Text>
                     <Text style={styles.weatherDescription}>
-                      {intel?.season?.description || 'Increased mosquito activity.'}
+                      {intel?.season?.description || t('rainy_season_desc')}
                     </Text>
                     {intel?.weather && (
                       <Text style={styles.weatherInfo}>

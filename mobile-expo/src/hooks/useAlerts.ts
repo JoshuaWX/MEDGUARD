@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../services/supabase';
 import { useUser } from './useUser';
+import { apiFetch } from '../services/api';
+import { supabase } from '../services/supabase';
 
 interface Alert {
   id: string;
@@ -36,10 +37,59 @@ export const useAlerts = (): UseAlertsReturn => {
       setLoading(true);
       setError(null);
 
-      // In production, this would fetch from your API
-      // For now, generate alerts based on location and season
-      const freshAlerts = await fetchFreshAlerts(state);
-      setAlerts(freshAlerts);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const r = await apiFetch(`/api/intel?state=${encodeURIComponent(state)}`,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+      );
+      if (!r.ok) {
+        const msg = await r.text();
+        throw new Error(msg || 'Failed to fetch alerts');
+      }
+
+      const raw = await r.json();
+      const advisories: any[] = Array.isArray(raw?.advisories) ? raw.advisories : [];
+      const outbreaks: any[] = Array.isArray(raw?.outbreaks) ? raw.outbreaks : [];
+      const whoAlerts: any[] = Array.isArray(raw?.whoAlerts) ? raw.whoAlerts : [];
+
+      const mapSeverity = (sev: string): Alert['severity'] => {
+        const s = String(sev || '').toLowerCase();
+        if (s === 'high') return 'urgent';
+        if (s === 'moderate' || s === 'medium') return 'caution';
+        return 'info';
+      };
+
+      const generatedAt = String(raw?.generatedAt || new Date().toISOString());
+
+      const freshAlerts: Alert[] = [
+        ...advisories.map((a, idx): Alert => ({
+          id: `adv-${idx}-${generatedAt}`,
+          title: `${a?.disease || 'Health advisory'}`,
+          message: [a?.summary, a?.recommendation].filter(Boolean).join(' '),
+          severity: mapSeverity(a?.severity),
+          source: a?.source ? String(a.source) : undefined,
+          timestamp: generatedAt,
+        })),
+        ...outbreaks.map((o, idx): Alert => ({
+          id: `out-${idx}-${generatedAt}`,
+          title: `${o?.disease || o?.name || 'Outbreak update'}`,
+          message: String(o?.summary || o?.description || 'Outbreak update available.'),
+          severity: 'caution',
+          source: o?.source ? String(o.source) : 'Outbreak feed',
+          timestamp: generatedAt,
+        })),
+        ...whoAlerts.map((w, idx): Alert => ({
+          id: `who-${idx}-${generatedAt}`,
+          title: `${w?.title || w?.disease || 'WHO alert'}`,
+          message: String(w?.summary || w?.description || w?.content || 'WHO alert available.'),
+          severity: 'info',
+          source: w?.source ? String(w.source) : 'WHO',
+          timestamp: generatedAt,
+        })),
+      ].filter((a) => a.message && a.title);
+
+      setAlerts(freshAlerts.length > 0 ? freshAlerts : getDefaultAlerts());
 
     } catch (err) {
       console.error('Error fetching alerts:', err);
@@ -63,78 +113,6 @@ export const useAlerts = (): UseAlertsReturn => {
     refresh: fetchAlerts,
   };
 };
-
-// Fetch fresh alerts from API
-async function fetchFreshAlerts(state: string): Promise<Alert[]> {
-  const now = new Date();
-  const month = now.getMonth();
-  const isRainySeason = month >= 3 && month <= 10;
-
-  const alerts: Alert[] = [];
-
-  // Seasonal alerts
-  if (isRainySeason) {
-    alerts.push({
-      id: `malaria-${Date.now()}`,
-      title: '⚠️ Malaria Outbreak Alert',
-      message: `Increased malaria cases reported in ${state} State. Use mosquito nets and apply repellent.`,
-      severity: 'urgent',
-      source: 'Nigeria CDC',
-      timestamp: getRelativeTime(2),
-    });
-
-    alerts.push({
-      id: `water-${Date.now()}`,
-      title: '💧 Water Safety Advisory',
-      message: 'Heavy rains may affect water quality. Boil water before drinking.',
-      severity: 'caution',
-      source: 'State Water Board',
-      timestamp: getRelativeTime(5),
-    });
-  } else {
-    alerts.push({
-      id: `heat-${Date.now()}`,
-      title: '🌡️ Heat Advisory',
-      message: 'High temperatures expected. Stay hydrated and avoid prolonged sun exposure.',
-      severity: 'caution',
-      source: 'Weather Service',
-      timestamp: getRelativeTime(3),
-    });
-
-    alerts.push({
-      id: `dust-${Date.now()}`,
-      title: '💨 Air Quality Alert',
-      message: 'Dusty conditions may affect respiratory health. Use face masks outdoors.',
-      severity: 'info',
-      source: 'Environmental Agency',
-      timestamp: getRelativeTime(6),
-    });
-  }
-
-  // General health alerts
-  alerts.push({
-    id: `vaccine-${Date.now()}`,
-    title: '💉 Vaccination Reminder',
-    message: 'COVID-19 booster shots now available at local health centers.',
-    severity: 'info',
-    source: 'Ministry of Health',
-    timestamp: getRelativeTime(48),
-  });
-
-  return alerts;
-}
-
-// Get relative time string
-function getRelativeTime(hoursAgo: number): string {
-  if (hoursAgo < 1) {
-    return 'Just now';
-  }
-  if (hoursAgo < 24) {
-    return `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`;
-  }
-  const days = Math.floor(hoursAgo / 24);
-  return `${days} day${days > 1 ? 's' : ''} ago`;
-}
 
 // Default alerts when fetch fails
 function getDefaultAlerts(): Alert[] {
