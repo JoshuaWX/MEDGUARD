@@ -146,6 +146,15 @@ const ProfileScreen: React.FC = () => {
     setAge(user.age != null ? String(user.age) : '');
   }, [user]);
 
+  const handleOpenSettings = useCallback(() => {
+    const parent: any = (navigation as any).getParent?.();
+    if (parent?.navigate) {
+      parent.navigate('Settings');
+      return;
+    }
+    (navigation as any).navigate('Settings');
+  }, [navigation]);
+
   const floatStyle1 = useAnimatedStyle(() => ({
     transform: [
       { translateY: interpolate(float1.value, [0, 1], [0, -15]) },
@@ -569,7 +578,7 @@ const ProfileScreen: React.FC = () => {
                   </LinearGradient>
                 </Pressable>
 
-                <Pressable onPress={() => navigation.navigate('Settings')} style={styles.quickLinkBtn}>
+                <Pressable onPress={handleOpenSettings} style={styles.quickLinkBtn}>
                   <LinearGradient
                     colors={[Colors.emerald, Colors.cyan] as unknown as [string, string]}
                     start={{ x: 0, y: 0 }}

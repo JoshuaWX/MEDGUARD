@@ -1,6 +1,6 @@
 /**
  * SignUpScreen
- * Step 1 of 2 - Profile creation with MANDATORY location verification
+ * Step 1 of 2 - Profile creation with optional location verification
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Switch,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -47,6 +48,7 @@ import {
   Shadows,
   Gradients,
 } from '../../theme';
+import { invokeEdgeFunction } from '../services/edge';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -109,8 +111,10 @@ const SignUpScreen: React.FC = () => {
   const [state, setState] = useState('');
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+
+  const [useLocation, setUseLocation] = useState(true);
   
-  // Location verification state (MANDATORY)
+  // Location verification state (optional)
   const [locationVerifying, setLocationVerifying] = useState(false);
   const [verifiedLocation, setVerifiedLocation] = useState<VerifiedLocation | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -122,10 +126,16 @@ const SignUpScreen: React.FC = () => {
     { label: 'Other', value: 'other' },
   ];
 
-  // Verify location on mount
+  // Verify location when enabled
   useEffect(() => {
-    verifyLocation();
-  }, []);
+    if (useLocation) {
+      verifyLocation();
+    } else {
+      setVerifiedLocation(null);
+      setLocationError(null);
+      setPermissionDenied(false);
+    }
+  }, [useLocation]);
 
   // Core location verification function
   const verifyLocation = async () => {
@@ -151,19 +161,18 @@ const SignUpScreen: React.FC = () => {
 
       const { latitude, longitude } = position.coords;
 
-      // Step 3: Reverse geocode to get state/city
-      const geoResults = await Location.reverseGeocodeAsync({ latitude, longitude });
-      
-      if (geoResults.length === 0) {
-        setLocationError('Could not determine your location. Please ensure you have a stable GPS signal.');
-        setLocationVerifying(false);
-        return;
+      // Step 3: Reverse geocode server-side (production-safe)
+      const { data: verified, error: verifyErr } = await invokeEdgeFunction<{
+        detectedState: string;
+        address: string | null;
+      }>('verify-location', { latitude, longitude });
+
+      if (verifyErr || !verified) {
+        throw new Error(verifyErr?.message || 'Could not determine your location');
       }
 
-      const result = geoResults[0];
-      const detectedState = result.region || result.subregion || '';
-      const addressParts = [result.street, result.city, result.region, result.country].filter(Boolean);
-      const address = addressParts.join(', ');
+      const detectedState = verified.detectedState || '';
+      const address = verified.address || '';
 
       // Step 4: Auto-select state based on GPS
       const matchedState = NIGERIAN_STATES.find(s => statesMatch(detectedState, s));
@@ -199,15 +208,22 @@ const SignUpScreen: React.FC = () => {
   const handleContinue = async () => {
     setError(null);
 
-    // MANDATORY: Location must be verified
-    if (!verifiedLocation?.verified) {
-      setError('Location verification is required. Please enable location access to continue.');
-      return;
-    }
+    // If the user opted into location, require verification.
+    if (useLocation) {
+      if (permissionDenied) {
+        const msg =
+          'Location permission was denied. Enable it in settings, or turn off “Use my location” to continue.';
+        setError(msg);
+        Alert.alert('Location', msg);
+        return;
+      }
 
-    if (permissionDenied) {
-      setError('Location permission was denied. Please enable it in your device settings to create an account.');
-      return;
+      if (!verifiedLocation?.verified) {
+        const msg = 'Location verification failed. Tap Retry, or turn off “Use my location” to continue.';
+        setError(msg);
+        Alert.alert('Location', msg);
+        return;
+      }
     }
 
     if (!fullName.trim()) {
@@ -247,8 +263,8 @@ const SignUpScreen: React.FC = () => {
       return;
     }
 
-    // CRITICAL: Validate selected state matches GPS-detected state
-    if (verifiedLocation.detectedState && !statesMatch(verifiedLocation.detectedState, state)) {
+    // If using location, validate selected state matches detected state.
+    if (useLocation && verifiedLocation?.detectedState && !statesMatch(verifiedLocation.detectedState, state)) {
       setError(`Your GPS shows you're in ${verifiedLocation.detectedState}, but you selected ${state}. Please select your actual location or re-verify your location.`);
       return;
     }
@@ -260,9 +276,9 @@ const SignUpScreen: React.FC = () => {
       gender,
       age: ageNum,
       state,
-      useLocation: true, // Always true since location is mandatory
-      latitude: verifiedLocation.latitude,
-      longitude: verifiedLocation.longitude,
+      useLocation,
+      latitude: useLocation ? verifiedLocation?.latitude : undefined,
+      longitude: useLocation ? verifiedLocation?.longitude : undefined,
     });
 
     if (result.error) {
@@ -477,11 +493,21 @@ const SignUpScreen: React.FC = () => {
               )}
             </View>
 
-            {/* Location requirement notice */}
+            {/* Location toggle + notice */}
+            <View style={styles.locationToggleRow}>
+              <Text style={styles.locationToggleLabel}>Use my location</Text>
+              <Switch
+                value={useLocation}
+                onValueChange={setUseLocation}
+                trackColor={{ false: Colors.borderLight, true: Colors.primaryLight }}
+                thumbColor={useLocation ? Colors.primary : Colors.surfaceLight}
+              />
+            </View>
+
             <View style={styles.locationNotice}>
               <Text style={styles.locationNoticeIcon}>ℹ️</Text>
               <Text style={styles.locationNoticeText}>
-                Location verification is required to provide personalized health alerts for your area.
+                Location improves accuracy for health alerts in your area. You can turn it off and select your state manually.
               </Text>
             </View>
 
@@ -821,6 +847,18 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.xs,
     color: Colors.textLight,
+  },
+  locationToggleRow: {
+    marginTop: Spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.sm,
+  },
+  locationToggleLabel: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
   },
   locationNotice: {
     flexDirection: 'row',

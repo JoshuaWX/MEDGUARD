@@ -12,6 +12,7 @@ import {
   Pressable,
   Image,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -65,7 +66,14 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user, loading: userLoading } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
-  const { geocoded, refreshLocation } = useLocationContext();
+  const {
+    geocoded,
+    refreshLocation,
+    requestPermission,
+    permissionStatus,
+    loading: locationLoading,
+    error: locationError,
+  } = useLocationContext();
   const { t } = useI18n();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -92,6 +100,21 @@ const HomeScreen: React.FC = () => {
     setRefreshing(true);
     await Promise.all([refresh(), refreshLocation()]);
     setRefreshing(false);
+  };
+
+  const locationPermissionGranted = permissionStatus === 'granted';
+  const locationPermissionDenied = permissionStatus === 'denied';
+
+  const handleEnableLocation = async () => {
+    if (locationPermissionDenied) {
+      await Linking.openSettings();
+      return;
+    }
+
+    const granted = await requestPermission();
+    if (granted) {
+      await refreshLocation();
+    }
   };
 
   const handleNotifications = () => {
@@ -174,6 +197,45 @@ const HomeScreen: React.FC = () => {
               <LocationIcon size={24} color={Colors.textSecondary} />
               <Text style={styles.locationText}>{location}, Nigeria</Text>
             </View>
+
+            {/* Location Permission CTA */}
+            {!locationPermissionGranted && (
+              <Animated.View entering={FadeInUp.delay(150).duration(450)}>
+                <GlassCard style={styles.locationCtaCard}>
+                  <View style={styles.locationCtaRow}>
+                    <LocationIcon size={22} color={Colors.primary} />
+                    <View style={styles.locationCtaText}>
+                      <Text style={styles.locationCtaTitle}>Enable location access</Text>
+                      <Text style={styles.locationCtaBody}>
+                        {locationPermissionDenied
+                          ? 'Location access is disabled. Enable it in Settings to personalize alerts and verify your state.'
+                          : 'Allow location to personalize alerts and verify your state.'}
+                      </Text>
+                      {locationError ? (
+                        <Text style={styles.locationCtaError}>{locationError}</Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      onPress={handleEnableLocation}
+                      disabled={locationLoading}
+                      style={({ pressed }) => [
+                        styles.locationCtaBtn,
+                        pressed && { opacity: 0.9 },
+                        locationLoading && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Text style={styles.locationCtaBtnText}>
+                        {locationLoading
+                          ? 'Requesting…'
+                          : locationPermissionDenied
+                            ? 'Open Settings'
+                            : 'Allow'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </GlassCard>
+              </Animated.View>
+            )}
 
             {/* Alert Card */}
             <Animated.View entering={FadeInUp.delay(200).duration(500)}>

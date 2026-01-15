@@ -5,8 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from './useUser';
-import { apiFetch } from '../services/api';
-import { supabase } from '../services/supabase';
+import { invokeEdgeFunction } from '../services/edge';
 
 interface Alert {
   id: string;
@@ -37,18 +36,10 @@ export const useAlerts = (): UseAlertsReturn => {
       setLoading(true);
       setError(null);
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const r = await apiFetch(`/api/intel?state=${encodeURIComponent(state)}`,
-        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-      );
-      if (!r.ok) {
-        const msg = await r.text();
-        throw new Error(msg || 'Failed to fetch alerts');
+      const { data: raw, error: invokeErr } = await invokeEdgeFunction<any>('intel', { state });
+      if (invokeErr || !raw) {
+        throw new Error(invokeErr?.message || 'Failed to fetch alerts');
       }
-
-      const raw = await r.json();
       const advisories: any[] = Array.isArray(raw?.advisories) ? raw.advisories : [];
       const outbreaks: any[] = Array.isArray(raw?.outbreaks) ? raw.outbreaks : [];
       const whoAlerts: any[] = Array.isArray(raw?.whoAlerts) ? raw.whoAlerts : [];

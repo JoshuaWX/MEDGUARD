@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Buffer } from 'buffer';
 import { supabase } from '../services/supabase';
 import { useAuth } from './useAuth';
-import { apiFetch } from '../services/api';
+import { invokeEdgeFunction } from '../services/edge';
 
 export interface UserProfile {
   id: string;
@@ -40,15 +40,6 @@ export const useUser = (): UseUserReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const attemptedBootstrapRef = useRef(false);
-
-  const getAccessToken = useCallback(async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      return data.session?.access_token || null;
-    } catch {
-      return null;
-    }
-  }, []);
 
   const fetchProfile = useCallback(async () => {
     if (!authUser?.id) {
@@ -130,24 +121,16 @@ export const useUser = (): UseUserReturn => {
 
         // Web parity: avatars bucket is private; prefer signed URLs derived from avatar_path.
         if (data.avatar_path) {
-          const token = await getAccessToken();
-          if (token) {
-            try {
-              const r = await apiFetch('/api/avatar/sign', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ path: data.avatar_path, expiresIn: 3600 }),
-              });
-              if (r.ok) {
-                const j = await r.json();
-                if (j?.url) resolvedAvatarUrl = j.url;
-              }
-            } catch {
-              // Fall back to stored avatar_url when signing fails.
+          try {
+            const { data: signed, error: signedErr } = await invokeEdgeFunction<{ url: string | null }>(
+              'avatar-sign',
+              { path: data.avatar_path, expiresIn: 3600 }
+            );
+            if (!signedErr && signed?.url) {
+              resolvedAvatarUrl = signed.url;
             }
+          } catch {
+            // Fall back to stored avatar_url when signing fails.
           }
         }
 
@@ -193,7 +176,7 @@ export const useUser = (): UseUserReturn => {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, authUser?.email, getAccessToken]);
+  }, [authUser?.id, authUser?.email]);
 
   useEffect(() => {
     fetchProfile();

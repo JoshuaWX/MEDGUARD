@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useUser } from './useUser';
-import { apiFetch } from '../services/api';
+import { invokeEdgeFunction } from '../services/edge';
 
 interface Advisory {
   title: string;
@@ -114,18 +114,10 @@ export const useIntel = (): UseIntelReturn => {
 
 // Fetch fresh intel from API
 async function fetchFreshIntel(state: string): Promise<Intel> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-
-  const r = await apiFetch(`/api/intel?state=${encodeURIComponent(state)}`,
-    token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-  );
-  if (!r.ok) {
-    const msg = await r.text();
-    throw new Error(msg || 'Failed to fetch intel');
+  const { data: raw, error } = await invokeEdgeFunction<any>('intel', { state });
+  if (error || !raw) {
+    throw new Error(error?.message || 'Failed to fetch intel');
   }
-
-  const raw = await r.json();
   const seasonLabel = String(raw?.season?.label || '').toLowerCase();
   const season: Season | null = raw?.season
     ? {

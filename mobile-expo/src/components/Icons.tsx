@@ -141,3 +141,41 @@ export const ChevronDownIcon: React.FC<IconProps & { style?: any }> = ({ size = 
     <Path d="M6 9l6 6 6-6" />
   </Svg>
 );
+
+export const MenuIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 12h18M3 6h18M3 18h18" />
+  </Svg>
+);
+
+export const PlusIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 5v14M5 12h14" />
+  </Svg>
+);
+
+export const SunIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx={12} cy={12} r={5} />
+    <Path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+  </Svg>
+);
+
+export const MoonIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </Svg>
+);
+
+export const TrashIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </Svg>
+);
+
+export const PencilIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 20h9" />
+    <Path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+  </Svg>
+);

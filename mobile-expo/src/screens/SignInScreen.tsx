@@ -185,7 +185,7 @@ const SignInScreen: React.FC = () => {
             />
 
             <Input
-              placeholder={t('password')}
+              placeholder={t('password_label')}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
