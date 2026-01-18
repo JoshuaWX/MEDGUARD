@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import RootNavigator from './src/navigation/RootNavigator';
 import { AuthProvider } from './src/hooks/useAuth';
 import { LocationProvider } from './src/hooks/LocationContext';
+import { ThemeProvider } from './src/hooks/useTheme';
 import { I18nProvider } from './src/i18n';
 
 SplashScreen.preventAutoHideAsync();
@@ -25,12 +26,14 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <LocationProvider>
-          <RootNavigator />
-        </LocationProvider>
-      </AuthProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <LocationProvider>
+            <RootNavigator />
+          </LocationProvider>
+        </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
   );
 }

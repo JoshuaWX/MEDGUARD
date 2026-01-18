@@ -2,7 +2,7 @@
  * MedGuard Theme - Main Export
  */
 
-export { Colors, type ColorKey } from './colors';
+export { Colors, LightColors, DarkColors, useThemedColors, type ColorKey } from './colors';
 export { Spacing, type SpacingKey } from './spacing';
 export { FontFamily, FontSize, LineHeight, FontWeight, TextStyles } from './typography';
 export { BorderRadius, type BorderRadiusKey } from './borderRadius';

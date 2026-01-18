@@ -11,9 +11,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { GlassCard, ArrowBackIcon } from '../components';
+import { GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
+import { useTheme } from '../hooks/useTheme';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -29,6 +30,7 @@ const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { lang, setLang, t } = useI18n();
+  const { isDark, colors, mode } = useTheme();
 
   const [locationSharing, setLocationSharing] = useState(true);
 
@@ -37,7 +39,9 @@ const SettingsScreen: React.FC = () => {
     return Math.max(insets.bottom + Spacing.xl, min);
   }, [insets.bottom]);
 
-  const gradientColors = Gradients.primaryVertical.colors as unknown as [string, string];
+  const gradientColors = isDark
+    ? [colors.gradientFrom, colors.gradientTo] as [string, string]
+    : Gradients.primaryVertical.colors as unknown as [string, string];
 
   return (
     <LinearGradient
@@ -50,9 +54,11 @@ const SettingsScreen: React.FC = () => {
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10}>
-            <ArrowBackIcon size={24} color={Colors.textLight} />
+            <ArrowBackIcon size={24} color={isDark ? colors.text : Colors.textLight} />
           </Pressable>
-          <Text style={styles.headerTitle}>{t('settings_support')}</Text>
+          <Text style={[styles.headerTitle, { color: isDark ? colors.text : Colors.textLight }]}>
+            {t('settings_support')}
+          </Text>
           <View style={styles.headerBtn} />
         </View>
 
@@ -60,6 +66,20 @@ const SettingsScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
         >
+          {/* Appearance / Theme Section */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowCenter}>
+              <View style={styles.iconWrap}>
+                <MoonIcon size={24} color={Colors.primary} />
+              </View>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('appearance')}</Text>
+            </View>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: Spacing.base }]}>
+              {t('appearance_desc')}
+            </Text>
+            <ThemeModeSelector />
+          </GlassCard>
+
           {/* Location sharing */}
           <GlassCard padding={Spacing.cardPadding} style={styles.card}>
             <View style={styles.cardRowTop}>
@@ -68,15 +88,15 @@ const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.cardBody}>
                 <View style={styles.toggleHeaderRow}>
-                  <Text style={styles.toggleLabel}>{t('share_location_toggle')}</Text>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>{t('share_location_toggle')}</Text>
                   <Switch
                     value={locationSharing}
                     onValueChange={setLocationSharing}
-                    trackColor={{ false: Colors.whiteAlpha30, true: Colors.primary }}
+                    trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
                     thumbColor={Colors.surfaceLight}
                   />
                 </View>
-                <Text style={styles.cardDescription}>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                   {t('share_location_desc')}
                 </Text>
               </View>
@@ -89,7 +109,7 @@ const SettingsScreen: React.FC = () => {
               <View style={styles.iconWrap}>
                 <GlobeIcon size={24} color={Colors.primary} />
               </View>
-              <Text style={styles.cardTitle}>{t('language')}</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('language')}</Text>
             </View>
 
             <View style={styles.chipsWrap}>
@@ -99,9 +119,17 @@ const SettingsScreen: React.FC = () => {
                   <Pressable
                     key={code}
                     onPress={() => void setLang(code)}
-                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                    style={[
+                      styles.chip,
+                      active ? styles.chipActive : { backgroundColor: isDark ? colors.surface : Colors.whiteAlpha90 },
+                    ]}
                   >
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: active ? Colors.textLight : colors.text },
+                      ]}
+                    >
                       {label}
                     </Text>
                   </Pressable>
@@ -117,7 +145,7 @@ const SettingsScreen: React.FC = () => {
                 <ChatHeartIcon size={24} color={Colors.primary} />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.supportTitle}>{t('need_help')}</Text>
+                <Text style={[styles.supportTitle, { color: colors.text }]}>{t('need_help')}</Text>
                 <Pressable
                   onPress={() => navigation.navigate('Chatbot')}
                   style={styles.supportBtn}
@@ -130,11 +158,15 @@ const SettingsScreen: React.FC = () => {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>v1.0.0</Text>
+            <Text style={[styles.footerText, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>v1.0.0</Text>
             <Pressable onPress={() => {}}>
-              <Text style={[styles.footerText, styles.footerLink]}>{t('terms_privacy_short')}</Text>
+              <Text style={[styles.footerText, styles.footerLink, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>
+                {t('terms_privacy_short')}
+              </Text>
             </Pressable>
-            <Text style={styles.footerStrong}>{t('powered_by')}</Text>
+            <Text style={[styles.footerStrong, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>
+              {t('powered_by')}
+            </Text>
           </View>
         </ScrollView>
       </View>

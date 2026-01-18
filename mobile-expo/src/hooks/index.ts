@@ -9,3 +9,5 @@ export { useIntel } from './useIntel';
 export { useSymptoms } from './useSymptoms';
 export { useAlerts } from './useAlerts';
 export { useLocation } from './useLocation';
+export { ThemeProvider, useTheme, useThemeColor } from './useTheme';
+export type { ThemeMode, ThemeColors } from './useTheme';

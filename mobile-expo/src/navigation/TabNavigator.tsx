@@ -20,18 +20,19 @@ import HomeScreen from '../screens/HomeScreen';
 import MapScreen from '../screens/MapScreen';
 import MyHealthScreen from '../screens/MyHealthScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import { useTheme } from '../hooks/useTheme';
 import { Colors, Spacing, BorderRadius, FontSize, FontFamily } from '../../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Icon components matching web SVGs exactly
-const HomeIcon = ({ focused }: { focused: boolean }) => (
+const HomeIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
     viewBox="0 0 24 24"
     fill="none"
-    stroke={focused ? Colors.textLight : Colors.textSecondary}
+    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
     strokeWidth={2}
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -41,13 +42,13 @@ const HomeIcon = ({ focused }: { focused: boolean }) => (
   </Svg>
 );
 
-const MapIcon = ({ focused }: { focused: boolean }) => (
+const MapIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
     viewBox="0 0 24 24"
     fill="none"
-    stroke={focused ? Colors.textLight : Colors.textSecondary}
+    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
     strokeWidth={2}
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -58,13 +59,13 @@ const MapIcon = ({ focused }: { focused: boolean }) => (
   </Svg>
 );
 
-const HealthIcon = ({ focused }: { focused: boolean }) => (
+const HealthIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
     viewBox="0 0 24 24"
     fill="none"
-    stroke={focused ? Colors.textLight : Colors.textSecondary}
+    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
     strokeWidth={2}
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -73,13 +74,13 @@ const HealthIcon = ({ focused }: { focused: boolean }) => (
   </Svg>
 );
 
-const ProfileIcon = ({ focused }: { focused: boolean }) => (
+const ProfileIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
     viewBox="0 0 24 24"
     fill="none"
-    stroke={focused ? Colors.textLight : Colors.textSecondary}
+    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
     strokeWidth={2}
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -118,19 +119,24 @@ const TabIconWrapper: React.FC<TabIconWrapperProps> = ({ focused, children }) =>
 };
 
 function TabNavigator() {
+  const { isDark, colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarBackground: () => (
-          <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill}>
-            <View style={styles.tabBarBg} />
+          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+            <View style={[styles.tabBarBg, { 
+              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : Colors.whiteAlpha90,
+              borderColor: isDark ? '#374151' : Colors.borderLight,
+            }]} />
           </BlurView>
         ),
         tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarInactiveTintColor: isDark ? '#9ca3af' : Colors.textSecondary,
       }}
     >
       <Tab.Screen
@@ -139,7 +145,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIconWrapper focused={focused}>
-              <HomeIcon focused={focused} />
+              <HomeIcon focused={focused} isDark={isDark} />
             </TabIconWrapper>
           ),
         }}
@@ -150,7 +156,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIconWrapper focused={focused}>
-              <MapIcon focused={focused} />
+              <MapIcon focused={focused} isDark={isDark} />
             </TabIconWrapper>
           ),
         }}
@@ -162,7 +168,7 @@ function TabNavigator() {
           tabBarLabel: 'Health',
           tabBarIcon: ({ focused }) => (
             <TabIconWrapper focused={focused}>
-              <HealthIcon focused={focused} />
+              <HealthIcon focused={focused} isDark={isDark} />
             </TabIconWrapper>
           ),
         }}
@@ -173,7 +179,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIconWrapper focused={focused}>
-              <ProfileIcon focused={focused} />
+              <ProfileIcon focused={focused} isDark={isDark} />
             </TabIconWrapper>
           ),
         }}

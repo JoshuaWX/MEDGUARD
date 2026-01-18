@@ -1,6 +1,7 @@
 /**
  * SignUpScreen
  * Step 1 of 2 - Profile creation with optional location verification
+ * Modern glassmorphism design with hero image
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,13 +14,16 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
-  Image,
+  ImageBackground,
   Modal,
   FlatList,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
+import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -36,8 +40,10 @@ import {
   ArrowRightIcon,
   ChevronDownIcon,
   LocationIcon,
+  ShieldIcon,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -50,7 +56,11 @@ import {
 } from '../../theme';
 import { invokeEdgeFunction } from '../services/edge';
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
+
+const HERO_IMAGE = 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80';
 
 const NIGERIAN_STATES = [
   'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
@@ -100,6 +110,7 @@ const SignUpScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { signUp, loading } = useAuth();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState('');
@@ -301,224 +312,261 @@ const SignUpScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.page}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.flex}
-        >
-          {/* Header */}
-          <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
-            <Pressable onPress={handleBack} style={styles.backButton} hitSlop={10}>
-              <ArrowBackIcon size={24} color={Colors.primary} />
-            </Pressable>
+      {/* Hero Background */}
+      <ImageBackground
+        source={{ uri: HERO_IMAGE }}
+        style={styles.heroBg}
+        resizeMode="cover"
+      >
+        <LinearGradient
+          colors={isDark 
+            ? ['rgba(15, 23, 42, 0.7)', 'rgba(15, 23, 42, 0.95)'] as unknown as [string, string]
+            : ['rgba(17, 180, 212, 0.75)', 'rgba(16, 185, 129, 0.85)'] as unknown as [string, string]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+          <Pressable onPress={handleBack} style={styles.backButton} hitSlop={10}>
+            <BlurView intensity={40} tint={isDark ? 'dark' : 'light'} style={styles.backButtonBlur}>
+              <ArrowBackIcon size={20} color={Colors.textLight} />
+            </BlurView>
+          </Pressable>
 
-            {/* Progress indicator */}
-            <View style={styles.progressRow}>
-              <Text style={styles.stepText}>{t('step_1_of_2')}</Text>
-              <View style={styles.progressBars}>
-                <LinearGradient
-                  colors={[Colors.primary, Colors.cyan] as unknown as [string, string]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.progressBarActive}
-                />
-                <View style={styles.progressBarInactive} />
-              </View>
+          {/* Progress indicator */}
+          <Animated.View entering={FadeIn.delay(100).duration(400)} style={styles.progressContainer}>
+            <View style={styles.progressBars}>
+              <View style={[styles.progressBarActive, { backgroundColor: Colors.textLight }]} />
+              <View style={[styles.progressBarInactive, { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
             </View>
+            <Text style={styles.stepText}>{t('step_1_of_2')}</Text>
+          </Animated.View>
+        </View>
 
-            {/* Hero Banner */}
-            <View style={styles.heroBanner}>
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80' }}
-                style={styles.heroImage}
-              />
-              <LinearGradient
-                colors={['rgba(17, 180, 212, 0.8)', 'rgba(16, 185, 129, 0.7)'] as unknown as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.heroContent}>
-                <Text style={styles.heroTitle}>{t('create_profile_title')}</Text>
-                <Text style={styles.heroSubtitle}>{t('create_profile_subtitle')}</Text>
-              </View>
-            </View>
+        {/* Hero Content */}
+        <Animated.View entering={FadeInUp.delay(200).duration(500)} style={styles.heroContent}>
+          <View style={styles.logoContainer}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)']}
+              style={styles.logoGradient}
+            >
+              <ShieldIcon size={32} color={Colors.textLight} />
+            </LinearGradient>
           </View>
+          <Text style={styles.heroTitle}>{t('create_profile_title')}</Text>
+          <Text style={styles.heroSubtitle}>{t('create_profile_subtitle')}</Text>
+        </Animated.View>
+      </ImageBackground>
 
-          {/* Form */}
+      {/* Form Card */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.formWrapper}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -100 : 0}
+      >
+        <Animated.View 
+          entering={FadeInUp.delay(300).duration(500)} 
+          style={[styles.formCard, { backgroundColor: isDark ? colors.surface : Colors.surfaceLight }]}
+        >
           <ScrollView
-            style={styles.formContainer}
             contentContainerStyle={styles.formContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.form}>
-              <Input
-                placeholder={t('full_name')}
-                value={fullName}
-                onChangeText={setFullName}
-                icon={<PersonIcon size={24} color={Colors.primary} />}
-              />
+            {/* Personal Info Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Personal Information</Text>
+              
+              <View style={styles.inputGroup}>
+                <Input
+                  placeholder={t('full_name')}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  icon={<PersonIcon size={20} color={colors.primary} />}
+                />
 
-              <Input
-                placeholder={t('email_address')}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                icon={<EmailIcon size={24} color={Colors.primary} />}
-              />
+                <Input
+                  placeholder={t('email_address')}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  icon={<EmailIcon size={20} color={colors.primary} />}
+                />
+              </View>
+            </View>
 
-              <Input
-                placeholder={t('create_password')}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                icon={<LockIcon size={24} color={Colors.primary} />}
-              />
+            {/* Security Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Security</Text>
+              
+              <View style={styles.inputGroup}>
+                <Input
+                  placeholder={t('create_password')}
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  icon={<LockIcon size={20} color={colors.primary} />}
+                />
 
-              <Input
-                placeholder={t('confirm_password')}
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                icon={<LockIcon size={24} color={Colors.primary} />}
-              />
+                <Input
+                  placeholder={t('confirm_password')}
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  icon={<LockIcon size={20} color={colors.primary} />}
+                />
+              </View>
+            </View>
 
-              {/* Gender and Age Row */}
-              <View style={styles.row}>
-                <View style={styles.halfInput}>
-                  <Pressable
-                    style={styles.selectContainer}
-                    onPress={() => setShowGenderPicker(true)}
-                  >
-                    <Text style={styles.selectIcon}>⚥</Text>
-                    <Text style={[styles.selectText, !gender && styles.selectPlaceholder]}>
-                      {gender ? genderOptions.find(g => g.value === gender)?.label : t('gender')}
-                    </Text>
-                    <ChevronDownIcon size={20} color={Colors.textMuted} style={{ transform: [{ rotate: '0deg' }] }} />
-                  </Pressable>
+            {/* Demographics Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Demographics</Text>
+              
+              <View style={styles.inputGroup}>
+                {/* Gender and Age Row */}
+                <View style={styles.row}>
+                  <View style={styles.halfInput}>
+                    <Pressable
+                      style={[styles.selectContainer, { 
+                        backgroundColor: isDark ? colors.glass : Colors.whiteAlpha90,
+                        borderColor: isDark ? colors.border : Colors.borderLight 
+                      }]}
+                      onPress={() => setShowGenderPicker(true)}
+                    >
+                      <Text style={styles.selectIcon}>⚥</Text>
+                      <Text style={[styles.selectText, { color: colors.text }, !gender && { color: colors.textMuted }]}>
+                        {gender ? genderOptions.find(g => g.value === gender)?.label : t('gender')}
+                      </Text>
+                      <ChevronDownIcon size={18} color={colors.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.halfInput}>
+                    <Input
+                      placeholder={t('age')}
+                      keyboardType="numeric"
+                      value={age}
+                      onChangeText={setAge}
+                      icon={<Text style={styles.inputIcon}>🎂</Text>}
+                    />
+                  </View>
                 </View>
 
-                <View style={styles.halfInput}>
-                  <Input
-                    placeholder={t('age')}
-                    keyboardType="numeric"
-                    value={age}
-                    onChangeText={setAge}
-                    icon={<Text style={styles.inputIcon}>🎂</Text>}
-                  />
-                </View>
+                {/* State Picker */}
+                <Pressable
+                  style={[styles.selectContainer, { 
+                    backgroundColor: isDark ? colors.glass : Colors.whiteAlpha90,
+                    borderColor: isDark ? colors.border : Colors.borderLight 
+                  }]}
+                  onPress={() => setShowStatePicker(true)}
+                >
+                  <Text style={styles.selectIcon}>📍</Text>
+                  <Text style={[styles.selectText, { color: colors.text }, !state && { color: colors.textMuted }]}>
+                    {state || t('state')}
+                  </Text>
+                  <ChevronDownIcon size={18} color={colors.textMuted} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Location Section */}
+            <View style={styles.section}>
+              <View style={styles.locationHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
+                <Switch
+                  value={useLocation}
+                  onValueChange={setUseLocation}
+                  trackColor={{ false: isDark ? colors.border : Colors.borderLight, true: Colors.primaryLight }}
+                  thumbColor={useLocation ? Colors.primary : colors.surface}
+                  style={styles.locationSwitch}
+                />
               </View>
 
-              {/* State Picker */}
-              <Pressable
-                style={styles.selectContainer}
-                onPress={() => setShowStatePicker(true)}
-              >
-                <Text style={styles.selectIcon}>📍</Text>
-                <Text style={[styles.selectText, !state && styles.selectPlaceholder]}>
-                  {state || t('state')}
-                </Text>
-                <ChevronDownIcon size={20} color={Colors.textMuted} style={{ transform: [{ rotate: '0deg' }] }} />
-              </Pressable>
-
-              <Text style={styles.alreadyText}>
-                {t('already_have_account')}{' '}
-                <Text style={styles.signinLink} onPress={() => navigation.navigate('SignIn')}>
-                  {t('sign_in')}
-                </Text>
-              </Text>
-            </View>
-
-            {/* Location Verification Card (MANDATORY) */}
-            <View style={[
-              styles.locationCard,
-              verifiedLocation?.verified && styles.locationCardVerified,
-              (locationError || permissionDenied) && styles.locationCardError,
-            ]}>
-              <LinearGradient
-                colors={
-                  verifiedLocation?.verified
-                    ? ['rgba(16, 185, 129, 0.15)', 'rgba(16, 185, 129, 0.08)'] as unknown as [string, string]
-                    : (locationError || permissionDenied)
-                      ? ['rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0.08)'] as unknown as [string, string]
-                      : ['rgba(17, 180, 212, 0.1)', 'rgba(16, 185, 129, 0.1)'] as unknown as [string, string]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-              
-              {locationVerifying ? (
-                <>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                  <View style={styles.locationText}>
-                    <Text style={styles.locationTitle}>Verifying your location...</Text>
-                    <Text style={styles.locationSubtitle}>Getting GPS coordinates and address</Text>
-                  </View>
-                </>
-              ) : verifiedLocation?.verified ? (
-                <>
-                  <View style={[styles.checkbox, styles.checkboxChecked]}>
-                    <Text style={styles.checkmark}>✓</Text>
-                  </View>
-                  <View style={styles.locationText}>
-                    <Text style={styles.locationTitle}>Location Verified ✓</Text>
-                    <Text style={styles.locationSubtitle} numberOfLines={2}>
-                      {verifiedLocation.address || verifiedLocation.detectedState}
-                    </Text>
-                  </View>
-                  <Pressable onPress={verifyLocation} style={styles.refreshBtn}>
-                    <Text style={styles.refreshBtnText}>↻</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <View style={[styles.checkbox, styles.checkboxError]}>
-                    <Text style={styles.checkmarkError}>!</Text>
-                  </View>
-                  <View style={styles.locationText}>
-                    <Text style={[styles.locationTitle, styles.locationTitleError]}>
-                      {permissionDenied ? 'Location Required' : 'Location Not Verified'}
-                    </Text>
-                    <Text style={styles.locationSubtitle} numberOfLines={2}>
-                      {locationError || 'Tap to retry location verification'}
-                    </Text>
-                  </View>
-                  <Pressable onPress={verifyLocation} style={styles.retryBtn}>
-                    <Text style={styles.retryBtnText}>Retry</Text>
-                  </Pressable>
-                </>
+              {/* Location Verification Card */}
+              {useLocation && (
+                <View style={[
+                  styles.locationCard,
+                  { backgroundColor: isDark ? colors.glass : 'rgba(17, 180, 212, 0.08)' },
+                  verifiedLocation?.verified && styles.locationCardVerified,
+                  (locationError || permissionDenied) && styles.locationCardError,
+                ]}>
+                  {locationVerifying ? (
+                    <>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <View style={styles.locationText}>
+                        <Text style={[styles.locationTitle, { color: colors.text }]}>Verifying location...</Text>
+                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]}>Getting GPS coordinates</Text>
+                      </View>
+                    </>
+                  ) : verifiedLocation?.verified ? (
+                    <>
+                      <View style={[styles.locationStatusIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                        <Text style={styles.locationStatusEmoji}>✓</Text>
+                      </View>
+                      <View style={styles.locationText}>
+                        <Text style={[styles.locationTitle, { color: Colors.emerald }]}>Location Verified</Text>
+                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {verifiedLocation.address || verifiedLocation.detectedState}
+                        </Text>
+                      </View>
+                      <Pressable onPress={verifyLocation} style={[styles.locationActionBtn, { backgroundColor: isDark ? colors.glass : 'rgba(17, 180, 212, 0.1)' }]}>
+                        <Text style={[styles.locationActionText, { color: colors.primary }]}>↻</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <View style={[styles.locationStatusIcon, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                        <Text style={styles.locationStatusEmoji}>!</Text>
+                      </View>
+                      <View style={styles.locationText}>
+                        <Text style={[styles.locationTitle, { color: Colors.danger }]}>
+                          {permissionDenied ? 'Permission Required' : 'Verification Failed'}
+                        </Text>
+                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                          {locationError || 'Tap retry to verify'}
+                        </Text>
+                      </View>
+                      <Pressable onPress={verifyLocation} style={[styles.locationActionBtn, { backgroundColor: Colors.primary }]}>
+                        <Text style={[styles.locationActionText, { color: Colors.textLight }]}>Retry</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
               )}
-            </View>
 
-            {/* Location toggle + notice */}
-            <View style={styles.locationToggleRow}>
-              <Text style={styles.locationToggleLabel}>Use my location</Text>
-              <Switch
-                value={useLocation}
-                onValueChange={setUseLocation}
-                trackColor={{ false: Colors.borderLight, true: Colors.primaryLight }}
-                thumbColor={useLocation ? Colors.primary : Colors.surfaceLight}
-              />
-            </View>
-
-            <View style={styles.locationNotice}>
-              <Text style={styles.locationNoticeIcon}>ℹ️</Text>
-              <Text style={styles.locationNoticeText}>
-                Location improves accuracy for health alerts in your area. You can turn it off and select your state manually.
+              <Text style={[styles.locationNoticeText, { color: colors.textMuted }]}>
+                ℹ️ Location helps personalize health alerts for your area
               </Text>
             </View>
 
             {/* Error display */}
             {error && (
-              <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
             )}
+
+            {/* Sign In Link */}
+            <View style={styles.signinContainer}>
+              <Text style={[styles.signinText, { color: colors.textSecondary }]}>
+                {t('already_have_account')}{' '}
+              </Text>
+              <Pressable onPress={() => navigation.navigate('SignIn')}>
+                <Text style={[styles.signinLink, { color: colors.primary }]}>{t('sign_in')}</Text>
+              </Pressable>
+            </View>
           </ScrollView>
 
-          {/* Fixed footer Continue button */}
-          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
+          {/* Fixed Footer Button */}
+          <View style={[styles.footer, { 
+            paddingBottom: insets.bottom + Spacing.sm,
+            borderTopColor: isDark ? colors.border : Colors.borderLight,
+            backgroundColor: isDark ? colors.surface : Colors.surfaceLight,
+          }]}>
             <Button
               title={t('continue')}
               onPress={handleContinue}
@@ -526,237 +574,223 @@ const SignUpScreen: React.FC = () => {
               icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
             />
           </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
 
-          <Modal
-            visible={showGenderPicker}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowGenderPicker(false)}
-          >
-            <Pressable style={styles.modalOverlay} onPress={() => setShowGenderPicker(false)}>
-              <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-                <Text style={styles.modalTitle}>{t('select_gender')}</Text>
-                {genderOptions.map((option) => (
-                  <Pressable
-                    key={option.value}
-                    style={styles.modalOption}
-                    onPress={() => {
-                      setGender(option.value);
-                      setShowGenderPicker(false);
-                    }}
-                  >
-                    <Text style={styles.modalOptionText}>{option.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </Pressable>
-          </Modal>
+      {/* Gender Picker Modal */}
+      <Modal
+        visible={showGenderPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGenderPicker(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowGenderPicker(false)}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('select_gender')}</Text>
+            {genderOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                style={[styles.modalOption, { backgroundColor: gender === option.value ? colors.primaryLight : 'transparent' }]}
+                onPress={() => {
+                  setGender(option.value);
+                  setShowGenderPicker(false);
+                }}
+              >
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>{option.label}</Text>
+                {gender === option.value && <Text style={{ color: colors.primary }}>✓</Text>}
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
 
-          <Modal
-            visible={showStatePicker}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowStatePicker(false)}
-          >
-            <Pressable style={styles.modalOverlay} onPress={() => setShowStatePicker(false)}>
-              <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-                <Text style={styles.modalTitle}>{t('select_state')}</Text>
-                <FlatList
-                  data={NIGERIAN_STATES}
-                  keyExtractor={(item) => item}
-                  style={styles.modalList}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={styles.modalOption}
-                      onPress={() => {
-                        setState(item);
-                        setShowStatePicker(false);
-                      }}
-                    >
-                      <Text style={styles.modalOptionText}>{item}</Text>
-                    </Pressable>
-                  )}
-                />
-              </View>
-            </Pressable>
-          </Modal>
-        </KeyboardAvoidingView>
-      </View>
+      {/* State Picker Modal */}
+      <Modal
+        visible={showStatePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStatePicker(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowStatePicker(false)}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('select_state')}</Text>
+            <FlatList
+              data={NIGERIAN_STATES}
+              keyExtractor={(item) => item}
+              style={styles.modalList}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[styles.modalOption, { backgroundColor: state === item ? colors.primaryLight : 'transparent' }]}
+                  onPress={() => {
+                    setState(item);
+                    setShowStatePicker(false);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: colors.text }]}>{item}</Text>
+                  {state === item && <Text style={{ color: colors.primary }}>✓</Text>}
+                </Pressable>
+              )}
+            />
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  /* ─── Container & Layout ─── */
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
-  page: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 448,
-    alignSelf: 'center',
-    backgroundColor: Colors.whiteAlpha50,
-  },
-  flex: {
-    flex: 1,
+  heroBg: {
+    height: SCREEN_HEIGHT * 0.32,
+    justifyContent: 'space-between',
   },
   header: {
-    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
   },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.base,
-    padding: Spacing.sm,
-    marginLeft: -Spacing.sm,
+    marginRight: Spacing.sm,
   },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  backButtonBlur: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    marginBottom: Spacing.base,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  stepText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+  progressContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   progressBars: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    marginBottom: 4,
   },
   progressBarActive: {
-    width: 48,
-    height: 10,
-    borderRadius: BorderRadius.full,
+    width: 32,
+    height: 4,
+    borderRadius: 2,
   },
   progressBarInactive: {
-    width: 48,
-    height: 10,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.borderLight,
+    width: 32,
+    height: 4,
+    borderRadius: 2,
   },
-  heroBanner: {
-    height: 144,
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    marginBottom: Spacing.base,
-    ...Shadows.lg,
+  stepText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    color: Colors.whiteAlpha90,
   },
-  heroImage: {
-    ...StyleSheet.absoluteFillObject,
-    resizeMode: 'cover',
-  },
+
+  /* ─── Hero Content ─── */
   heroContent: {
-    flex: 1,
+    alignItems: 'center',
+    paddingBottom: Spacing['2xl'],
+  },
+  logoContainer: {
+    marginBottom: Spacing.sm,
+  },
+  logoGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.base,
   },
   heroTitle: {
     fontFamily: FontFamily.bold,
     fontSize: FontSize['2xl'],
     color: Colors.textLight,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   heroSubtitle: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     color: Colors.whiteAlpha90,
+    textAlign: 'center',
     marginTop: Spacing.xs,
   },
-  formContainer: {
+
+  /* ─── Form Card ─── */
+  formWrapper: {
     flex: 1,
+    marginTop: -Spacing.xl,
+  },
+  formCard: {
+    flex: 1,
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    ...Shadows.lg,
   },
   formContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['5xl'],
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
-  form: {
-    gap: Spacing.md,
+
+  /* ─── Sections ─── */
+  section: {
+    marginBottom: Spacing.lg,
+  },
+  sectionTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+    marginBottom: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inputGroup: {
+    gap: Spacing.sm,
   },
   row: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   halfInput: {
     flex: 1,
   },
+
+  /* ─── Select / Picker ─── */
   selectContainer: {
     height: Spacing.inputHeight,
     borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.whiteAlpha90,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
-    paddingLeft: 44,
-    paddingRight: Spacing.base,
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
   },
   selectIcon: {
-    position: 'absolute',
-    left: Spacing.base,
-    fontSize: 20,
-    color: Colors.primary,
-    zIndex: 1,
+    fontSize: 18,
   },
   selectText: {
     flex: 1,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
-  },
-  selectPlaceholder: {
-    color: Colors.textMuted,
   },
   inputIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: Colors.overlayDark,
-    padding: Spacing.xl,
-    justifyContent: 'center',
+
+  /* ─── Location Section ─── */
+  locationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
-  modalCard: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.base,
-    maxHeight: '80%',
-    ...Shadows.lg,
-  },
-  modalTitle: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.base,
-  },
-  modalList: {
-    maxHeight: 360,
-  },
-  modalOption: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    borderRadius: BorderRadius.lg,
-  },
-  modalOptionText: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textPrimary,
-  },
-  alreadyText: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: Spacing.xs,
-  },
-  signinLink: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
-    color: Colors.primary,
+  locationSwitch: {
+    transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
   },
   locationCard: {
     flexDirection: 'row',
@@ -764,11 +798,9 @@ const styles = StyleSheet.create({
     padding: Spacing.base,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.primaryLight,
-    marginTop: Spacing.xl,
-    gap: Spacing.md,
-    overflow: 'hidden',
-    minHeight: 72,
+    borderColor: 'transparent',
+    gap: Spacing.sm,
+    minHeight: 64,
   },
   locationCardVerified: {
     borderColor: Colors.emerald,
@@ -776,32 +808,15 @@ const styles = StyleSheet.create({
   locationCardError: {
     borderColor: Colors.danger,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: 'transparent',
+  locationStatusIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: Colors.emerald,
-    borderColor: Colors.emerald,
-  },
-  checkboxError: {
-    backgroundColor: Colors.danger,
-    borderColor: Colors.danger,
-  },
-  checkmark: {
-    color: Colors.textLight,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  checkmarkError: {
-    color: Colors.textLight,
-    fontSize: 16,
+  locationStatusEmoji: {
+    fontSize: 18,
     fontWeight: 'bold',
   },
   locationText: {
@@ -810,88 +825,101 @@ const styles = StyleSheet.create({
   locationTitle: {
     fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
-  },
-  locationTitleError: {
-    color: Colors.danger,
   },
   locationSubtitle: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
-  locationIcon: {
-    fontSize: 18,
-    color: Colors.primary,
-  },
-  refreshBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.primaryLight,
+  locationActionBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 48,
   },
-  refreshBtnText: {
-    fontSize: 18,
-    color: Colors.primary,
-  },
-  retryBtn: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.primary,
-  },
-  retryBtnText: {
+  locationActionText: {
     fontFamily: FontFamily.semibold,
-    fontSize: FontSize.xs,
-    color: Colors.textLight,
-  },
-  locationToggleRow: {
-    marginTop: Spacing.base,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.sm,
-  },
-  locationToggleLabel: {
-    fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
-  },
-  locationNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: Spacing.sm,
-    backgroundColor: Colors.infoLight,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  locationNoticeIcon: {
-    fontSize: 14,
   },
   locationNoticeText: {
-    flex: 1,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
-    color: Colors.info,
-    lineHeight: 16,
+    marginTop: Spacing.xs,
+  },
+
+  /* ─── Error ─── */
+  errorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
   },
   errorText: {
-    fontFamily: FontFamily.regular,
+    fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
     color: Colors.danger,
     textAlign: 'center',
-    marginTop: Spacing.base,
   },
+
+  /* ─── Sign In Link ─── */
+  signinContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
+  signinText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+  },
+  signinLink: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+
+  /* ─── Footer ─── */
   footer: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.base,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surfaceLight,
+  },
+
+  /* ─── Modal ─── */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlayDark,
+    padding: Spacing.xl,
+    justifyContent: 'center',
+  },
+  modalCard: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    maxHeight: '70%',
+    ...Shadows.lg,
+  },
+  modalTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.lg,
+    marginBottom: Spacing.base,
+    textAlign: 'center',
+  },
+  modalList: {
+    maxHeight: 320,
+  },
+  modalOption: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.lg,
+    marginBottom: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalOptionText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
   },
 });
 

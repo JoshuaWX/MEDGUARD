@@ -6,7 +6,7 @@
 import React from 'react';
 import {
   View,
-  Text,
+  Text as RNText,
   StyleSheet,
   Pressable,
   TextInput,
@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { ArrowBackIcon, ChevronDownIcon, LocationIcon } from '../components';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -25,6 +26,7 @@ import {
   FontFamily,
   FontSize,
   Shadows,
+  useThemedColors,
 } from '../../theme';
 
 const MAP_BG_URI =
@@ -44,6 +46,14 @@ const MapScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { t } = useI18n();
+  const { isDark } = useTheme();
+  const colors = useThemedColors(isDark);
+
+  const Text: React.FC<React.ComponentProps<typeof RNText>> = ({ style, ...props }) => (
+    <RNText {...props} style={[{ color: colors.text }, style]} />
+  );
+
+  const headerBg = isDark ? 'rgba(16, 31, 34, 0.85)' : 'rgba(246, 248, 248, 0.8)';
 
   const handleBack = () => {
     // Keep behavior safe for tab usage.
@@ -56,23 +66,23 @@ const MapScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Sticky header */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.base, backgroundColor: headerBg }]}>
         <Pressable
           onPress={handleBack}
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ArrowBackIcon size={24} color={Colors.textPrimary} />
+          <ArrowBackIcon size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>{t('disease_map')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       {/* Map area */}
-      <View style={styles.mapArea}>
+      <View style={[styles.mapArea, { backgroundColor: colors.background }]}>
         <ImageBackground
           source={{ uri: MAP_BG_URI }}
           resizeMode="cover"
@@ -80,14 +90,14 @@ const MapScreen: React.FC = () => {
         >
           <View style={styles.mapOverlay}>
             {/* Search */}
-            <View style={styles.searchBar}>
+            <View style={[styles.searchBar, { backgroundColor: colors.surface }]}>
               <View style={styles.searchIcon}>
-                <SearchIcon />
+                <SearchIcon color={colors.textMuted} />
               </View>
               <TextInput
                 placeholder={t('search_location')}
-                placeholderTextColor={Colors.textMuted}
-                style={styles.searchInput}
+                placeholderTextColor={colors.textMuted}
+                style={[styles.searchInput, { color: colors.text }]}
               />
             </View>
 
@@ -108,7 +118,7 @@ const MapScreen: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Locate me"
               >
-                <LocationIcon size={22} color={Colors.textPrimary} />
+                <LocationIcon size={22} color={colors.text} />
               </Pressable>
             </View>
           </View>
@@ -120,15 +130,15 @@ const MapScreen: React.FC = () => {
         <View style={styles.chipsRow}>
           <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
             <Text style={styles.chipText}>{t('map_month')}: {t('month_june')}</Text>
-            <ChevronDownIcon size={18} color={Colors.textMuted} />
+            <ChevronDownIcon size={18} color={colors.textMuted} />
           </Pressable>
           <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
             <Text style={styles.chipText}>{t('map_season')}: {t('season_rainy')}</Text>
-            <ChevronDownIcon size={18} color={Colors.textMuted} />
+            <ChevronDownIcon size={18} color={colors.textMuted} />
           </Pressable>
         </View>
 
-        <View style={styles.legendCard}>
+        <View style={[styles.legendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={styles.legendTitle}>{t('legend')}</Text>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />

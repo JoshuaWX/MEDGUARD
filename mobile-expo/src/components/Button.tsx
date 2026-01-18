@@ -16,11 +16,10 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
-  interpolate,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, BorderRadius, Spacing, Shadows, TextStyles, FontFamily, Duration, CustomEasing } from '../../theme';
+import { Colors, BorderRadius, Spacing, Shadows, FontFamily, useThemedColors } from '../../theme';
+import { useTheme } from '../hooks/useTheme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -51,6 +50,8 @@ const Button: React.FC<ButtonProps> = ({
   textStyle,
   fullWidth = true,
 }) => {
+  const { isDark } = useTheme();
+  const themed = useThemedColors(isDark);
   const scale = useSharedValue(1);
   const translateY = useSharedValue(0);
 
@@ -75,8 +76,8 @@ const Button: React.FC<ButtonProps> = ({
     ],
   }));
 
-  const buttonStyles = getButtonStyles(variant);
-  const textColor = getTextColor(variant);
+  const buttonStyles = getButtonStyles(variant, { isDark, themed });
+  const textColor = getTextColor(variant, { themed });
 
   const content = (
     <>
@@ -140,37 +141,7 @@ const Button: React.FC<ButtonProps> = ({
   );
 };
 
-function getButtonStyles(variant: ButtonVariant): ViewStyle {
-  switch (variant) {
-    case 'secondary':
-      return {
-        backgroundColor: Colors.whiteAlpha20,
-        borderWidth: 1,
-        borderColor: Colors.whiteAlpha30,
-      };
-    case 'outline':
-      return {
-        backgroundColor: Colors.surfaceLight,
-        borderWidth: 1,
-        borderColor: Colors.borderLight,
-      };
-    case 'ghost':
-      return {
-        backgroundColor: Colors.transparent,
-      };
-    case 'google':
-      return {
-        backgroundColor: Colors.surfaceLight,
-        borderWidth: 1,
-        borderColor: Colors.borderLight,
-        ...Shadows.base,
-      };
-    default:
-      return {};
-  }
-}
-
-function getTextColor(variant: ButtonVariant): string {
+function getTextColor(variant: ButtonVariant, ctx: { themed: ReturnType<typeof useThemedColors> }): string {
   switch (variant) {
     case 'primary':
       return Colors.textLight;
@@ -178,11 +149,48 @@ function getTextColor(variant: ButtonVariant): string {
       return Colors.textLight;
     case 'outline':
     case 'google':
-      return Colors.textPrimary;
+      return ctx.themed.text;
     case 'ghost':
-      return Colors.whiteAlpha80;
+      return ctx.themed.textSecondary;
     default:
       return Colors.textLight;
+  }
+}
+
+function getButtonStyles(
+  variant: ButtonVariant,
+  ctx: { isDark: boolean; themed: ReturnType<typeof useThemedColors> }
+): ViewStyle {
+  const themedBackground = () => (ctx.isDark ? Colors.blackAlpha20 : Colors.whiteAlpha20);
+  const themedSurface = () => ctx.themed.surface;
+  const themedBorder = () => ctx.themed.border;
+
+  switch (variant) {
+    case 'secondary':
+      return {
+        backgroundColor: themedBackground(),
+        borderWidth: 1,
+        borderColor: ctx.isDark ? Colors.whiteAlpha10 : Colors.whiteAlpha30,
+      };
+    case 'outline':
+      return {
+        backgroundColor: themedSurface(),
+        borderWidth: 1,
+        borderColor: themedBorder(),
+      };
+    case 'ghost':
+      return {
+        backgroundColor: Colors.transparent,
+      };
+    case 'google':
+      return {
+        backgroundColor: themedSurface(),
+        borderWidth: 1,
+        borderColor: themedBorder(),
+        ...Shadows.base,
+      };
+    default:
+      return {};
   }
 }
 

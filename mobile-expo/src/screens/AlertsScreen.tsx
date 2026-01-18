@@ -36,6 +36,7 @@ import {
   WarningIcon,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -61,6 +62,7 @@ const AlertsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { alerts, loading, refresh } = useAlerts();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   // Badge pulse animation
@@ -118,9 +120,13 @@ const AlertsScreen: React.FC = () => {
 
   const communityAlerts = sampleAlerts;
 
+  const gradientColors = isDark
+    ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
+    : Gradients.background.colors as unknown as [string, string, string];
+
   return (
     <LinearGradient
-      colors={Gradients.background.colors as unknown as [string, string, string]}
+      colors={gradientColors}
       start={Gradients.background.start}
       end={Gradients.background.end}
       style={styles.container}
@@ -179,8 +185,8 @@ const AlertsScreen: React.FC = () => {
           {/* Community Alerts */}
           <View style={styles.contentWrap}>
             <View style={styles.sectionHeaderRow}>
-              <InfoCircleIcon size={18} color={Colors.primary} />
-              <Text style={styles.sectionHeading}>{t('community_alerts')}</Text>
+              <InfoCircleIcon size={18} color={colors.primary} />
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('community_alerts')}</Text>
             </View>
             <View style={styles.cardStack}>
               {communityAlerts.map((alert, index) => (
@@ -206,8 +212,8 @@ const AlertsScreen: React.FC = () => {
 
             {/* Personal Reminders */}
             <View style={styles.sectionHeaderRow}>
-              <BellIcon size={18} color={Colors.primary} />
-              <Text style={styles.sectionHeading}>{t('personal_reminders')}</Text>
+              <BellIcon size={18} color={colors.primary} />
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('personal_reminders')}</Text>
             </View>
             <GlassCard style={styles.reminderCard}>
               <View style={styles.reminderIcon}>
@@ -221,9 +227,9 @@ const AlertsScreen: React.FC = () => {
                 </LinearGradient>
               </View>
               <View style={styles.reminderContent}>
-                <Text style={styles.reminderMeta}>Today, 8:00 PM</Text>
-                <Text style={styles.reminderTitle}>Take malaria meds at 8PM</Text>
-                <Text style={styles.reminderText}>Don't forget your malaria medication tonight.</Text>
+                <Text style={[styles.reminderMeta, { color: colors.textMuted }]}>Today, 8:00 PM</Text>
+                <Text style={[styles.reminderTitle, { color: colors.text }]}>Take malaria meds at 8PM</Text>
+                <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Don't forget your malaria medication tonight.</Text>
               </View>
             </GlassCard>
           </View>

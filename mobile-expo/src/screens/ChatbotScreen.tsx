@@ -36,6 +36,7 @@ import {
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import { supabase } from '../services/supabase';
 import { invokeEdgeFunction } from '../services/edge';
@@ -104,8 +105,8 @@ const ChatbotScreen: React.FC = () => {
   const scrollRef = useRef<ScrollView | null>(null);
   const sidebarAnim = useRef(new RNAnimated.Value(-SIDEBAR_WIDTH)).current;
 
-  // Theme state
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  // Theme state - synced with global app theme
+  const { isDark: isDarkMode, toggleTheme } = useTheme();
   const theme = isDarkMode ? DarkTheme : LightTheme;
 
   // Sidebar state
@@ -403,8 +404,6 @@ const ChatbotScreen: React.FC = () => {
     },
     [conversationId, conversations, loadConversations, messages.length, sending, updateConversationTitle]
   );
-
-  const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
   const userInitial = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
 

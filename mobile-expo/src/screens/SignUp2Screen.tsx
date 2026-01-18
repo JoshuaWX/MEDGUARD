@@ -19,6 +19,7 @@ import { RootStackParamList } from '../navigation/types';
 import { Button, GlassCard, ArrowRightIcon } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -34,17 +35,22 @@ interface FeatureCardProps {
   number: string;
   title: string;
   description: string;
+  colors: {
+    text: string;
+    textSecondary: string;
+    primaryLight: string;
+  };
 }
 
-const FeatureCard: React.FC<FeatureCardProps> = ({ number, title, description }) => {
+const FeatureCard: React.FC<FeatureCardProps> = ({ number, title, description, colors }) => {
   return (
-    <View style={styles.featureCard}>
-      <View style={styles.featureNumber}>
+    <View style={[styles.featureCard, { backgroundColor: colors.primaryLight }]}>
+      <View style={[styles.featureNumber, { backgroundColor: colors.primaryLight }]}>
         <Text style={styles.featureNumberText}>{number}</Text>
       </View>
       <View style={styles.featureContent}>
-        <Text style={styles.featureTitle}>{title}</Text>
-        <Text style={styles.featureDescription}>{description}</Text>
+        <Text style={[styles.featureTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>{description}</Text>
       </View>
     </View>
   );
@@ -56,6 +62,7 @@ const SignUp2Screen: React.FC = () => {
   const { user } = useUser();
   const { completeOnboarding, loading } = useAuth();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
 
   const [notifications, setNotifications] = useState(true);
   const firstName = user?.name?.split(' ')[0] || 'there';
@@ -73,12 +80,12 @@ const SignUp2Screen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.progressRow}>
-            <Text style={styles.stepText}>{t('step_2_of_2')}</Text>
+            <Text style={[styles.stepText, { color: colors.textSecondary }]}>{t('step_2_of_2')}</Text>
             <View style={styles.progressBars}>
               <View style={styles.progressBarFilled} />
               <View style={styles.progressBarFilled} />
@@ -93,10 +100,10 @@ const SignUp2Screen: React.FC = () => {
         >
           {/* Welcome Message */}
           <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeTitle}>
+            <Text style={[styles.welcomeTitle, { color: colors.text }]}>
               {t('signup2_welcome_title', { name: firstName, app: t('app_name') })}
             </Text>
-            <Text style={styles.welcomeSubtitle}>
+            <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
               {t('signup2_welcome_subtitle', { location })}
             </Text>
           </View>
@@ -107,27 +114,30 @@ const SignUp2Screen: React.FC = () => {
               number="1️⃣"
               title={t('seasonal_health_alerts')}
               description={t('feature_seasonal_desc')}
+              colors={colors}
             />
             <FeatureCard
               number="2️⃣"
               title={t('ai_chatbot')}
               description={t('feature_chatbot_desc')}
+              colors={colors}
             />
             <FeatureCard
               number="3️⃣"
               title={t('daily_health_feed')}
               description={t('feature_feed_desc')}
+              colors={colors}
             />
           </View>
 
           {/* Notifications Toggle (web-like) */}
-          <View style={styles.notificationCard}>
-            <Text style={styles.notificationText}>{t('notifications_opt_in')}</Text>
+          <View style={[styles.notificationCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.notificationText, { color: colors.text }]}>{t('notifications_opt_in')}</Text>
             <Pressable
               accessibilityRole="switch"
               accessibilityState={{ checked: notifications }}
               onPress={() => setNotifications((v) => !v)}
-              style={[styles.toggleTrack, notifications && styles.toggleTrackOn]}
+              style={[styles.toggleTrack, { backgroundColor: colors.primaryLight }, notifications && styles.toggleTrackOn]}
               hitSlop={10}
             >
               <View style={[styles.toggleThumbWrap, notifications && styles.toggleThumbWrapOn]}>

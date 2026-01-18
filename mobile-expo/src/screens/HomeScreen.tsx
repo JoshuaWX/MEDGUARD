@@ -46,6 +46,7 @@ import {
 import { useUser } from '../hooks/useUser';
 import { useIntel } from '../hooks/useIntel';
 import { useLocationContext } from '../hooks/LocationContext';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -75,6 +76,7 @@ const HomeScreen: React.FC = () => {
     error: locationError,
   } = useLocationContext();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -136,9 +138,9 @@ const HomeScreen: React.FC = () => {
   const isLoading = userLoading || intelLoading;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <BlurView intensity={80} tint="light" style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
+      <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + Spacing.base, borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <LinearGradient
@@ -149,13 +151,13 @@ const HomeScreen: React.FC = () => {
             >
               <ShieldIcon size={24} color={Colors.textLight} />
             </LinearGradient>
-            <Text style={styles.logoText}>{t('app_name')}</Text>
+            <Text style={[styles.logoText, { color: Colors.primary }]}>{t('app_name')}</Text>
           </View>
 
           <View style={styles.headerRight}>
-            <Pressable onPress={handleNotifications} style={styles.notificationBtn}>
-              <BellIcon size={24} color={Colors.textSecondary} />
-              <View style={styles.notificationBadge} />
+            <Pressable onPress={handleNotifications} style={[styles.notificationBtn, { backgroundColor: colors.surface }]}>
+              <BellIcon size={24} color={colors.textSecondary} />
+              <View style={[styles.notificationBadge, { borderColor: colors.surface }]} />
             </Pressable>
             <Pressable onPress={handleProfile} hitSlop={10}>
               <Avatar source={user?.avatarUrl} size={40} />
@@ -187,15 +189,15 @@ const HomeScreen: React.FC = () => {
             {/* Greeting */}
             <Animated.View entering={FadeInUp.delay(100).duration(500)}>
               <View style={styles.greeting}>
-                <Text style={styles.welcomeText}>{t('welcome_label')}</Text>
-                <Text style={styles.nameText}>{firstName}</Text>
+                <Text style={[styles.welcomeText, { color: colors.textSecondary }]}>{t('welcome_label')}</Text>
+                <Text style={[styles.nameText, { color: colors.text }]}>{firstName}</Text>
               </View>
             </Animated.View>
 
             {/* Location */}
             <View style={styles.locationRow}>
-              <LocationIcon size={24} color={Colors.textSecondary} />
-              <Text style={styles.locationText}>{location}, Nigeria</Text>
+              <LocationIcon size={24} color={colors.textSecondary} />
+              <Text style={[styles.locationText, { color: colors.text }]}>{location}, Nigeria</Text>
             </View>
 
             {/* Location Permission CTA */}
@@ -205,8 +207,8 @@ const HomeScreen: React.FC = () => {
                   <View style={styles.locationCtaRow}>
                     <LocationIcon size={22} color={Colors.primary} />
                     <View style={styles.locationCtaText}>
-                      <Text style={styles.locationCtaTitle}>Enable location access</Text>
-                      <Text style={styles.locationCtaBody}>
+                      <Text style={[styles.locationCtaTitle, { color: colors.text }]}>Enable location access</Text>
+                      <Text style={[styles.locationCtaBody, { color: colors.textSecondary }]}>
                         {locationPermissionDenied
                           ? 'Location access is disabled. Enable it in Settings to personalize alerts and verify your state.'
                           : 'Allow location to personalize alerts and verify your state.'}
@@ -260,10 +262,10 @@ const HomeScreen: React.FC = () => {
                     </Animated.View>
 
                     <View style={styles.alertTextContent}>
-                      <Text style={styles.alertTitle}>
+                      <Text style={[styles.alertTitle, { color: colors.text }]}>
                         {intel?.advisory?.emoji || '⚠️'} {intel?.advisory?.title || t('seasonal_alert_title')}
                       </Text>
-                      <Text style={styles.alertBody}>
+                      <Text style={[styles.alertBody, { color: colors.textSecondary }]}>
                         {intel?.advisory?.message || t('seasonal_alert_body_malaria_high')}
                       </Text>
                       {intel?.advisory?.source && (
@@ -281,7 +283,7 @@ const HomeScreen: React.FC = () => {
 
             {/* Quick Tips Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('quick_tips_heading')}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quick_tips_heading')}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -291,28 +293,31 @@ const HomeScreen: React.FC = () => {
                   image="https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=300&q=80"
                   label={t('tip_nets')}
                   delay={0}
+                  textColor={colors.text}
                 />
                 <TipCard
                   image="https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=300&q=80"
                   label={t('tip_repellent')}
                   delay={100}
+                  textColor={colors.text}
                 />
                 <TipCard
                   image="https://images.unsplash.com/photo-1559825481-12a05cc00344?auto=format&fit=crop&w=300&q=80"
                   label={t('tip_stagnant_water')}
                   delay={200}
+                  textColor={colors.text}
                 />
               </ScrollView>
             </View>
 
             {/* Weather & Health Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('weather_health_heading')}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('weather_health_heading')}</Text>
               <Animated.View entering={FadeInUp.delay(300).duration(500)}>
-                <View style={styles.weatherCard}>
+                <View style={[styles.weatherCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.weatherContent}>
-                    <Text style={styles.weatherTitle}>{intel?.season?.label || t('rainy_season')}</Text>
-                    <Text style={styles.weatherDescription}>
+                    <Text style={[styles.weatherTitle, { color: colors.text }]}>{intel?.season?.label || t('rainy_season')}</Text>
+                    <Text style={[styles.weatherDescription, { color: colors.textSecondary }]}>
                       {intel?.season?.description || t('rainy_season_desc')}
                     </Text>
                     {intel?.weather && (
@@ -340,9 +345,10 @@ interface TipCardProps {
   image: string;
   label: string;
   delay: number;
+  textColor?: string;
 }
 
-const TipCard: React.FC<TipCardProps> = ({ image, label, delay }) => {
+const TipCard: React.FC<TipCardProps> = ({ image, label, delay, textColor = Colors.textPrimary }) => {
   const scale = useSharedValue(1);
 
   const handlePressIn = () => {
@@ -365,7 +371,7 @@ const TipCard: React.FC<TipCardProps> = ({ image, label, delay }) => {
         style={[styles.tipCard, animatedStyle]}
       >
         <Image source={{ uri: image }} style={styles.tipImage} />
-        <Text style={styles.tipLabel}>{label}</Text>
+        <Text style={[styles.tipLabel, { color: textColor }]}>{label}</Text>
       </AnimatedPressable>
     </Animated.View>
   );
@@ -496,6 +502,48 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.xl,
     color: Colors.textPrimary,
+  },
+  locationCtaCard: {
+    marginBottom: Spacing.lg,
+    padding: Spacing.base,
+  },
+  locationCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.base,
+  },
+  locationCtaText: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  locationCtaTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    color: Colors.textPrimary,
+  },
+  locationCtaBody: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: FontSize.sm * 1.4,
+  },
+  locationCtaError: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: Colors.danger,
+    marginTop: Spacing.xs,
+  },
+  locationCtaBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    alignSelf: 'flex-start',
+  },
+  locationCtaBtnText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+    color: Colors.textLight,
   },
   alertCard: {
     marginBottom: Spacing['3xl'],

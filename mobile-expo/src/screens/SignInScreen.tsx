@@ -30,6 +30,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -52,6 +53,7 @@ const SignInScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { signIn, signInWithGoogle, loading } = useAuth();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
@@ -114,14 +116,18 @@ const SignInScreen: React.FC = () => {
     }
   };
 
+  const gradientColors = isDark
+    ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
+    : Gradients.background.colors as unknown as [string, string, string];
+
   return (
     <LinearGradient
-      colors={Gradients.background.colors as unknown as [string, string, string]}
+      colors={gradientColors}
       start={Gradients.background.start}
       end={Gradients.background.end}
       style={styles.container}
     >
-      <View style={styles.page}>
+      <View style={[styles.page, { backgroundColor: isDark ? colors.surface : Colors.whiteAlpha50 }]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
@@ -169,7 +175,7 @@ const SignInScreen: React.FC = () => {
 
         {/* Form Section */}
         <ScrollView
-          style={styles.formContainer}
+          style={[styles.formContainer, { backgroundColor: colors.surface }]}
           contentContainerStyle={styles.formContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -181,7 +187,7 @@ const SignInScreen: React.FC = () => {
               autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
-              icon={<EmailIcon size={24} color={Colors.primary} />}
+              icon={<EmailIcon size={24} color={colors.primary} />}
             />
 
             <Input
@@ -189,7 +195,7 @@ const SignInScreen: React.FC = () => {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
-              icon={<LockIcon size={24} color={Colors.primary} />}
+              icon={<LockIcon size={24} color={colors.primary} />}
             />
 
             {/* Remember me & Forgot password */}
@@ -198,13 +204,13 @@ const SignInScreen: React.FC = () => {
                 style={styles.rememberRow}
                 onPress={() => setRememberMe(!rememberMe)}
               >
-                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                <View style={[styles.checkbox, { borderColor: isDark ? colors.border : Colors.borderLight }, rememberMe && styles.checkboxChecked]}>
                   {rememberMe && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.rememberText}>{t('remember_me')}</Text>
+                <Text style={[styles.rememberText, { color: colors.textSecondary }]}>{t('remember_me')}</Text>
               </Pressable>
               <Pressable>
-                <Text style={styles.forgotText}>{t('forgot_password')}</Text>
+                <Text style={[styles.forgotText, { color: colors.primary }]}>{t('forgot_password')}</Text>
               </Pressable>
             </View>
 
@@ -218,9 +224,9 @@ const SignInScreen: React.FC = () => {
 
             {/* Divider */}
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('or_continue_with')}</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: isDark ? colors.border : Colors.borderLight }]} />
+              <Text style={[styles.dividerText, { color: colors.textMuted }]}>{t('or_continue_with')}</Text>
+              <View style={[styles.dividerLine, { backgroundColor: isDark ? colors.border : Colors.borderLight }]} />
             </View>
 
             {/* Google Sign In */}
@@ -231,32 +237,32 @@ const SignInScreen: React.FC = () => {
               icon={
                 // React Native Image can't render remote SVGs.
                 // Use a lightweight text mark so the button still renders correctly.
-                <Text style={styles.googleMark}>G</Text>
+                <Text style={[styles.googleMark, { color: colors.text }]}>G</Text>
               }
               iconPosition="left"
-              textStyle={{ color: Colors.textPrimary, fontFamily: FontFamily.medium }}
+              textStyle={{ color: colors.text, fontFamily: FontFamily.medium }}
             />
 
             {/* Sign up link */}
             <View style={styles.signupRow}>
-              <Text style={styles.signupText}>{t('dont_have_account')} </Text>
+              <Text style={[styles.signupText, { color: colors.textSecondary }]}>{t('dont_have_account')} </Text>
               <Pressable onPress={() => navigation.navigate('SignUp')}>
-                <Text style={styles.signupLink}>{t('create_one')}</Text>
+                <Text style={[styles.signupLink, { color: colors.primary }]}>{t('create_one')}</Text>
               </Pressable>
             </View>
           </View>
         </ScrollView>
 
           {/* Guest button footer */}
-          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base }]}>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base, backgroundColor: colors.surface, borderTopColor: isDark ? colors.border : Colors.borderLight }]}>
             <Button
               title={t('guest_continue')}
               onPress={handleGuest}
               variant="outline"
               icon={<Text style={styles.eyeIcon}>👁</Text>}
               iconPosition="left"
-              textStyle={{ color: Colors.textSecondary }}
-              style={styles.guestButton}
+              textStyle={{ color: colors.textSecondary }}
+              style={{ ...styles.guestButton, backgroundColor: colors.background, borderColor: isDark ? colors.border : Colors.borderLight }}
             />
           </View>
         </KeyboardAvoidingView>

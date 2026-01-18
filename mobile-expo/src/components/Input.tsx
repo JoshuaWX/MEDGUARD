@@ -15,9 +15,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  interpolateColor,
 } from 'react-native-reanimated';
-import { Colors, BorderRadius, Spacing, FontFamily, FontSize, Duration } from '../../theme';
+import { Colors, BorderRadius, Spacing, FontFamily, FontSize, Duration, useThemedColors } from '../../theme';
+import { useTheme } from '../hooks/useTheme';
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
@@ -33,6 +33,8 @@ const Input: React.FC<InputProps> = ({
   onBlur,
   ...props
 }) => {
+  const { isDark } = useTheme();
+  const themed = useThemedColors(isDark);
   const [isFocused, setIsFocused] = useState(false);
   const focusAnim = useSharedValue(0);
 
@@ -49,7 +51,10 @@ const Input: React.FC<InputProps> = ({
   }, [onBlur]);
 
   const animatedContainerStyle = useAnimatedStyle(() => ({
-    backgroundColor: focusAnim.value === 1 ? Colors.surfaceLight : Colors.whiteAlpha90,
+    backgroundColor:
+      focusAnim.value === 1
+        ? (isDark ? Colors.surfaceDark : Colors.surfaceLight)
+        : (isDark ? Colors.glassDark : Colors.whiteAlpha90),
     borderColor: focusAnim.value === 1 ? Colors.primary : 'transparent',
     borderWidth: focusAnim.value === 1 ? 2 : 0,
   }));
@@ -64,8 +69,8 @@ const Input: React.FC<InputProps> = ({
     >
       {icon && <View style={styles.iconContainer}>{icon}</View>}
       <TextInput
-        style={[styles.input, icon ? styles.inputWithIcon : null]}
-        placeholderTextColor={Colors.textMuted}
+        style={[styles.input, icon ? styles.inputWithIcon : null, { color: themed.text }]}
+        placeholderTextColor={themed.textMuted}
         onFocus={handleFocus}
         onBlur={handleBlur}
         {...props}

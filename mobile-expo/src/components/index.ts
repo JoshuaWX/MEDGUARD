@@ -11,4 +11,6 @@ export { default as Avatar } from './Avatar';
 export { default as SkeletonLoader } from './SkeletonLoader';
 export { default as AlertCard } from './AlertCard';
 export { default as SymptomButton } from './SymptomButton';
+export { default as MoonIcon } from './MoonIcon';
+export { default as ThemeModeSelector } from './ThemeModeSelector';
 export * from './Icons';

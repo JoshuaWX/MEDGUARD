@@ -40,6 +40,7 @@ import {
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -70,6 +71,7 @@ const MyHealthScreen: React.FC = () => {
   const { user } = useUser();
   const { logSymptoms, loading } = useSymptoms();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const healthScore = user?.healthScore ?? 85;
@@ -132,9 +134,13 @@ const MyHealthScreen: React.FC = () => {
     return Colors.danger;
   };
 
+  const gradientColors = isDark
+    ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
+    : Gradients.background.colors as unknown as [string, string, string];
+
   return (
     <LinearGradient
-      colors={Gradients.background.colors as unknown as [string, string, string]}
+      colors={gradientColors}
       start={Gradients.background.start}
       end={Gradients.background.end}
       style={styles.container}
@@ -192,7 +198,7 @@ const MyHealthScreen: React.FC = () => {
                 <View style={styles.tipBadgeIcon}>
                   <HeartIcon size={18} color={Colors.textLight} />
                 </View>
-                <Text style={styles.tipHeaderTitle}>{t('todays_health_tip')}</Text>
+                <Text style={[styles.tipHeaderTitle, { color: colors.text }]}>{t('todays_health_tip')}</Text>
               </View>
               <View style={styles.tipRow}>
                 <Image
@@ -200,11 +206,11 @@ const MyHealthScreen: React.FC = () => {
                   style={styles.tipImage}
                 />
                 <View style={styles.tipContent}>
-                  <Text style={styles.tipTitle}>{t('tip_stay_hydrated_title')}</Text>
-                  <Text style={styles.tipText}>
+                  <Text style={[styles.tipTitle, { color: colors.text }]}>{t('tip_stay_hydrated_title')}</Text>
+                  <Text style={[styles.tipText, { color: colors.textSecondary }]}>
                     {t('tip_stay_hydrated_body')}
                   </Text>
-                  <Text style={styles.tipHint}>{t('tip_stay_hydrated_hint')}</Text>
+                  <Text style={[styles.tipHint, { color: colors.primary }]}>{t('tip_stay_hydrated_hint')}</Text>
                 </View>
               </View>
             </GlassCard>
@@ -212,8 +218,8 @@ const MyHealthScreen: React.FC = () => {
 
         {/* Symptom Logging */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('how_feeling_today')}</Text>
-          <Text style={styles.sectionSubtitle}>{t('select_symptoms')}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('how_feeling_today')}</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{t('select_symptoms')}</Text>
 
           <View style={styles.symptomsGrid}>
             {SYMPTOMS.map((symptom, index) => (
@@ -245,10 +251,10 @@ const MyHealthScreen: React.FC = () => {
         {/* Nearby Clinics */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('nearby_clinics')}</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('nearby_clinics')}</Text>
             <Pressable style={styles.seeAllBtn}>
-              <Text style={styles.seeAllText}>{t('see_all')}</Text>
-              <ArrowRightIcon size={16} color={Colors.primary} />
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>{t('see_all')}</Text>
+              <ArrowRightIcon size={16} color={colors.primary} />
             </Pressable>
           </View>
 
@@ -258,6 +264,7 @@ const MyHealthScreen: React.FC = () => {
               address="123 Marina Road, Lagos Island"
               distance="2.3 km"
               status="Open"
+              colors={colors}
             />
           </Animated.View>
 
@@ -267,6 +274,7 @@ const MyHealthScreen: React.FC = () => {
               address="57 Campbell Street, Lagos"
               distance="3.1 km"
               status="Open"
+              colors={colors}
             />
           </Animated.View>
         </View>
@@ -282,9 +290,15 @@ interface ClinicCardProps {
   address: string;
   distance: string;
   status: 'Open' | 'Closed';
+  colors: {
+    text: string;
+    textSecondary: string;
+    primary: string;
+    primaryLight: string;
+  };
 }
 
-const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status }) => {
+const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status, colors }) => {
   const scale = useSharedValue(1);
 
   const handlePressIn = () => {
@@ -311,13 +325,13 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
           style={styles.clinicImage}
         />
         <View style={styles.clinicContent}>
-          <Text style={styles.clinicName}>{name}</Text>
+          <Text style={[styles.clinicName, { color: colors.text }]}>{name}</Text>
           <View style={styles.clinicAddress}>
-            <LocationIcon size={14} color={Colors.textSecondary} />
-            <Text style={styles.clinicAddressText}>{address}</Text>
+            <LocationIcon size={14} color={colors.textSecondary} />
+            <Text style={[styles.clinicAddressText, { color: colors.textSecondary }]}>{address}</Text>
           </View>
           <View style={styles.clinicMeta}>
-            <Text style={styles.clinicDistance}>{distance}</Text>
+            <Text style={[styles.clinicDistance, { color: colors.primary }]}>{distance}</Text>
             <View style={[styles.statusBadge, status === 'Open' && styles.statusOpen]}>
               <Text style={[styles.statusText, status === 'Open' && styles.statusTextOpen]}>
                 {status}
@@ -325,8 +339,8 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
             </View>
           </View>
         </View>
-        <View style={styles.clinicArrow}>
-          <ArrowRightIcon size={16} color={Colors.primary} />
+        <View style={[styles.clinicArrow, { backgroundColor: colors.primaryLight }]}>
+          <ArrowRightIcon size={16} color={colors.primary} />
         </View>
       </GlassCard>
     </AnimatedPressable>

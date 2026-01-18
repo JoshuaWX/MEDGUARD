@@ -135,6 +135,10 @@ const messages: Record<LangCode, Messages> = {
 
     // Settings
     settings_support: 'Settings & Support',
+    appearance: 'Appearance',
+    appearance_desc: 'Choose how MedGuard looks. System follows your device settings.',
+    dark_mode: 'Dark mode',
+    dark_mode_desc: 'Switch between light and dark theme for comfortable viewing.',
     language: 'Language',
     share_location_toggle: 'Share my location for personalized alerts',
     share_location_desc: 'Helps MedGuard tailor disease forecasts for your area.',
@@ -267,6 +271,10 @@ const messages: Record<LangCode, Messages> = {
     save_changes: 'Fipamọ́ Àyípadà',
 
     settings_support: 'Ètò & Ìtìlẹ́yìn',
+    appearance: 'Ìrísí',
+    appearance_desc: 'Yan bí MedGuard ṣe rí. Ètò yíò tẹ̀lé ẹ̀rọ rẹ.',
+    dark_mode: 'Àwọ̀ Dúdú',
+    dark_mode_desc: 'Yí láàrin àwọ̀ ìmọ́lẹ̀ àti dúdú fún wíwo tó dára.',
     language: 'Èdè',
     share_location_toggle: 'Pin ipò mi fún ìkìlọ̀ tó bá mi mu',
     share_location_desc: 'Ó ń ràn MedGuard lọ́wọ́ láti ṣe àfojúsùn àrùn fún agbègbè rẹ.',
@@ -400,7 +408,9 @@ const messages: Record<LangCode, Messages> = {
     log_out: 'Fita',
     save_changes: 'Ajiye Canje-canje',
 
-    settings_support: 'Saituna & Taimako',
+    settings_support: 'Saituna & Taimako',    appearance: 'Kamanni',
+    appearance_desc: 'Zaɓi yadda MedGuard zai yi kama. Tsarin yana bin saitin na\'urarka.',    dark_mode: 'Yanayin Duhu',
+    dark_mode_desc: 'Canza tsakanin haske da duhu don gani mai daɗi.',
     language: 'Harshe',
     share_location_toggle: 'Raba wurina don faɗakarwa na musamman',
     share_location_desc: 'Yana taimaka wa MedGuard wajen hasashen cututtuka a yankinka.',
@@ -532,7 +542,9 @@ const messages: Record<LangCode, Messages> = {
     log_out: 'Pụọ',
     save_changes: 'Chekwaa Mgbanwe',
 
-    settings_support: 'Nhọrọ & Nkwado',
+    settings_support: 'Nhọrọ & Nkwado',    appearance: 'Ọdịdị',
+    appearance_desc: 'Họrọ ka MedGuard si esi. Sistemụ na-agbaso ntọala ngwaọrụ gị.',    dark_mode: 'Ọnọdụ Ọchịchịrị',
+    dark_mode_desc: 'Gbanwee n\'etiti ìhè na ọchịchịrị maka nlele dị mma.',
     language: 'Asụsụ',
     share_location_toggle: 'Kesaa ọnọdụ m maka ịdọ aka ná ntị',
     share_location_desc: 'Na-enyere MedGuard ịhazi amụma ọrịa n’ógbè gị.',

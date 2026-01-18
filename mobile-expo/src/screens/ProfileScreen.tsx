@@ -55,6 +55,7 @@ import {
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
+import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   BorderRadius,
@@ -79,6 +80,7 @@ const ProfileScreen: React.FC = () => {
   const { signOut } = useAuth();
   const { user, loading, refresh, updateProfile, updateAvatar } = useUser();
   const { t } = useI18n();
+  const { isDark, colors } = useTheme();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
 
@@ -175,8 +177,10 @@ const ProfileScreen: React.FC = () => {
   }));
 
   const gradientBgColors = useMemo(
-    () => Gradients.background.colors as unknown as [string, string, string],
-    []
+    () => isDark
+      ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
+      : Gradients.background.colors as unknown as [string, string, string],
+    [isDark, colors]
   );
   const primaryColors = useMemo(
     () => Gradients.primary.colors as unknown as [string, string],
