@@ -3,5 +3,11 @@
   "compilerOptions": {
     "lib": ["deno.ns", "deno.window", "dom"],
     "strict": true
+  },
+  "lint": {
+    "exclude": ["intel/index.bundled.ts"]
+  },
+  "fmt": {
+    "exclude": ["intel/index.bundled.ts"]
   }
 }

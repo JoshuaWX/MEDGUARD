@@ -2,6 +2,7 @@
  * Screen exports
  */
 
+export { default as SplashScreen, SPLASH_DURATION } from './SplashScreen';
 export { default as WelcomeScreen } from './WelcomeScreen';
 export { default as SignInScreen } from './SignInScreen';
 export { default as SignUpScreen } from './SignUpScreen';

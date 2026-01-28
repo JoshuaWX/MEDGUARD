@@ -100,14 +100,13 @@ const AQICard: React.FC<AQICardProps> = ({
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.aqiValue}>{aqi}</Text>
-            <Text style={styles.aqiLabel}>AQI</Text>
+            <Ionicons name={config.icon} size={compact ? 20 : 28} color="white" />
+            <Text style={styles.aqiLabel}>{compact ? config.label : 'Air Quality'}</Text>
           </LinearGradient>
         </View>
 
         <View style={styles.infoSection}>
           <View style={styles.levelRow}>
-            <Ionicons name={config.icon} size={20} color={config.textColor} />
             <Text style={[styles.levelText, { color: config.textColor }]}>
               {config.label}
             </Text>

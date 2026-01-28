@@ -1,4 +1,5 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+// @deno-types="https://deno.land/std@0.224.0/http/server.ts"
+import { serve } from 'std/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabase.ts';
 import { optionalEnv, requiredEnv } from '../_shared/env.ts';
@@ -233,7 +234,7 @@ function truncate(str: string, max = 400) {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
-function normalizeEmbedding(raw: unknown): number[] | null {
+function _normalizeEmbedding(raw: unknown): number[] | null {
   // HF feature-extraction can return:
   // - 1D: number[]
   // - 2D: number[][] (token embeddings) => we mean-pool to 1D
@@ -302,7 +303,7 @@ async function getEmbedding(text: string): Promise<number[]> {
         });
 
         if (r.ok) {
-          const json: any = await r.json();
+          const json = await r.json() as { data?: Array<{ embedding?: number[] }> };
           const emb = json?.data?.[0]?.embedding;
           if (Array.isArray(emb) && emb.length > 0) {
             return emb as number[];
@@ -341,7 +342,7 @@ async function getEmbedding(text: string): Promise<number[]> {
         body: JSON.stringify({ model, input: text, dimensions }),
       });
       if (r.ok) {
-        const j: any = await r.json();
+        const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
         const emb = j?.data?.[0]?.embedding;
         if (Array.isArray(emb) && emb.length > 0) {
           return emb as number[];
@@ -367,7 +368,7 @@ async function getEmbedding(text: string): Promise<number[]> {
       body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions }),
     });
     if (!r.ok) throw new Error(await r.text());
-    const j: any = await r.json();
+    const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
     return j?.data?.[0]?.embedding || [];
   }
 
@@ -399,8 +400,9 @@ async function queryPinecone(vector: number[], topK: number): Promise<string[]> 
     throw new Error(await r.text());
   }
 
-  const j: any = await r.json();
-  const matches: any[] = Array.isArray(j?.matches) ? j.matches : [];
+  type PineconeMatch = { metadata?: { text?: string; pageContent?: string; content?: string } };
+  const j = await r.json() as { matches?: PineconeMatch[] };
+  const matches: PineconeMatch[] = Array.isArray(j?.matches) ? j.matches : [];
 
   return matches
     .map((m) => {
@@ -445,7 +447,7 @@ async function chatCompletion(params: {
   });
 
   if (!r.ok) throw new Error(await r.text());
-  const j: any = await r.json();
+  const j = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = j?.choices?.[0]?.message?.content;
   return typeof content === 'string' ? content : '';
 }
@@ -454,7 +456,18 @@ async function chatCompletion(params: {
 // CONTEXT BUILDING - matches Flask app
 // ============================================================================
 
-function buildUserContext(profile: any): string {
+interface UserProfile {
+  full_name?: string;
+  name?: string;
+  state?: string;
+  age?: number;
+  gender?: string;
+  conditions?: string[] | string;
+  allergies?: string[] | string;
+  medications?: string[] | string;
+}
+
+function buildUserContext(profile: UserProfile | null): string {
   if (!profile) return '';
   const parts: string[] = [];
 
@@ -552,10 +565,11 @@ serve(async (req: Request) => {
       .limit(20);
     if (histErr) throw histErr;
 
-    const historyMessages = (history || [])
-      .filter((m: any) => m?.role === 'user' || m?.role === 'assistant')
-      .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: String(m.content || '') }))
-      .filter((m) => m.content.trim().length > 0);
+    type HistoryMessage = { role?: string; content?: string };
+    const historyMessages = (history as HistoryMessage[] || [])
+      .filter((m: HistoryMessage) => m?.role === 'user' || m?.role === 'assistant')
+      .map((m: HistoryMessage) => ({ role: m.role as 'user' | 'assistant', content: String(m.content || '') }))
+      .filter((m: { role: 'user' | 'assistant'; content: string }) => m.content.trim().length > 0);
 
     // Classify intent for better response (matches Flask's intent system)
     const { intent } = classifyIntent(message, historyMessages.length > 1);

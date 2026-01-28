@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   overallRiskText: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.semibold,
     fontSize: FontSize.xs,
     color: Colors.textLight,
   },
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   weatherValue: {
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.semibold,
     fontSize: FontSize.sm,
   },
   disclaimer: {

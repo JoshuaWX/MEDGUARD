@@ -1,3 +1,4 @@
+// @ts-nocheck: Bundled file for Supabase Dashboard deployment - uses inline Deno URLs not compatible with VS Code TypeScript
 /**
  * MedGuard Intel Edge Function v2 - BUNDLED FOR MANUAL DEPLOYMENT
  * 
@@ -6,6 +7,9 @@
  * 
  * IMPORTANT: After pasting, ensure the environment variable OPENWEATHER_API_KEY is set in
  * Supabase Dashboard → Settings → Edge Functions → Secrets
+ * 
+ * NOTE: TypeScript checking is disabled for this file because it uses inline URLs
+ * which are valid for Deno runtime but not recognized by VS Code's TypeScript.
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
@@ -866,12 +870,22 @@ serve(async (req: Request) => {
 
   try {
     let state = '';
+    let lat: number | null = null;
+    let lon: number | null = null;
 
     if (req.method === 'POST') {
       const body: any = await req.json().catch(() => ({}));
       state = typeof body?.state === 'string' ? body.state : '';
+      // Accept both lat/lon and latitude/longitude
+      lat = typeof body?.lat === 'number' ? body.lat : (typeof body?.latitude === 'number' ? body.latitude : null);
+      lon = typeof body?.lon === 'number' ? body.lon : (typeof body?.longitude === 'number' ? body.longitude : null);
     } else {
-      state = new URL(req.url).searchParams.get('state') || '';
+      const params = new URL(req.url).searchParams;
+      state = params.get('state') || '';
+      const latParam = params.get('lat') || params.get('latitude');
+      const lonParam = params.get('lon') || params.get('longitude');
+      if (latParam) lat = parseFloat(latParam);
+      if (lonParam) lon = parseFloat(lonParam);
     }
 
     state = state.trim();
@@ -900,11 +914,26 @@ serve(async (req: Request) => {
 
     // Check DB cache first
     const admin = tryCreateAdminClient();
+    
+    // Use precise coordinates if provided, otherwise fall back to state center
+    const usePreciseCoords = lat !== null && lon !== null && 
+      Number.isFinite(lat) && Number.isFinite(lon) &&
+      lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    
+    const coords = usePreciseCoords 
+      ? { lat: lat!, lon: lon! }
+      : (NIGERIA_STATE_COORDS[stateNormalized] || { lat: 9.082, lon: 8.6753 });
+    
+    // Cache key includes coordinates for precision (rounded to 2 decimal places)
+    const cacheKey = usePreciseCoords 
+      ? `${stateNormalized}_${coords.lat.toFixed(2)}_${coords.lon.toFixed(2)}`
+      : stateNormalized;
+    
     if (admin) {
       const { data: cached } = await admin
         .from('intel_cache')
         .select('payload, expires_at')
-        .eq('region_key', stateNormalized)
+        .eq('region_key', cacheKey)
         .eq('scope', 'v2')
         .maybeSingle();
 
@@ -915,8 +944,6 @@ serve(async (req: Request) => {
         }
       }
     }
-
-    const coords = NIGERIA_STATE_COORDS[stateNormalized] || { lat: 9.082, lon: 8.6753 };
     
     // Fetch all data in parallel
     const [weatherResult, aqiResult, outbreaks, whoAlerts] = await Promise.all([
@@ -947,6 +974,7 @@ serve(async (req: Request) => {
         stateNormalized,
         isKnownState: NIGERIA_STATES.includes(stateNormalized),
         coordinates: coords,
+        preciseLocation: usePreciseCoords,  // true if using user's GPS
         region: riskAssessment?.location.region ?? null,
       },
       
@@ -1017,15 +1045,16 @@ serve(async (req: Request) => {
       },
     };
 
-    // Upsert cache (best-effort)
+    // Upsert cache (best-effort) with 15 minute TTL for precise locations
     if (admin) {
       const nowIso = new Date().toISOString();
-      const expiresAt = new Date(Date.now() + INTEL_CACHE_TTL_MS).toISOString();
+      const ttl = usePreciseCoords ? 15 * 60 * 1000 : INTEL_CACHE_TTL_MS; // 15 min for GPS, 6 hours for state
+      const expiresAt = new Date(Date.now() + ttl).toISOString();
 
       await admin
         .from('intel_cache')
         .upsert({
-          region_key: stateNormalized,
+          region_key: cacheKey,
           scope: 'v2',
           payload: response,
           expires_at: expiresAt,

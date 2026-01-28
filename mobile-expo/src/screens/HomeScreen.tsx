@@ -1,48 +1,40 @@
 /**
  * HomeScreen
- * Main dashboard with health alerts and intel
+ * Clean, human-designed dashboard with health alerts and intel
+ * 
+ * Design principles:
+ * - Clear visual hierarchy (one primary focus at a time)
+ * - Consistent spacing rhythm (16/24 base units)
+ * - Subtle, purposeful color usage
+ * - Obvious reading flow (top → bottom)
+ * - Mobile-first with thumb-friendly targets
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  Image,
   RefreshControl,
   Linking,
+  StatusBar,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  withRepeat,
-  withSequence,
-  Easing,
-  FadeInUp,
-  FadeIn,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 
 import { RootStackParamList } from '../navigation/types';
 import {
-  GlassCard,
   Avatar,
   SkeletonLoader,
   FloatingActionButton,
-  ShieldIcon,
-  BellIcon,
-  LocationIcon,
-  InfoCircleIcon,
-  ArrowRightIcon,
 } from '../components';
+import { EnvironmentModal } from '../components/EnvironmentModal';
+
 import { useUser } from '../hooks/useUser';
 import { useIntel } from '../hooks/useIntel';
 import { useLocationContext } from '../hooks/LocationContext';
@@ -50,615 +42,702 @@ import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
   Colors,
-  Spacing,
-  BorderRadius,
   FontFamily,
   FontSize,
   Shadows,
-  Duration,
 } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// Simple AQI label helper
+const getAqiLabel = (aqi: number): { label: string; color: string } => {
+  const levels: Record<number, { label: string; color: string }> = {
+    1: { label: 'Good', color: '#10b981' },
+    2: { label: 'Fair', color: '#22c55e' },
+    3: { label: 'Moderate', color: '#f59e0b' },
+    4: { label: 'Poor', color: '#ef4444' },
+    5: { label: 'Very Poor', color: '#7c3aed' },
+  };
+  return levels[aqi] || levels[3];
+};
+
+// Risk level config
+const getRiskConfig = (level: string) => {
+  const config: Record<string, { bg: string; text: string; icon: string }> = {
+    high: { bg: '#fef2f2', text: '#dc2626', icon: 'warning' },
+    medium: { bg: '#fffbeb', text: '#d97706', icon: 'alert-circle' },
+    low: { bg: '#f0fdf4', text: '#16a34a', icon: 'checkmark-circle' },
+  };
+  return config[level] || config.low;
+};
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
   const {
     geocoded,
     refreshLocation,
     requestPermission,
     permissionStatus,
-    loading: locationLoading,
-    error: locationError,
   } = useLocationContext();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTab, setModalTab] = useState<'aqi' | 'weather'>('aqi');
 
-  // Pulse animation for alert icon
-  const alertPulse = useSharedValue(1);
+  // Urgent alert - only show truly critical conditions
+  const urgentAlert = useMemo(() => {
+    if (!intel) return null;
+    
+    // Critical air quality (Poor or Very Poor)
+    if (intel.airQuality?.aqi && intel.airQuality.aqi >= 4) {
+      const label = intel.airQuality.aqi === 5 ? 'Very Poor' : 'Poor';
+      return {
+        icon: 'cloud' as const,
+        title: `Air Quality: ${label}`,
+        message: 'Limit outdoor activities. Wear a mask if going outside.',
+        actionLabel: 'View Details',
+        action: () => openModal('aqi'),
+      };
+    }
 
-  useEffect(() => {
-    alertPulse.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-  }, []);
+    // Severe flooding risk
+    const precip = intel.weather?.current?.precipitation || 0;
+    if (precip >= 50) {
+      return {
+        icon: 'water' as const,
+        title: 'Flood Warning',
+        message: 'Heavy rainfall detected. Stay away from low-lying areas.',
+        actionLabel: 'View Details',
+        action: () => openModal('weather'),
+      };
+    }
 
-  const alertPulseStyle = useAnimatedStyle(() => ({
-    opacity: alertPulse.value,
-  }));
+    return null;
+  }, [intel]);
 
-  const handleRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refresh(), refreshLocation()]);
     setRefreshing(false);
+  }, [refresh, refreshLocation]);
+
+  const openModal = (tab: 'aqi' | 'weather') => {
+    setModalTab(tab);
+    setModalVisible(true);
   };
 
-  const locationPermissionGranted = permissionStatus === 'granted';
-  const locationPermissionDenied = permissionStatus === 'denied';
-
-  const handleEnableLocation = async () => {
-    if (locationPermissionDenied) {
-      await Linking.openSettings();
-      return;
-    }
-
-    const granted = await requestPermission();
-    if (granted) {
-      await refreshLocation();
+  const handleEnableLocation = () => {
+    if (permissionStatus === 'denied') {
+      Linking.openSettings();
+    } else {
+      requestPermission();
     }
   };
 
-  const handleNotifications = () => {
-    navigation.navigate('Alerts');
-  };
-
-  const handleChatbot = () => {
-    navigation.navigate('Chatbot');
-  };
-
-  const handleProfile = () => {
-    navigation.navigate('MainTabs', { screen: 'Profile' });
-  };
-
-  const firstName = user?.name?.split(' ')[0] || 'User';
-  // Prefer real-time geocoded location, fall back to user profile state
-  const location = geocoded?.state || user?.state || 'Nigeria';
-
-  const isLoading = userLoading || intelLoading;
+  const location = geocoded?.city || geocoded?.region || user?.state || 'Nigeria';
+  const showLocationPrompt = permissionStatus !== 'granted' && permissionStatus !== 'denied';
+  const overallRisk = intel?.riskAssessment?.overallRiskLevel || 'low';
+  const riskConfig = getRiskConfig(overallRisk);
+  const activeRisks = intel?.riskAssessment?.diseases?.filter(d => d.isActive) || [];
+  const topRecommendation = activeRisks[0]?.actions?.[0];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + Spacing.base, borderBottomColor: colors.border }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <LinearGradient
-              colors={[Colors.primary, Colors.emerald]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoContainer}
-            >
-              <ShieldIcon size={24} color={Colors.textLight} />
-            </LinearGradient>
-            <Text style={[styles.logoText, { color: Colors.primary }]}>{t('app_name')}</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <Pressable onPress={handleNotifications} style={[styles.notificationBtn, { backgroundColor: colors.surface }]}>
-              <BellIcon size={24} color={colors.textSecondary} />
-              <View style={[styles.notificationBadge, { borderColor: colors.surface }]} />
-            </Pressable>
-            <Pressable onPress={handleProfile} hitSlop={10}>
-              <Avatar source={user?.avatarUrl} size={40} />
-            </Pressable>
-          </View>
-        </View>
-      </BlurView>
-
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 16, paddingBottom: 100 }
+        ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
         {/* Loading State */}
-        {isLoading && (
+        {intelLoading && !intel ? (
           <View style={styles.loadingContainer}>
-            <SkeletonLoader width={128} height={24} borderRadius={BorderRadius.base} />
-            <SkeletonLoader width={192} height={16} borderRadius={BorderRadius.base} style={{ marginTop: Spacing.sm }} />
-            <SkeletonLoader width="100%" height={128} borderRadius={BorderRadius.xl} style={{ marginTop: Spacing.base }} />
+            <SkeletonLoader height={80} style={{ borderRadius: 16 }} />
+            <View style={{ height: 16 }} />
+            <SkeletonLoader height={120} style={{ borderRadius: 16 }} />
+            <View style={{ height: 16 }} />
+            <SkeletonLoader height={100} style={{ borderRadius: 16 }} />
           </View>
-        )}
-
-        {/* Content */}
-        {!isLoading && (
-          <Animated.View entering={FadeIn.duration(500)}>
-            {/* Greeting */}
-            <Animated.View entering={FadeInUp.delay(100).duration(500)}>
-              <View style={styles.greeting}>
-                <Text style={[styles.welcomeText, { color: colors.textSecondary }]}>{t('welcome_label')}</Text>
-                <Text style={[styles.nameText, { color: colors.text }]}>{firstName}</Text>
+        ) : (
+          <Animated.View entering={FadeIn.duration(400)}>
+            
+            {/* Header - Simple, no blur overlay */}
+            <View style={styles.header}>
+              <View style={styles.userSection}>
+                <Avatar size={44} source={user?.avatarUrl} />
+                <View style={styles.userInfo}>
+                  <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                    {t('welcome_back')}
+                  </Text>
+                  <Text style={[styles.userName, { color: colors.text }]}>
+                    {user?.name?.split(' ')[0] || 'there'}
+                  </Text>
+                </View>
               </View>
-            </Animated.View>
 
-            {/* Location */}
-            <View style={styles.locationRow}>
-              <LocationIcon size={24} color={colors.textSecondary} />
-              <Text style={[styles.locationText, { color: colors.text }]}>{location}, Nigeria</Text>
+              <View style={styles.headerActions}>
+                <Pressable 
+                  style={[styles.locationChip, { backgroundColor: colors.surface }]}
+                  onPress={() => {}}
+                >
+                  <Ionicons name="location" size={14} color={Colors.primary} />
+                  <Text style={[styles.locationText, { color: colors.text }]} numberOfLines={1}>
+                    {location}
+                  </Text>
+                </Pressable>
+
+                <Pressable 
+                  style={[styles.iconButton, { backgroundColor: colors.surface }]}
+                  onPress={() => navigation.navigate('Alerts')}
+                >
+                  <Ionicons name="notifications-outline" size={20} color={colors.text} />
+                  {overallRisk === 'high' && <View style={styles.badge} />}
+                </Pressable>
+              </View>
             </View>
 
-            {/* Location Permission CTA */}
-            {!locationPermissionGranted && (
-              <Animated.View entering={FadeInUp.delay(150).duration(450)}>
-                <GlassCard style={styles.locationCtaCard}>
-                  <View style={styles.locationCtaRow}>
-                    <LocationIcon size={22} color={Colors.primary} />
-                    <View style={styles.locationCtaText}>
-                      <Text style={[styles.locationCtaTitle, { color: colors.text }]}>Enable location access</Text>
-                      <Text style={[styles.locationCtaBody, { color: colors.textSecondary }]}>
-                        {locationPermissionDenied
-                          ? 'Location access is disabled. Enable it in Settings to personalize alerts and verify your state.'
-                          : 'Allow location to personalize alerts and verify your state.'}
-                      </Text>
-                      {locationError ? (
-                        <Text style={styles.locationCtaError}>{locationError}</Text>
-                      ) : null}
-                    </View>
-                    <Pressable
-                      onPress={handleEnableLocation}
-                      disabled={locationLoading}
-                      style={({ pressed }) => [
-                        styles.locationCtaBtn,
-                        pressed && { opacity: 0.9 },
-                        locationLoading && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Text style={styles.locationCtaBtnText}>
-                        {locationLoading
-                          ? 'Requesting…'
-                          : locationPermissionDenied
-                            ? 'Open Settings'
-                            : 'Allow'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </GlassCard>
+            {/* Urgent Alert Banner - Only when critical */}
+            {urgentAlert && (
+              <Animated.View 
+                entering={FadeInDown.duration(400)}
+                style={styles.alertBanner}
+              >
+                <View style={styles.alertIconContainer}>
+                  <Ionicons name={urgentAlert.icon} size={20} color="#fff" />
+                </View>
+                <View style={styles.alertContent}>
+                  <Text style={styles.alertTitle}>{urgentAlert.title}</Text>
+                  <Text style={styles.alertMessage}>{urgentAlert.message}</Text>
+                </View>
+                <Pressable 
+                  style={styles.alertAction}
+                  onPress={urgentAlert.action}
+                >
+                  <Text style={styles.alertActionText}>{urgentAlert.actionLabel}</Text>
+                </Pressable>
               </Animated.View>
             )}
 
-            {/* Alert Card */}
-            <Animated.View entering={FadeInUp.delay(200).duration(500)}>
-              <AnimatedPressable onPress={() => navigation.navigate('Alerts')}>
-                <GlassCard style={styles.alertCard}>
-                  <LinearGradient
-                    colors={['rgba(17, 180, 212, 0.15)', 'rgba(251, 191, 36, 0.1)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
+            {/* Status Summary Card */}
+            <View style={[
+              styles.statusCard, 
+              { backgroundColor: riskConfig.bg }
+            ]}>
+              <View style={styles.statusHeader}>
+                <View style={[styles.statusIcon, { backgroundColor: `${riskConfig.text}15` }]}>
+                  <Ionicons 
+                    name={riskConfig.icon as any} 
+                    size={24} 
+                    color={riskConfig.text} 
                   />
-                  <View style={styles.alertContent}>
-                    <Animated.View style={alertPulseStyle}>
-                      <LinearGradient
-                        colors={[Colors.primary, '#fbbf24']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.alertIconContainer}
-                      >
-                        <InfoCircleIcon size={28} color={Colors.textLight} />
-                      </LinearGradient>
-                    </Animated.View>
-
-                    <View style={styles.alertTextContent}>
-                      <Text style={[styles.alertTitle, { color: colors.text }]}>
-                        {intel?.advisory?.emoji || '⚠️'} {intel?.advisory?.title || t('seasonal_alert_title')}
-                      </Text>
-                      <Text style={[styles.alertBody, { color: colors.textSecondary }]}>
-                        {intel?.advisory?.message || t('seasonal_alert_body_malaria_high')}
-                      </Text>
-                      {intel?.advisory?.source && (
-                        <Text style={styles.alertSource}>Source: {intel.advisory.source}</Text>
-                      )}
-                      <View style={styles.alertLink}>
-                        <Text style={styles.alertLinkText}>{t('view_all_alerts')}</Text>
-                        <ArrowRightIcon size={16} color={Colors.primary} />
-                      </View>
-                    </View>
-                  </View>
-                </GlassCard>
-              </AnimatedPressable>
-            </Animated.View>
-
-            {/* Quick Tips Section */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quick_tips_heading')}</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tipsContainer}
-              >
-                <TipCard
-                  image="https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?auto=format&fit=crop&w=300&q=80"
-                  label={t('tip_nets')}
-                  delay={0}
-                  textColor={colors.text}
-                />
-                <TipCard
-                  image="https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=300&q=80"
-                  label={t('tip_repellent')}
-                  delay={100}
-                  textColor={colors.text}
-                />
-                <TipCard
-                  image="https://images.unsplash.com/photo-1559825481-12a05cc00344?auto=format&fit=crop&w=300&q=80"
-                  label={t('tip_stagnant_water')}
-                  delay={200}
-                  textColor={colors.text}
-                />
-              </ScrollView>
-            </View>
-
-            {/* Weather & Health Section */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('weather_health_heading')}</Text>
-              <Animated.View entering={FadeInUp.delay(300).duration(500)}>
-                <View style={[styles.weatherCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={styles.weatherContent}>
-                    <Text style={[styles.weatherTitle, { color: colors.text }]}>{intel?.season?.label || t('rainy_season')}</Text>
-                    <Text style={[styles.weatherDescription, { color: colors.textSecondary }]}>
-                      {intel?.season?.description || t('rainy_season_desc')}
-                    </Text>
-                    {intel?.weather && (
-                      <Text style={styles.weatherInfo}>
-                        {intel.weather.temp}°C • {intel.weather.humidity}% humidity
-                      </Text>
-                    )}
-                  </View>
-                  <FloatingSeason />
                 </View>
-              </Animated.View>
+                <View style={styles.statusInfo}>
+                  <Text style={[styles.statusTitle, { color: colors.text }]}>
+                    {overallRisk === 'high' ? 'High Risk Area' : 
+                     overallRisk === 'medium' ? 'Moderate Risk' : 
+                     'Low Risk Area'}
+                  </Text>
+                  <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>
+                    Based on your location & conditions
+                  </Text>
+                </View>
+              </View>
+              
+              {topRecommendation && (
+                <View style={styles.tipContainer}>
+                  <Ionicons name="bulb-outline" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                    {topRecommendation}
+                  </Text>
+                </View>
+              )}
             </View>
+
+            {/* Environment Row - AQI & Weather side by side */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+              Current Conditions
+            </Text>
+            
+            <View style={styles.envRow}>
+              {/* AQI Card */}
+              {intel?.airQuality && (
+                <Pressable 
+                  style={[styles.envCard, { backgroundColor: colors.surface }]}
+                  onPress={() => openModal('aqi')}
+                >
+                  {(() => {
+                    const aqiData = getAqiLabel(intel.airQuality.aqi);
+                    return (
+                      <>
+                        <View style={styles.envCardHeader}>
+                          <Ionicons name="leaf" size={18} color={aqiData.color} />
+                          <Text style={[styles.envCardLabel, { color: colors.textSecondary }]}>
+                            Air Quality
+                          </Text>
+                        </View>
+                        <Text style={[styles.envCardValue, { color: aqiData.color }]}>
+                          {aqiData.label}
+                        </Text>
+                        <Text style={[styles.envCardHint, { color: colors.textMuted }]}>
+                          Tap for details
+                        </Text>
+                      </>
+                    );
+                  })()}
+                </Pressable>
+              )}
+
+              {/* Weather Card */}
+              {intel?.weather && (
+                <Pressable 
+                  style={[styles.envCard, { backgroundColor: colors.surface }]}
+                  onPress={() => openModal('weather')}
+                >
+                  <View style={styles.envCardHeader}>
+                    <Ionicons 
+                      name={intel.weather.current.precipitation > 0 ? "rainy" : "sunny"} 
+                      size={18} 
+                      color={Colors.primary} 
+                    />
+                    <Text style={[styles.envCardLabel, { color: colors.textSecondary }]}>
+                      Weather
+                    </Text>
+                  </View>
+                  <Text style={[styles.envCardValue, { color: colors.text }]}>
+                    {Math.round(intel.weather.current.temp)}°C
+                  </Text>
+                  <Text style={[styles.envCardHint, { color: colors.textMuted }]}>
+                    {intel.season?.label || 'Clear'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Disease Risks Section */}
+            {activeRisks.length > 0 && (
+              <>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                  Health Risks in Your Area
+                </Text>
+                
+                <View style={styles.riskList}>
+                  {activeRisks.slice(0, 3).map((risk, idx) => {
+                    const cfg = getRiskConfig(risk.riskLevel);
+                    return (
+                      <Animated.View 
+                        key={risk.diseaseKey}
+                        entering={SlideInRight.delay(idx * 80).duration(300)}
+                      >
+                        <View style={[
+                          styles.riskItem, 
+                          { backgroundColor: colors.surface }
+                        ]}>
+                          <View style={[styles.riskIndicator, { backgroundColor: cfg.text }]} />
+                          <View style={styles.riskContent}>
+                            <View style={styles.riskHeader}>
+                              <Text style={[styles.riskName, { color: colors.text }]}>
+                                {risk.disease}
+                              </Text>
+                              <View style={[styles.riskBadge, { backgroundColor: cfg.bg }]}>
+                                <Text style={[styles.riskBadgeText, { color: cfg.text }]}>
+                                  {risk.riskLevel.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text 
+                              style={[styles.riskReason, { color: colors.textSecondary }]}
+                              numberOfLines={2}
+                            >
+                              {risk.reasons[0]}
+                            </Text>
+                          </View>
+                          <Ionicons 
+                            name="chevron-forward" 
+                            size={16} 
+                            color={colors.textMuted} 
+                          />
+                        </View>
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+
+                {activeRisks.length > 3 && (
+                  <Pressable 
+                    style={styles.viewAllBtn}
+                    onPress={() => navigation.navigate('Alerts')}
+                  >
+                    <Text style={[styles.viewAllText, { color: Colors.primary }]}>
+                      View all {activeRisks.length} risks
+                    </Text>
+                    <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
+                  </Pressable>
+                )}
+              </>
+            )}
+
+            {/* Location Permission Prompt */}
+            {showLocationPrompt && (
+              <Pressable 
+                style={[styles.locationPrompt, { backgroundColor: colors.surface }]}
+                onPress={handleEnableLocation}
+              >
+                <View style={styles.locationPromptIcon}>
+                  <Ionicons name="navigate" size={20} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.locationPromptTitle, { color: colors.text }]}>
+                    Enable precise location
+                  </Text>
+                  <Text style={[styles.locationPromptDesc, { color: colors.textSecondary }]}>
+                    Get more accurate health alerts for your area
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </Pressable>
+            )}
+
+            {/* Disclaimer */}
+            <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
+              {intel?.riskAssessment?.disclaimer || 
+               'For awareness only. Consult a clinician for symptoms.'}
+            </Text>
+
           </Animated.View>
         )}
       </ScrollView>
 
       {/* Floating Chatbot Button */}
-      <FloatingActionButton onPress={handleChatbot} />
-    </View>
-  );
-};
+      <FloatingActionButton onPress={() => navigation.navigate('Chatbot')} />
 
-// Tip Card Component
-interface TipCardProps {
-  image: string;
-  label: string;
-  delay: number;
-  textColor?: string;
-}
-
-const TipCard: React.FC<TipCardProps> = ({ image, label, delay, textColor = Colors.textPrimary }) => {
-  const scale = useSharedValue(1);
-
-  const handlePressIn = () => {
-    scale.value = withTiming(1.03, { duration: 200 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withTiming(1, { duration: 200 });
-  };
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)}>
-      <AnimatedPressable
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={[styles.tipCard, animatedStyle]}
-      >
-        <Image source={{ uri: image }} style={styles.tipImage} />
-        <Text style={[styles.tipLabel, { color: textColor }]}>{label}</Text>
-      </AnimatedPressable>
-    </Animated.View>
-  );
-};
-
-// Floating Season Icon
-const FloatingSeason: React.FC = () => {
-  const translateY = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withRepeat(
-      withSequence(
-        withTiming(-6, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  return (
-    <Animated.View style={animatedStyle}>
-      <Image
-        source={{ uri: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?auto=format&fit=crop&w=200&q=80' }}
-        style={styles.seasonImage}
+      {/* Environment Details Modal */}
+      <EnvironmentModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        data={intel}
+        initialTab={modalTab}
       />
-    </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  logoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.backgroundLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.danger,
-    borderWidth: 2,
-    borderColor: Colors.surfaceLight,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 120,
-    paddingHorizontal: Spacing.base,
+    paddingHorizontal: 20,
   },
-  loadingContainer: {
-    gap: Spacing.sm,
-  },
-  greeting: {
-    marginBottom: Spacing.xl,
-  },
-  welcomeText: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  nameText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
-  },
-  locationText: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.xl,
-    color: Colors.textPrimary,
-  },
-  locationCtaCard: {
-    marginBottom: Spacing.lg,
-    padding: Spacing.base,
-  },
-  locationCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.base,
-  },
-  locationCtaText: {
-    flex: 1,
-    gap: Spacing.xs,
-  },
-  locationCtaTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
-  },
-  locationCtaBody: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    lineHeight: FontSize.sm * 1.4,
-  },
-  locationCtaError: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    color: Colors.danger,
-    marginTop: Spacing.xs,
-  },
-  locationCtaBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    alignSelf: 'flex-start',
-  },
-  locationCtaBtnText: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
-    color: Colors.textLight,
-  },
-  alertCard: {
-    marginBottom: Spacing['3xl'],
-    borderWidth: 1,
-    borderColor: Colors.primaryLight,
-  },
-  alertContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.base,
-  },
-  alertIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.lg,
-  },
-  alertTextContent: {
-    flex: 1,
-  },
-  alertTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-  },
-  alertBody: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-    lineHeight: FontSize.base * 1.5,
-  },
-  alertSource: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    color: Colors.primary,
-    marginTop: Spacing.sm,
-    opacity: 0.7,
-  },
-  alertLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.md,
-  },
-  alertLinkText: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-  },
-  section: {
-    marginBottom: Spacing['3xl'],
-  },
-  sectionTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.xl,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.base,
-  },
-  tipsContainer: {
-    gap: Spacing.base,
-    paddingRight: Spacing.base,
-  },
-  tipCard: {
-    width: 160,
-    gap: Spacing.md,
-  },
-  tipImage: {
-    width: 160,
-    height: 160,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.md,
-  },
-  tipLabel: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  weatherCard: {
+  
+  // Header
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.base,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.primaryLight,
+    marginBottom: 24,
   },
-  weatherContent: {
-    flex: 1,
-    gap: Spacing.xs,
+  userSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  weatherTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
+  userInfo: {
+    gap: 2,
   },
-  weatherDescription: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.textSecondary,
-  },
-  weatherInfo: {
+  greeting: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
   },
-  seasonImage: {
-    width: 96,
-    height: 96,
-    borderRadius: BorderRadius.lg,
+  userName: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.lg,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    maxWidth: 120,
+  },
+  locationText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.danger,
+  },
+  
+  // Loading
+  loadingContainer: {
+    marginTop: 20,
+  },
+  
+  // Alert Banner
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ef4444',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 20,
+    gap: 12,
+  },
+  alertIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertContent: {
+    flex: 1,
+  },
+  alertTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+    color: '#fff',
+  },
+  alertMessage: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+  },
+  alertAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+  },
+  alertActionText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    color: '#fff',
+  },
+  
+  // Status Card
+  statusCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusInfo: {
+    flex: 1,
+  },
+  statusTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.base,
+  },
+  statusSubtitle: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    marginTop: 2,
+  },
+  tipContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  tipText: {
+    flex: 1,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+  },
+  
+  // Section Labels
+  sectionLabel: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  
+  // Environment Row
+  envRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  envCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    ...Shadows.sm,
+  },
+  envCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  envCardLabel: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  envCardValue: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.xl,
+    marginBottom: 4,
+  },
+  envCardHint: {
+    fontFamily: FontFamily.regular,
+    fontSize: 11,
+  },
+  
+  // Risk List
+  riskList: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  riskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    ...Shadows.sm,
+  },
+  riskIndicator: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+  },
+  riskContent: {
+    flex: 1,
+  },
+  riskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  riskName: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  riskBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  riskBadgeText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 10,
+  },
+  riskReason: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    lineHeight: 16,
+  },
+  
+  // View All
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  viewAllText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+  },
+  
+  // Location Prompt
+  locationPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 16,
+    ...Shadows.sm,
+  },
+  locationPromptIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(17, 180, 212, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationPromptTitle: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+  },
+  locationPromptDesc: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    marginTop: 2,
+  },
+  
+  // Disclaimer
+  disclaimer: {
+    fontFamily: FontFamily.regular,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 20,
+    lineHeight: 16,
   },
 });
 

@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { serve } from 'std/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient, tryCreateAdminClient } from '../_shared/supabase.ts';
 import {
@@ -95,12 +95,14 @@ async function fetchWeather(lat: number, lon: number): Promise<{
       ]);
 
       if (currentRes.ok) {
-        const currentData: any = await currentRes.json();
+        type OpenWeatherCurrent = { main?: { temp?: number; humidity?: number; temp_max?: number; temp_min?: number }; rain?: { '1h'?: number }; snow?: { '1h'?: number }; weather?: Array<{ main?: string; id?: number }>; wind?: { speed?: number } };
+        const currentData = await currentRes.json() as OpenWeatherCurrent;
         
         // Parse forecast data (5-day / 3-hour intervals, we take 5 days)
         let forecast: ForecastData | null = null;
         if (forecastRes.ok) {
-          const forecastData: any = await forecastRes.json();
+          type OpenWeatherForecast = { list?: Array<{ dt_txt: string; main: { temp_max: number; temp_min: number }; rain?: { '3h'?: number }; snow?: { '3h'?: number } }> };
+          const forecastData = await forecastRes.json() as OpenWeatherForecast;
           const dailyMap = new Map<string, { maxTemps: number[]; minTemps: number[]; precipitation: number[] }>();
           
           for (const item of forecastData.list || []) {
@@ -151,7 +153,8 @@ async function fetchWeather(lat: number, lon: number): Promise<{
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Africa%2FLagos&forecast_days=3`;
     const res = await fetch(url);
     if (!res.ok) return null;
-    const data: any = await res.json();
+    type OpenMeteoResponse = { current?: { temperature_2m?: number; relative_humidity_2m?: number; precipitation?: number; weather_code?: number }; daily?: { time: string[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_sum: number[] } };
+    const data = await res.json() as OpenMeteoResponse;
     return {
       current: {
         temp: data.current?.temperature_2m ?? 0,
@@ -183,7 +186,8 @@ async function fetchAQI(lat: number, lon: number): Promise<AQIData | null> {
     
     if (!res.ok) return null;
     
-    const data: any = await res.json();
+    type AQIResponse = { list?: Array<{ main?: { aqi?: number }; components?: { pm2_5?: number; pm10?: number; o3?: number; no2?: number; so2?: number; co?: number } }> };
+    const data = await res.json() as AQIResponse;
     const list = data.list?.[0];
     
     if (!list) return null;
@@ -210,27 +214,30 @@ async function fetchOutbreakData() {
       fetch('https://disease.sh/v3/covid-19/all'),
     ]);
 
-    const outbreaks: any[] = [];
+    type OutbreakInfo = { disease: string; region: string; severity: string; cases?: number; active?: number; todayCases?: number; updated?: string; summary?: string; source: string };
+    const outbreaks: OutbreakInfo[] = [];
 
     if (nigeriaRes.ok) {
-      const ng: any = await nigeriaRes.json();
-      if (ng.todayCases > 100 || ng.active > 5000) {
+      type NigeriaCovidResponse = { cases?: number; active?: number; todayCases?: number; updated?: number };
+      const ng = await nigeriaRes.json() as NigeriaCovidResponse;
+      if ((ng.todayCases ?? 0) > 100 || (ng.active ?? 0) > 5000) {
         outbreaks.push({
           disease: 'COVID-19',
           region: 'Nigeria',
-          severity: ng.todayCases > 500 ? 'high' : 'moderate',
+          severity: (ng.todayCases ?? 0) > 500 ? 'high' : 'moderate',
           cases: ng.cases,
           active: ng.active,
           todayCases: ng.todayCases,
-          updated: new Date(ng.updated).toISOString(),
+          updated: ng.updated ? new Date(ng.updated).toISOString() : new Date().toISOString(),
           source: 'Disease.sh / Johns Hopkins CSSE',
         });
       }
     }
 
     if (globalRes.ok) {
-      const gl: any = await globalRes.json();
-      if (gl.todayCases > 100000) {
+      type GlobalCovidResponse = { todayCases?: number };
+      const gl = await globalRes.json() as GlobalCovidResponse;
+      if ((gl.todayCases ?? 0) > 100000) {
         outbreaks.push({
           disease: 'COVID-19',
           region: 'Global',
@@ -255,7 +262,8 @@ async function fetchWHOAlerts() {
     if (!res.ok) return [];
 
     const text = await res.text();
-    const alerts: any[] = [];
+    type WHOAlert = { title: string; url: string; source: string };
+    const alerts: WHOAlert[] = [];
 
     const titleMatches = text.match(/<title>([^<]+)<\/title>/g) || [];
     const linkMatches = text.match(/<link>([^<]+)<\/link>/g) || [];
@@ -279,19 +287,29 @@ async function fetchWHOAlerts() {
   }
 }
 
-const INTEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const _INTEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     let state = '';
+    let lat: number | null = null;
+    let lon: number | null = null;
 
     if (req.method === 'POST') {
-      const body: any = await req.json().catch(() => ({}));
+      const body = await req.json().catch(() => ({})) as { state?: string; lat?: number; lon?: number; latitude?: number; longitude?: number };
       state = typeof body?.state === 'string' ? body.state : '';
+      // Accept both lat/lon and latitude/longitude
+      lat = typeof body?.lat === 'number' ? body.lat : (typeof body?.latitude === 'number' ? body.latitude : null);
+      lon = typeof body?.lon === 'number' ? body.lon : (typeof body?.longitude === 'number' ? body.longitude : null);
     } else {
-      state = new URL(req.url).searchParams.get('state') || '';
+      const params = new URL(req.url).searchParams;
+      state = params.get('state') || '';
+      const latParam = params.get('lat') || params.get('latitude');
+      const lonParam = params.get('lon') || params.get('longitude');
+      if (latParam) lat = parseFloat(latParam);
+      if (lonParam) lon = parseFloat(lonParam);
     }
 
     state = state.trim();
@@ -320,11 +338,26 @@ serve(async (req: Request) => {
 
     // Check DB cache first (intel_cache). If service role is not configured, skip cache.
     const admin = tryCreateAdminClient();
+    
+    // Use precise coordinates if provided, otherwise fall back to state center
+    const usePreciseCoords = lat !== null && lon !== null && 
+      Number.isFinite(lat) && Number.isFinite(lon) &&
+      lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    
+    const coords = usePreciseCoords 
+      ? { lat: lat!, lon: lon! }
+      : (NIGERIA_STATE_COORDS[stateNormalized] || { lat: 9.082, lon: 8.6753 });
+    
+    // Cache key includes coordinates for precision (rounded to 2 decimal places for reasonable cache hits)
+    const cacheKey = usePreciseCoords 
+      ? `${stateNormalized}_${coords.lat.toFixed(2)}_${coords.lon.toFixed(2)}`
+      : stateNormalized;
+    
     if (admin) {
       const { data: cached } = await admin
         .from('intel_cache')
         .select('payload, expires_at')
-        .eq('region_key', stateNormalized)
+        .eq('region_key', cacheKey)
         .eq('scope', 'v2')  // Use new scope for v2 response format
         .maybeSingle();
 
@@ -335,8 +368,6 @@ serve(async (req: Request) => {
         }
       }
     }
-
-    const coords = NIGERIA_STATE_COORDS[stateNormalized] || { lat: 9.082, lon: 8.6753 };
     
     // Fetch all data in parallel: weather, AQI, outbreaks, WHO alerts
     const [weatherResult, aqiResult, outbreaks, whoAlerts] = await Promise.all([
@@ -373,6 +404,7 @@ serve(async (req: Request) => {
         stateNormalized,
         isKnownState: NIGERIA_STATES.includes(stateNormalized),
         coordinates: coords,
+        preciseLocation: usePreciseCoords,  // true if using user's GPS, false if using state center
         region: riskAssessment?.location.region ?? null,
       },
       
@@ -397,6 +429,7 @@ serve(async (req: Request) => {
           pm2_5: aqiResult.pm2_5,
           pm10: aqiResult.pm10,
           o3: aqiResult.o3,
+
           no2: aqiResult.no2,
         },
         source: 'OpenWeather',
@@ -446,16 +479,16 @@ serve(async (req: Request) => {
       },
     };
 
-    // Upsert cache (best-effort)
+    // Upsert cache (best-effort) with 15 minute TTL
     if (admin) {
-      const nowIso = new Date().toISOString();
-      const expiresAt = new Date(Date.now() + INTEL_CACHE_TTL_MS).toISOString();
-
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       await admin
         .from('intel_cache')
         .upsert({
-          region_key: stateNormalized,
+          region_key: cacheKey,
           scope: 'v2',
+          payload: response,
+          expires_at: expiresAt,
         });
     }
 

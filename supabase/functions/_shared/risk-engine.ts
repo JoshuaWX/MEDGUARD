@@ -351,7 +351,7 @@ export function calculateCholeraRisk(
 
 export function calculateTyphoidRisk(
   weather: WeatherData,
-  forecast: ForecastData | null,
+  _forecast: ForecastData | null,
   season: SeasonInfo
 ): DiseaseRisk {
   const { precipitationModerate, precipitationHigh, humidityHigh } = RISK_THRESHOLDS.typhoid;
