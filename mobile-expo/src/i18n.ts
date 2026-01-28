@@ -147,6 +147,42 @@ const messages: Record<LangCode, Messages> = {
     terms_privacy_short: 'Terms & Privacy Policy',
     powered_by: 'Powered by AI for Nigerian Health',
     language_changed: 'Language updated',
+
+    // Disease Risk & Health Intelligence
+    disease_risks: 'Disease Risk Assessment',
+    air_quality: 'Air Quality',
+    overall_risk: 'Overall Risk',
+    disease_malaria: 'Malaria',
+    disease_cholera: 'Cholera',
+    disease_typhoid: 'Typhoid',
+    disease_meningitis: 'Meningitis',
+    disease_lassa: 'Lassa Fever',
+    risk_high: 'High Risk',
+    risk_medium: 'Moderate',
+    risk_low: 'Low Risk',
+    tap_for_details: 'Tap for details',
+    recommendations: 'Recommendations',
+    sources: 'Sources',
+
+    // AQI Levels
+    aqi_good: 'Good',
+    aqi_fair: 'Fair',
+    aqi_moderate: 'Moderate',
+    aqi_poor: 'Poor',
+    aqi_very_poor: 'Very Poor',
+
+    // Seasons
+    season_harmattan: 'Harmattan',
+    season_dry: 'Dry Season',
+    season_rainy_full: 'Rainy Season',
+
+    // Weather
+    temperature: 'Temperature',
+    humidity: 'Humidity',
+    precipitation: 'Precipitation',
+
+    // Health disclaimer
+    health_disclaimer: 'For awareness only; follow official guidance and consult a clinician for symptoms.',
   },
   yo: {
     app_name: 'MedGuard',

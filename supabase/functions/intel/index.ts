@@ -1,6 +1,19 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient, tryCreateAdminClient } from '../_shared/supabase.ts';
+import {
+  type WeatherData,
+  type ForecastData,
+  type AQIData,
+  type RiskAssessment,
+  assessDiseaseRisks,
+  getAQIInsight,
+  getNigeriaSeason,
+  HEALTH_DISCLAIMER,
+} from '../_shared/risk-engine.ts';
+
+// OpenWeather API key from environment
+const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -63,7 +76,77 @@ const NIGERIA_STATES = [
   'fct','abuja'
 ];
 
-async function fetchWeather(lat: number, lon: number) {
+async function fetchWeather(lat: number, lon: number): Promise<{
+  current: WeatherData;
+  forecast: ForecastData | null;
+  source: string;
+} | null> {
+  // Try OpenWeather first, fallback to Open-Meteo
+  if (OPENWEATHER_API_KEY) {
+    try {
+      // Fetch current weather, forecast, and AQI in parallel
+      const [currentRes, forecastRes] = await Promise.all([
+        fetch(
+          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`
+        ),
+        fetch(
+          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&cnt=16&appid=${OPENWEATHER_API_KEY}`
+        ),
+      ]);
+
+      if (currentRes.ok) {
+        const currentData: any = await currentRes.json();
+        
+        // Parse forecast data (5-day / 3-hour intervals, we take 5 days)
+        let forecast: ForecastData | null = null;
+        if (forecastRes.ok) {
+          const forecastData: any = await forecastRes.json();
+          const dailyMap = new Map<string, { maxTemps: number[]; minTemps: number[]; precipitation: number[] }>();
+          
+          for (const item of forecastData.list || []) {
+            const date = item.dt_txt.split(' ')[0];
+            if (!dailyMap.has(date)) {
+              dailyMap.set(date, { maxTemps: [], minTemps: [], precipitation: [] });
+            }
+            const day = dailyMap.get(date)!;
+            day.maxTemps.push(item.main.temp_max);
+            day.minTemps.push(item.main.temp_min);
+            day.precipitation.push((item.rain?.['3h'] || 0) + (item.snow?.['3h'] || 0));
+          }
+          
+          const dates: string[] = [];
+          const maxTemps: number[] = [];
+          const minTemps: number[] = [];
+          const precipitation: number[] = [];
+          
+          for (const [date, data] of dailyMap.entries()) {
+            dates.push(date);
+            maxTemps.push(Math.max(...data.maxTemps));
+            minTemps.push(Math.min(...data.minTemps));
+            precipitation.push(data.precipitation.reduce((a, b) => a + b, 0));
+          }
+          
+          forecast = { dates, maxTemps, minTemps, precipitation };
+        }
+
+        return {
+          current: {
+            temp: currentData.main?.temp ?? 0,
+            humidity: currentData.main?.humidity ?? 0,
+            precipitation: (currentData.rain?.['1h'] || 0) + (currentData.snow?.['1h'] || 0),
+            windSpeed: currentData.wind?.speed,
+            weatherCode: currentData.weather?.[0]?.id,
+          },
+          forecast,
+          source: 'OpenWeather',
+        };
+      }
+    } catch (err) {
+      console.error('OpenWeather fetch error:', err);
+    }
+  }
+
+  // Fallback to Open-Meteo (no API key required)
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Africa%2FLagos&forecast_days=3`;
     const res = await fetch(url);
@@ -71,9 +154,9 @@ async function fetchWeather(lat: number, lon: number) {
     const data: any = await res.json();
     return {
       current: {
-        temp: data.current?.temperature_2m,
-        humidity: data.current?.relative_humidity_2m,
-        precipitation: data.current?.precipitation,
+        temp: data.current?.temperature_2m ?? 0,
+        humidity: data.current?.relative_humidity_2m ?? 0,
+        precipitation: data.current?.precipitation ?? 0,
         weatherCode: data.current?.weather_code,
       },
       forecast: data.daily ? {
@@ -85,6 +168,37 @@ async function fetchWeather(lat: number, lon: number) {
       source: 'Open-Meteo',
     };
   } catch {
+    return null;
+  }
+}
+
+// Fetch Air Quality Index from OpenWeather
+async function fetchAQI(lat: number, lon: number): Promise<AQIData | null> {
+  if (!OPENWEATHER_API_KEY) return null;
+  
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
+    );
+    
+    if (!res.ok) return null;
+    
+    const data: any = await res.json();
+    const list = data.list?.[0];
+    
+    if (!list) return null;
+    
+    return {
+      aqi: list.main?.aqi ?? 1,
+      pm2_5: list.components?.pm2_5,
+      pm10: list.components?.pm10,
+      o3: list.components?.o3,
+      no2: list.components?.no2,
+      so2: list.components?.so2,
+      co: list.components?.co,
+    };
+  } catch (err) {
+    console.error('AQI fetch error:', err);
     return null;
   }
 }
@@ -165,117 +279,6 @@ async function fetchWHOAlerts() {
   }
 }
 
-function getWeatherHealthRisks(weather: any) {
-  const risks: any[] = [];
-  if (!weather?.current) return risks;
-
-  const { temp, humidity, precipitation } = weather.current;
-
-  if (humidity > 70 && temp > 25) {
-    risks.push({
-      type: 'environmental',
-      factor: 'High humidity and warm temperatures',
-      impact: 'Increased mosquito breeding - higher malaria/dengue risk',
-      severity: 'moderate',
-    });
-  }
-
-  if (precipitation > 10) {
-    risks.push({
-      type: 'environmental',
-      factor: 'Heavy rainfall detected',
-      impact: 'Flooding risk - potential water contamination and cholera',
-      severity: 'high',
-    });
-  }
-
-  if (temp > 38) {
-    risks.push({
-      type: 'environmental',
-      factor: 'Extreme heat',
-      impact: 'Heat stroke risk - stay hydrated, avoid midday sun',
-      severity: 'high',
-    });
-  }
-
-  if (humidity < 30) {
-    risks.push({
-      type: 'environmental',
-      factor: 'Very dry conditions (Harmattan)',
-      impact: 'Respiratory irritation, meningitis risk in northern states',
-      severity: 'moderate',
-    });
-  }
-
-  return risks;
-}
-
-function getNigeriaSeason(month: number, state: string) {
-  const northernStates = [
-    'borno','yobe','adamawa','gombe','bauchi','jigawa','kano','katsina','kebbi','sokoto','zamfara','kaduna','niger','plateau','nasarawa','taraba','benue','kogi','kwara','fct','abuja'
-  ];
-  const isNorth = northernStates.includes((state || '').toLowerCase());
-
-  if (month >= 11 || month <= 1) {
-    return { label: 'harmattan', description: 'Dry, dusty Harmattan winds from the Sahara', confidence: 0.8 };
-  } else if (month >= 2 && month <= 3) {
-    return { label: 'dry', description: 'Late dry season, transitioning to rains', confidence: 0.7 };
-  } else if (month >= 4 && month <= 10) {
-    if (isNorth && (month <= 5 || month >= 9)) {
-      return { label: 'dry', description: 'Northern Nigeria dry period', confidence: 0.6 };
-    }
-    return { label: 'rainy', description: 'Rainy season - increased malaria and waterborne disease risk', confidence: 0.8 };
-  }
-  return { label: 'unknown', description: 'Season data unavailable', confidence: 0 };
-}
-
-function getSeasonalDiseaseIntel(season: any, state: string) {
-  const intel: any[] = [];
-  const stateLower = (state || '').toLowerCase();
-
-  if (season.label === 'rainy') {
-    intel.push({
-      disease: 'Malaria',
-      severity: 'high',
-      summary: 'Malaria cases typically peak during rainy season due to increased mosquito breeding.',
-      recommendation: 'Use insecticide-treated nets, clear stagnant water around homes.',
-      source: 'NCDC Seasonal Advisory',
-    });
-
-    intel.push({
-      disease: 'Cholera',
-      severity: 'moderate',
-      summary: 'Cholera risk increases with flooding and contaminated water sources.',
-      recommendation: 'Drink only treated/boiled water, wash hands frequently.',
-      source: 'NCDC Advisory',
-    });
-  }
-
-  const meningitisBelt = ['borno','yobe','adamawa','gombe','bauchi','jigawa','kano','katsina','kebbi','sokoto','zamfara','kaduna','niger'];
-  if ((season.label === 'dry' || season.label === 'harmattan') && meningitisBelt.includes(stateLower)) {
-    intel.push({
-      disease: 'Meningitis',
-      severity: 'high',
-      summary: 'Cerebrospinal meningitis season in the meningitis belt (Dec-May).',
-      recommendation: 'Get vaccinated if available, avoid overcrowded spaces, seek care for severe headache + stiff neck.',
-      source: 'NCDC Meningitis Advisory',
-    });
-  }
-
-  const lassaEndemicStates = ['ondo','edo','ebonyi','bauchi','plateau','taraba','nasarawa','benue','kogi','ogun','oyo','osun','ekiti','kwara'];
-  if ((season.label === 'dry' || season.label === 'harmattan') && lassaEndemicStates.includes(stateLower)) {
-    intel.push({
-      disease: 'Lassa Fever',
-      severity: 'moderate',
-      summary: 'Lassa fever season peaks Nov-Mar in endemic states.',
-      recommendation: 'Store food in rodent-proof containers, maintain hygiene, avoid contact with rodents.',
-      source: 'NCDC Lassa Fever Advisory',
-    });
-  }
-
-  return intel;
-}
-
 const INTEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 serve(async (req: Request) => {
@@ -322,7 +325,7 @@ serve(async (req: Request) => {
         .from('intel_cache')
         .select('payload, expires_at')
         .eq('region_key', stateNormalized)
-        .eq('scope', 'general')
+        .eq('scope', 'v2')  // Use new scope for v2 response format
         .maybeSingle();
 
       if (cached?.payload && cached?.expires_at) {
@@ -333,61 +336,112 @@ serve(async (req: Request) => {
       }
     }
 
-    const now = new Date();
-    const month = now.getMonth();
-    const season = getNigeriaSeason(month, stateNormalized);
-    const diseaseIntel = getSeasonalDiseaseIntel(season, stateNormalized);
-
     const coords = NIGERIA_STATE_COORDS[stateNormalized] || { lat: 9.082, lon: 8.6753 };
-    const [weather, outbreaks, whoAlerts] = await Promise.all([
+    
+    // Fetch all data in parallel: weather, AQI, outbreaks, WHO alerts
+    const [weatherResult, aqiResult, outbreaks, whoAlerts] = await Promise.all([
       fetchWeather(coords.lat, coords.lon),
+      fetchAQI(coords.lat, coords.lon),
       fetchOutbreakData(),
       fetchWHOAlerts(),
     ]);
 
-    const weatherRisks = getWeatherHealthRisks(weather);
-    const enhancedAdvisories = [...diseaseIntel];
-    for (const risk of weatherRisks) {
-      enhancedAdvisories.push({
-        disease: risk.factor,
-        severity: risk.severity,
-        summary: risk.impact,
-        recommendation: risk.type === 'environmental' ? 'Monitor conditions and take precautions.' : '',
-        source: 'Real-time Weather Analysis',
-        isWeatherBased: true,
-      });
+    // Prepare weather data for risk engine
+    const weatherData: WeatherData | null = weatherResult?.current ?? null;
+    const forecastData: ForecastData | null = weatherResult?.forecast ?? null;
+
+    // Calculate disease risks using the risk engine
+    let riskAssessment: RiskAssessment | null = null;
+    if (weatherData) {
+      riskAssessment = assessDiseaseRisks(weatherData, forecastData, stateNormalized);
     }
 
-    const response: any = {
+    // Get AQI insights if available
+    const aqiInsight = aqiResult ? getAQIInsight(aqiResult) : null;
+
+    // Get season info
+    const now = new Date();
+    const season = getNigeriaSeason(now.getMonth(), stateNormalized);
+
+    // Build comprehensive response
+    const response = {
       generatedAt: now.toISOString(),
+      version: 'v2',
+      
       location: {
         state,
         stateNormalized,
         isKnownState: NIGERIA_STATES.includes(stateNormalized),
         coordinates: coords,
+        region: riskAssessment?.location.region ?? null,
       },
+      
       season,
-      weather: weather ? {
-        current: weather.current,
-        forecast: weather.forecast,
-        source: weather.source,
+      
+      weather: weatherResult ? {
+        current: {
+          temp: weatherData?.temp,
+          humidity: weatherData?.humidity,
+          precipitation: weatherData?.precipitation,
+          windSpeed: weatherData?.windSpeed,
+        },
+        forecast: forecastData,
+        source: weatherResult.source,
       } : null,
-      advisories: enhancedAdvisories,
+      
+      // NEW: Air Quality data
+      airQuality: aqiResult ? {
+        aqi: aqiResult.aqi,
+        insight: aqiInsight,
+        pollutants: {
+          pm2_5: aqiResult.pm2_5,
+          pm10: aqiResult.pm10,
+          o3: aqiResult.o3,
+          no2: aqiResult.no2,
+        },
+        source: 'OpenWeather',
+      } : null,
+      
+      // NEW: Disease risk assessment
+      riskAssessment: riskAssessment ? {
+        overallRiskLevel: riskAssessment.overallRiskLevel,
+        diseases: riskAssessment.diseases,
+        disclaimer: riskAssessment.disclaimer,
+      } : null,
+      
+      // Legacy advisories format (for backward compatibility)
+      advisories: riskAssessment?.diseases
+        .filter(d => d.isActive)
+        .map(d => ({
+          disease: d.disease,
+          severity: d.riskLevel,
+          summary: d.reasons[0] || 'Elevated risk conditions detected',
+          recommendation: d.actions[0] || 'Take standard precautions',
+          source: d.sources.join(', '),
+          riskLevel: d.riskLevel,
+          confidence: d.confidence,
+        })) ?? [],
+      
       outbreaks,
       whoAlerts,
+      
       sources: [
         { name: 'NCDC Nigeria', url: 'https://ncdc.gov.ng/' },
         { name: 'WHO Africa', url: 'https://www.afro.who.int/' },
-        { name: 'Open-Meteo Weather', url: 'https://open-meteo.com/' },
+        { name: weatherResult?.source ?? 'OpenWeather', url: weatherResult?.source === 'OpenWeather' ? 'https://openweathermap.org/' : 'https://open-meteo.com/' },
         { name: 'Disease.sh', url: 'https://disease.sh/' },
       ],
+      
       meta: {
-        version: 'edge-v1',
-        note: 'Edge function: intel aggregation + DB cache.',
+        version: 'edge-v2',
+        note: 'Enhanced intel with OpenWeather, AQI, and disease risk assessment',
+        disclaimer: HEALTH_DISCLAIMER,
         dataFreshness: {
-          weather: weather ? 'live' : 'unavailable',
+          weather: weatherResult ? 'live' : 'unavailable',
+          aqi: aqiResult ? 'live' : 'unavailable',
           outbreaks: outbreaks.length > 0 ? 'live' : 'none_active',
           whoAlerts: whoAlerts.length > 0 ? 'live' : 'none_relevant',
+          riskAssessment: riskAssessment ? 'computed' : 'unavailable',
         },
       },
     };
@@ -401,10 +455,7 @@ serve(async (req: Request) => {
         .from('intel_cache')
         .upsert({
           region_key: stateNormalized,
-          scope: 'general',
-          payload: response,
-          fetched_at: nowIso,
-          expires_at: expiresAt,
+          scope: 'v2',
         });
     }
 

@@ -1,147 +1,305 @@
 # MedGuard
 
-MedGuard is a mobile-first, static front-end prototype for a health companion app focused on disease alerts, an AI health chatbot, and local health resources. The UI is built with plain HTML pages and Tailwind CSS (CDN) and is designed for quick prototyping and user testing.
+MedGuard is a **mobile-first health companion** built for **real Android/iOS devices**.
 
-This repository contains static HTML mockups for the core app screens used during design and early development.
+It combines:
 
-## Features
-- Mobile-first UI for health alerts, chatbot, map, profiles, and onboarding.
-- Dark/light theme support via Tailwind's `dark` class.
-- Prototype-ready pages (no backend required for static browsing).
+- **Expo / React Native mobile app** (primary client)
+- **Supabase backend** (Auth, Postgres, Storage)
+- **Supabase Edge Functions** for server-side health “intel”, location verification, avatar URL signing, and AI chat (RAG)
 
-## Tech stack
-- HTML (static pages)
-- Tailwind CSS via CDN (development / prototyping)
-- Google Fonts & Material Symbols (icons)
-
-## Quick start (open locally)
-Option A — Open files directly in your browser (quick and easy):
-
-1. Open `index` page or any HTML file in your browser (double-click the `.html` file). Example files: `welcome.html`, `home.html`, `chatbot.html`.
-
-Option B — Run a simple local static server (recommended to avoid CORS / relative-path issues):
-
-From the repository root in your terminal (Git Bash / bash on Windows):
-
-```bash
-# Using Python 3 (works if Python is installed)
-python -m http.server 8000
-# Then open http://localhost:8000/welcome.html
-
-# Or, if you have Node installed, using a tiny static server (install once):
-# npm i -g http-server
-http-server -p 8000
-# Then open http://localhost:8000/welcome.html
-```
-
-## Development notes
-These pages use Tailwind via the CDN for rapid iteration. For production, you should compile Tailwind and remove unused classes to reduce CSS size.
-
-Suggested minimal production steps:
-
-1. Install Node.js (LTS).
-2. Add a project `package.json` and install Tailwind & PostCSS.
-3. Move local styles into a single stylesheet and configure `tailwind.config.js` with a `content` list that includes these HTML files.
-4. Build a production CSS file with Purge enabled (Tailwind `content` scanning) and serve that instead of the CDN script.
-
-If you'd like, I can scaffold a minimal `package.json`, `tailwind.config.js`, and build script for you.
-
-## Accessibility & QA checklist
-- [ ] Add `aria-label` or visible text for every icon-only button (back arrows, send, mic, etc.).
-- [ ] Use real `<label>` elements for inputs; avoid placeholder-only labels.
-- [ ] Replace custom toggles with accessible `<input type="checkbox">` or implement `role="switch"` + keyboard handlers and `aria-checked` updates.
-- [ ] Ensure visible focus styles (avoid removing outlines without a replacement focus indicator).
-- [ ] Verify color contrast in dark mode for small text and subtle colors.
-- [ ] Host critical images locally or on a controlled CDN to avoid third-party requests during testing.
-
-## Project structure (top-level files)
-- `welcome.html` — landing / onboarding
-- `signup.html`, `signup2.html` — onboarding / signup flows
-- `home.html` — dashboard
-- `chatbot.html` — AI chat UI prototype
-- `map.html` — disease map mock
-- `myhealth.html` — user health dashboard
-- `alerts.html` — alerts and notifications
-- `profile.html` — user profile
-- `settings.html` — settings & support
-- `codeimages/` — screenshots and assets used by the mockups
-
-## Suggested next steps (I can do these for you)
-- Add small accessibility fixes (aria-labels and replace the `settings` toggle with an accessible checkbox) — quick wins.
-- Consolidate repeated Tailwind config and styles into a single partial and update HTML files to import it.
-- Scaffold a minimal Tailwind build (Node + tailwindcss) and a `build` script to produce a production-ready CSS file.
-- Run an accessibility audit (Lighthouse/axe) and produce a prioritized report.
-
-If you want one of the above, tell me which and I'll implement it.
-
-## Contributing
-This is a small prototype. If you want changes, open an issue or send a branch/PR. Keep HTML and styles consistent and prefer shared components for repeated UI patterns.
-
-## License
-This repository doesn't have a license file yet. If you'd like, I can add an MIT license or another license of your choosing.
-
-## Secure keys (Supabase)
-
-This project talks to Supabase. Do not commit your Supabase anon keys or service role keys into the repo or any public channel.
-
-Short guidance:
-
-- Never paste keys into issues, PRs, public chats, or commit them into the repository.
-- If you already exposed an anon or service key publicly, rotate/regenerate it from the Supabase dashboard immediately.
-
-Local development (recommended):
-
-1. Copy `.env.example` to `.env.local` at the project root.
-2. Edit `.env.local` and paste your values (keep the file private):
-
-```bash
-# Example (do not commit this file):
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ... (your anon key)
-```
-
-3. Vite will expose variables prefixed with `VITE_` to the browser. For server-side code (Node) use `SUPABASE_URL` and `SUPABASE_KEY` without the `VITE_` prefix.
-
-Windows (Git Bash / bash) environment example (temporary for a session):
-
-```bash
-export VITE_SUPABASE_URL="https://your-project.supabase.co"
-export VITE_SUPABASE_ANON_KEY="your-anon-key"
-# then run your dev server in the same shell
-npm run dev
-```
-
-If you want, I can add an optional small script to validate the env vars at startup and fail fast with a helpful message.
-
-## Run the full app (Vite + Tailwind + Node proxy + Python chatbot)
-
-This repo now uses a Python (Flask) chatbot located in `End-to-end-Medical-Chatbot-Generative-AI/`.
-
-1. Create + activate the conda env and install Python deps:
-
-```bash
-cd End-to-end-Medical-Chatbot-Generative-AI
-conda create -n medibot python=3.10 -y
-conda activate medibot
-pip install -r requirements.txt
-```
-
-2. Create `End-to-end-Medical-Chatbot-Generative-AI/.env` with:
-
-```ini
-PINECONE_API_KEY=...
-OPENROUTER_API_KEY=...
-```
-
-3. From the project root, start everything with one command:
-
-```bash
-npm run dev:full
-```
-
-- MedGuard UI: `http://localhost:5173/home.html`
-- Chatbot server: `http://localhost:8080/`
-- The in-app “Chatbot” button opens the Flask chatbot.
+The repo also contains earlier **static HTML prototypes** used to design the UI. Those are reference artifacts; the production experience lives in `mobile-expo/`.
 
 ---
-Generated on October 19, 2025 — created by the project maintainer tools. If anything in this README should be adjusted to match your workflow or deployment, tell me and I'll update it.
+
+## What MedGuard does (product overview)
+
+MedGuard helps a user:
+
+1. **Create an account** and complete onboarding.
+2. **Get health intel** relevant to their location in Nigeria (season, weather-driven risks, outbreak headlines).
+3. **Chat with an AI health assistant** (MedGuard Chat) that can use a medical knowledge base via vector search (RAG).
+4. **Track and use location** to improve relevance (with explicit permission prompts).
+5. **Manage profile and avatar** securely using Supabase Storage.
+
+MedGuard is not a replacement for a doctor. The chatbot provides general guidance and safety triage, not diagnosis.
+
+---
+
+## Repository map (what’s in this repo)
+
+### Mobile app (production)
+
+- `mobile-expo/` — Expo SDK 54 app (React Native)
+	- `mobile-expo/src/screens/` — UI screens (Welcome, Sign In, Sign Up, Home, Chatbot, Profile, etc.)
+	- `mobile-expo/src/hooks/` — Auth + location state management
+	- `mobile-expo/src/services/` — Supabase client + Edge Function invoker
+	- `mobile-expo/app.json` — Expo config (scheme, permissions, plugins)
+
+### Supabase backend (production)
+
+- `supabase/functions/` — Supabase Edge Functions (Deno)
+	- `chat/` — AI chat + RAG retrieval + conversation persistence
+	- `intel/` — location-based seasonal/outbreak intel + caching
+	- `verify-location/` — reverse-geocode + (optionally) upsert user_context
+	- `avatar-sign/` — create signed URLs for private avatar objects
+	- `_shared/` — shared env, CORS helpers, Supabase client factories
+
+### Database migrations
+
+- `db/migrations/` — SQL migrations for the Supabase Postgres schema (profiles, chat tables, user_context, cache, etc.)
+
+### Legacy / reference artifacts
+
+- `*.html` — original UI prototypes (web-only)
+- `server/` — older Node proxy + server-side RAG experiments (legacy; not used by the mobile app)
+- `End-to-end-Medical-Chatbot-Generative-AI/` — Flask-based research baseline and earlier chatbot prototype (legacy/reference)
+
+If you’re working on the production app, focus on `mobile-expo/`, `supabase/functions/`, and `db/migrations/`.
+
+---
+
+## Architecture (how it works)
+
+### High-level data flow
+
+**Mobile (Expo)** → **Supabase Auth** → **Supabase Postgres/Storage**
+
+For “server-side logic” (AI, intel, signing URLs), the mobile app calls **Supabase Edge Functions**.
+
+This keeps:
+
+- AI keys (OpenRouter, Pinecone, Hugging Face) **off the client**
+- sensitive operations (signing URLs) **server-side**
+
+### Core Supabase resources
+
+MedGuard uses:
+
+- **Auth**: email + password (confirmation can be enabled in the Supabase dashboard)
+- **Postgres tables**:
+	- `profiles` — user profile fields (name, email, avatar, optional location fields)
+	- `user_context` — frequently changing health context (state, lat/lon, care_mode)
+	- `chat_conversations` / `chat_messages` — per-user chat history
+	- `intel_cache` — cached intel (server-side)
+- **Storage**:
+	- `avatars` bucket (intended private) for profile pictures
+
+Row Level Security (RLS) is used to prevent users from reading/updating other users’ data.
+
+---
+
+## Features already included
+
+### Supabase Edge Functions
+
+1) **Intel** (`supabase/functions/intel`)
+
+- Returns Nigeria-first seasonal + weather-driven health intel
+- Pulls weather from **Open-Meteo** (no key)
+- Pulls outbreak signals from **disease.sh** and WHO RSS feeds
+- Computes “risk” items (e.g., malaria risk during rainy season)
+
+2) **Chat (RAG)** (`supabase/functions/chat`)
+
+- AI health assistant prompt tuned for MedGuard
+- Intent classification (symptoms, meds, emergency guidance, etc.)
+- Retrieval via **Pinecone** using **384-dim embeddings** (MiniLM L6 v2)
+- Embeddings path supports HuggingFace Inference API with retry + normalization
+- Persists chat history in `chat_conversations` and `chat_messages`
+
+3) **Verify Location** (`supabase/functions/verify-location`)
+
+- Reverse geocodes lat/lon via Nominatim
+- If called with an auth header, can upsert `user_context` (best-effort)
+
+4) **Avatar Signed URL** (`supabase/functions/avatar-sign`)
+
+- Accepts `{ path, expiresIn }`
+- Validates path is scoped to the requesting user (`${userId}/...`)
+- Returns signed URL for private avatar object
+
+### Mobile app
+
+- Polished onboarding screens (Welcome → Sign Up → Sign In)
+- Profile creation and onboarding continuation
+- Location provider context (permission request, refresh, reverse-geocoding, sync to profile)
+- Chatbot UI with conversation list (rename, delete confirmation, auto-title)
+- Home screen intel card and “Enable Location” CTA if permission not granted
+
+---
+
+## Roadmap (things we want to improve/add)
+
+### Authentication and onboarding
+
+- Branded confirmation emails (welcome email + CTA)
+- Deep-link confirmation redirects to `medguard://...` for real devices
+- Stronger auth error mapping (network vs invalid credentials vs email not confirmed)
+- Forgot password flow + reset deep links
+
+### Safety + medical quality
+
+- Better red-flag triage (emergency detection and escalation)
+- Localized Nigeria guidance (hotlines, trusted sources)
+- Stronger guardrails against hallucinations
+
+### Data + intel
+
+- More disease sources (NCDC, local datasets)
+- Better caching + offline support for intel
+- Region-specific outbreak intelligence
+
+### Engineering
+
+- Automated tests (unit + smoke tests)
+- CI checks + linting
+- Security scanning (Snyk) as part of PR checks
+- Observability: structured logs for Edge Functions and error reporting on mobile
+
+---
+
+## Getting started (new contributor)
+
+### Prerequisites
+
+- Node.js (LTS)
+- Expo tooling (via `npx expo`)
+- A Supabase project (cloud)
+- Supabase CLI installed (recommended) for functions deployment
+- Android Studio / Xcode if you need native builds
+
+### 1) Mobile app setup (Expo)
+
+1. Install dependencies:
+
+```bash
+cd mobile-expo
+npm install
+```
+
+2. Create `mobile-expo/.env` with **only** Expo-safe public variables:
+
+```ini
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+3. Run on device/simulator:
+
+```bash
+npx expo start
+```
+
+For iOS permission strings / deep linking changes, you may need a **native build**:
+
+```bash
+npx expo run:android
+# or
+npx expo run:ios
+```
+
+### 2) Database schema setup
+
+The canonical SQL migrations are in `db/migrations/`.
+
+Recommended workflow:
+
+1. In the Supabase Dashboard → SQL Editor, apply migrations in order.
+2. Verify tables exist: `profiles`, `user_context`, `chat_conversations`, `chat_messages`, `intel_cache`.
+3. Ensure RLS policies are enabled.
+
+Note: some migrations are idempotent and safe to re-run.
+
+### 3) Edge Functions setup (Supabase)
+
+Edge Functions live in `supabase/functions/`.
+
+Typical workflow:
+
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+
+# Deploy individual functions
+supabase functions deploy chat
+supabase functions deploy intel
+supabase functions deploy verify-location
+supabase functions deploy avatar-sign
+```
+
+#### Required Edge secrets
+
+Set secrets (names may vary depending on function code; check `supabase/functions/_shared/env.ts` and each function):
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_BASE_URL` (optional)
+- `OPENROUTER_MODEL` (optional)
+- `PINECONE_API_KEY`
+- `PINECONE_INDEX_NAME`
+- `PINECONE_HOST` (host only, not `https://...`)
+- `HF_API_KEY` (optional but recommended for embeddings stability)
+- `SUPABASE_SERVICE_ROLE_KEY` (required for admin-only actions in some functions)
+
+Example:
+
+```bash
+supabase secrets set OPENROUTER_API_KEY=...
+supabase secrets set PINECONE_API_KEY=...
+supabase secrets set PINECONE_HOST=... # no https://
+```
+
+---
+
+## Deep links (medguard://)
+
+The Expo scheme is configured as:
+
+- `medguard://`
+
+We use deep links to support future auth flows like email confirmation redirect and password reset. For iOS/Android, deep-link config is applied during native builds.
+
+---
+
+## Common tasks (how to work in this codebase)
+
+### Add a new Edge Function
+
+1. Create folder `supabase/functions/<name>/index.ts`
+2. Reuse shared CORS + Supabase helpers from `_shared/`
+3. Deploy with `supabase functions deploy <name>`
+4. Update the mobile caller in `mobile-expo/src/services/edge.ts` (or equivalent)
+
+### Update the database
+
+1. Add a new numbered SQL file in `db/migrations/`
+2. Apply it via Supabase SQL Editor (or CLI if you use migrations tooling)
+3. Update any TypeScript types/queries if required
+
+### Debug “it works on web but not on device”
+
+MedGuard is device-first. If something relies on localhost / browser-only APIs, move it to:
+
+- Supabase Edge Functions (server logic)
+- or Expo-compatible native modules
+
+---
+
+## Security notes
+
+- Never commit secrets (service role keys, API keys).
+- Keep avatar objects private and only expose via signed URLs.
+- Keep RLS enabled for all user-owned tables.
+- Prefer Edge Functions for anything requiring sensitive keys.
+
+---
+
+## Legacy artifacts (reference only)
+
+The root HTML screens (`welcome.html`, `home.html`, etc.) and the older Node/Python chatbot folders exist for historical context and UI reference. They are not required for production mobile development.
+
+---
+
+## License
+
+No license file is currently included. If you plan to open-source this repository, add a license and verify third-party asset usage.

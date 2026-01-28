@@ -34,9 +34,14 @@ const BASE_SYSTEM_PROMPT = `You are MedGuard, a friendly and professional AI hea
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, say that you don't know. \
 Keep your responses concise, warm, and helpful. \
-You may use emojis sparingly (1-2 max per response) only when they naturally fit the context - \
-for example, a gentle smile for reassurance or a warning sign for caution. \
-Never start responses with emojis. Speak naturally like a caring healthcare professional.`;
+Speak naturally like a caring healthcare professional.
+
+EMOJI GUIDELINES:
+- Use emojis minimally (0-2 per response) - they are optional, not required
+- Only use actual emoji characters (like 😊 🩺 ⚠️), NEVER describe them in words (don't write "smile" or ":smile:")
+- Match the mood: reassuring emoji for comfort, warning emoji for caution, medical emoji for health tips
+- Never start responses with emojis
+- If the user asks you to use more or fewer emojis, respect their preference for the rest of the conversation`;
 
 // Intent-specific system prompts for better responses
 const INTENT_PROMPTS: Record<string, string> = {
@@ -52,7 +57,7 @@ Provide possible explanations but always recommend professional consultation for
 - Common side effects
 - Important interactions or warnings
 - ALWAYS recommend consulting a doctor or pharmacist before starting/stopping medications.
-You may use a ⚠️ for important warnings if appropriate.`,
+You may use ⚠️ for important warnings if appropriate.`,
 
   condition_info: `You are explaining a medical condition. Cover:
 - What the condition is
@@ -74,9 +79,9 @@ Use ⚠️ or 🚨 only for genuinely urgent warnings.`,
 - Gradual changes over drastic measures
 - Importance of consistency`,
 
-  greeting: `The user is greeting you. Respond warmly and invite them to share their health concerns. Keep it natural without emojis.`,
+  greeting: `The user is greeting you. Respond warmly and invite them to share their health concerns. Keep it natural, emoji optional.`,
 
-  gratitude: `The user is expressing thanks. Acknowledge it briefly and offer further assistance. A simple 😊 at the end is fine.`,
+  gratitude: `The user is expressing thanks. Acknowledge it briefly and offer further assistance. Emoji optional.`,
 
   followup: `The user wants more information on a previous topic. Reference the conversation history to provide relevant follow-up information.`,
 
@@ -278,37 +283,45 @@ async function getEmbedding(text: string): Promise<number[]> {
   const hfModel = optionalEnv('HF_EMBEDDINGS_MODEL') || optionalEnv('EMBEDDINGS_MODEL') || 'sentence-transformers/all-MiniLM-L6-v2';
   const dimensions = clampInt(optionalEnv('EMBEDDINGS_DIMENSIONS') ?? '384', 1, 4096, 384);
 
-  // Try HuggingFace Inference API first (retries on transient errors)
-  const hfHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (hfToken) hfHeaders['Authorization'] = `Bearer ${hfToken}`;
-
+  // Try HuggingFace Inference Providers API (OpenAI-compatible embeddings endpoint)
+  // Note: api-inference.huggingface.co was deprecated in 2025, now using router.huggingface.co
   let lastHfError = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const r = await fetch(`https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModel}`, {
-        method: 'POST',
-        headers: hfHeaders,
-        body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
-      });
+  if (hfToken) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch('https://router.huggingface.co/hf-inference/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${hfToken}`,
+          },
+          body: JSON.stringify({ 
+            model: hfModel,
+            input: text,
+          }),
+        });
 
-      if (r.ok) {
-        const raw = await r.json();
-        const v = normalizeEmbedding(raw);
-        if (v && v.length > 0) {
-          return v;
+        if (r.ok) {
+          const json: any = await r.json();
+          const emb = json?.data?.[0]?.embedding;
+          if (Array.isArray(emb) && emb.length > 0) {
+            return emb as number[];
+          }
+          lastHfError = 'HF returned an unexpected embedding shape.';
+          break;
         }
-        lastHfError = 'HF returned an unexpected embedding shape.';
-        break;
+
+        const body = truncate(await r.text());
+        lastHfError = `HF ${r.status}: ${body}`;
+        if (![429, 502, 503, 504].includes(r.status)) break;
+      } catch (e: unknown) {
+        lastHfError = `HF fetch error: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      const body = truncate(await r.text());
-      lastHfError = `HF ${r.status}: ${body}`;
-      if (![429, 502, 503, 504].includes(r.status)) break;
-    } catch (e: unknown) {
-      lastHfError = `HF fetch error: ${e instanceof Error ? e.message : String(e)}`;
+      await sleep(300 * (attempt + 1) * (attempt + 1));
     }
-
-    await sleep(300 * (attempt + 1) * (attempt + 1));
+  } else {
+    lastHfError = 'HF_API_KEY not set - skipping HuggingFace';
   }
 
   // Fallback 1: OpenRouter embeddings (uses OPENROUTER_API_KEY you already have)

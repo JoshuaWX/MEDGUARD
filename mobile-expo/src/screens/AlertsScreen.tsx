@@ -1,6 +1,6 @@
 /**
  * AlertsScreen
- * Health alerts and notifications
+ * Health alerts, disease risks, and AQI
  */
 
 import React, { useEffect, useState } from 'react';
@@ -26,14 +26,18 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
   AlertCard,
   GlassCard,
+  RiskCard,
+  AQICard,
   BellIcon,
   InfoCircleIcon,
   ArrowBackIcon,
   WarningIcon,
+  DiseaseRisk,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
 import { useTheme } from '../hooks/useTheme';
@@ -60,10 +64,20 @@ interface Alert {
 const AlertsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { alerts, loading, refresh } = useAlerts();
+  const { 
+    alerts, 
+    loading, 
+    refresh, 
+    riskAssessment, 
+    airQuality, 
+    weather, 
+    season, 
+    location 
+  } = useAlerts();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const [expandedRisk, setExpandedRisk] = useState<string | null>(null);
 
   // Badge pulse animation
   const badgePulse = useSharedValue(1);
@@ -184,7 +198,121 @@ const AlertsScreen: React.FC = () => {
 
           {/* Community Alerts */}
           <View style={styles.contentWrap}>
-            <View style={styles.sectionHeaderRow}>
+            {/* Risk Assessment Section */}
+            {riskAssessment && riskAssessment.diseases.length > 0 && (
+              <>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                    {t('disease_risks') || 'Disease Risk Assessment'}
+                  </Text>
+                  {riskAssessment.overallRiskLevel !== 'low' && (
+                    <View style={[
+                      styles.overallRiskBadge,
+                      { backgroundColor: riskAssessment.overallRiskLevel === 'high' ? Colors.danger : Colors.warning }
+                    ]}>
+                      <Text style={styles.overallRiskText}>
+                        {riskAssessment.overallRiskLevel.toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                {/* Location & Season Info */}
+                {(location || season) && (
+                  <View style={styles.contextRow}>
+                    {location && (
+                      <View style={styles.contextBadge}>
+                        <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                        <Text style={[styles.contextText, { color: colors.textSecondary }]}>
+                          {location.state}{location.region ? ` (${location.region})` : ''}
+                        </Text>
+                      </View>
+                    )}
+                    {season && (
+                      <View style={styles.contextBadge}>
+                        <Ionicons 
+                          name={season.label === 'rainy' ? 'rainy-outline' : season.label === 'harmattan' ? 'leaf-outline' : 'sunny-outline'} 
+                          size={14} 
+                          color={colors.textSecondary} 
+                        />
+                        <Text style={[styles.contextText, { color: colors.textSecondary }]}>
+                          {season.label.charAt(0).toUpperCase() + season.label.slice(1)} Season
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Weather Summary */}
+                {weather && (
+                  <Animated.View entering={FadeInUp.delay(50).duration(400)} style={styles.weatherRow}>
+                    <View style={styles.weatherItem}>
+                      <Ionicons name="thermometer-outline" size={16} color={Colors.primary} />
+                      <Text style={[styles.weatherValue, { color: colors.text }]}>{weather.temp}°C</Text>
+                    </View>
+                    <View style={styles.weatherItem}>
+                      <Ionicons name="water-outline" size={16} color={Colors.primary} />
+                      <Text style={[styles.weatherValue, { color: colors.text }]}>{weather.humidity}%</Text>
+                    </View>
+                    {weather.precipitation > 0 && (
+                      <View style={styles.weatherItem}>
+                        <Ionicons name="rainy-outline" size={16} color={Colors.primary} />
+                        <Text style={[styles.weatherValue, { color: colors.text }]}>{weather.precipitation}mm</Text>
+                      </View>
+                    )}
+                  </Animated.View>
+                )}
+
+                {/* Active Disease Risks */}
+                <View style={styles.cardStack}>
+                  {riskAssessment.diseases
+                    .filter(d => d.isActive)
+                    .slice(0, 5)
+                    .map((risk, index) => (
+                      <Animated.View
+                        key={risk.diseaseKey}
+                        entering={FadeInUp.delay(100 + index * 60).duration(400)}
+                      >
+                        <RiskCard
+                          risk={risk}
+                          expanded={expandedRisk === risk.diseaseKey}
+                          onPress={() => setExpandedRisk(
+                            expandedRisk === risk.diseaseKey ? null : risk.diseaseKey
+                          )}
+                        />
+                      </Animated.View>
+                    ))}
+                </View>
+
+                {/* Disclaimer */}
+                <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
+                  {riskAssessment.disclaimer}
+                </Text>
+              </>
+            )}
+
+            {/* Air Quality Section */}
+            {airQuality && airQuality.insight && (
+              <>
+                <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
+                  <Ionicons name="cloud-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                    {t('air_quality') || 'Air Quality'}
+                  </Text>
+                </View>
+                <Animated.View entering={FadeInUp.delay(200).duration(400)}>
+                  <AQICard
+                    aqi={airQuality.aqi}
+                    insight={airQuality.insight}
+                    compact={false}
+                  />
+                </Animated.View>
+              </>
+            )}
+
+            {/* Community Alerts Section */}
+            <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
               <InfoCircleIcon size={18} color={colors.primary} />
               <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('community_alerts')}</Text>
             </View>
@@ -330,6 +458,58 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.lg,
     color: Colors.textPrimary,
+    flex: 1,
+  },
+  overallRiskBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  overallRiskText: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.xs,
+    color: Colors.textLight,
+  },
+  contextRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  contextBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(17, 180, 212, 0.1)',
+  },
+  contextText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  weatherRow: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  weatherItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  weatherValue: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.sm,
+  },
+  disclaimer: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    fontStyle: 'italic',
+    marginTop: -Spacing.md,
+    marginBottom: Spacing.md,
   },
   cardStack: {
     gap: Spacing.base,

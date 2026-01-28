@@ -50,6 +50,7 @@ export const LightColors = {
   // Background colors
   background: '#f6f8f8',
   surface: '#ffffff',
+  surfaceElevated: '#ffffff', // Cards and modals
   
   // Gradient backgrounds
   gradientFrom: '#f8fafc', // slate-50
@@ -64,6 +65,7 @@ export const LightColors = {
   
   // Border colors
   border: '#e5e7eb',
+  borderLight: '#f3f4f6', // Lighter variant
   
   // Glass effect colors
   glass: 'rgba(255, 255, 255, 0.9)',
@@ -75,39 +77,52 @@ export const LightColors = {
   
   // Overlay colors
   overlay: 'rgba(255, 255, 255, 0.5)',
+  
+  // Light theme specific
+  cardBackground: '#ffffff',
+  inputBackground: '#f9fafb',
+  divider: '#e5e7eb',
 } as const;
 
-// Dark theme colors
+// Dark theme colors - Island Dark Theme
+// A sophisticated dark theme with subtle teal undertones, inspired by tropical island nights
 export const DarkColors = {
   ...BaseColors,
-  // Background colors
-  background: '#101f22',
-  surface: '#1f2937',
+  // Background colors - deep ocean blues with teal hints
+  background: '#0f1419',      // Deep charcoal with subtle warmth
+  surface: '#1a2632',         // Elevated surface with teal undertone
+  surfaceElevated: '#243442', // Cards and modals
   
-  // Gradient backgrounds
-  gradientFrom: '#111827', // gray-900
-  gradientVia: '#111827',
-  gradientTo: '#1f2937', // gray-800
+  // Gradient backgrounds - subtle island night vibes
+  gradientFrom: '#0f1419',    // Deep base
+  gradientVia: '#152028',     // Subtle teal mid
+  gradientTo: '#1a2632',      // Elevated end
   
-  // Text colors
-  text: '#f9fafb',
-  textSecondary: '#d1d5db',
-  textMuted: '#9ca3af',
-  textInverse: '#111827',
+  // Text colors - crisp and readable
+  text: '#f0f4f8',            // Soft white, easier on eyes
+  textSecondary: '#a8b9c8',   // Muted blue-gray
+  textMuted: '#6b8299',       // Subtle hints
+  textInverse: '#0f1419',
   
-  // Border colors
-  border: '#374151',
+  // Border colors - subtle definition
+  border: '#2d3f4f',          // Soft teal-gray border
+  borderLight: '#3a4f5f',     // Lighter variant for emphasis
   
-  // Glass effect colors
-  glass: 'rgba(31, 41, 55, 0.9)',
-  glassOverlay: 'rgba(0, 0, 0, 0.2)',
+  // Glass effect colors - frosted glass aesthetic
+  glass: 'rgba(26, 38, 50, 0.95)',
+  glassOverlay: 'rgba(17, 180, 212, 0.08)', // Subtle primary tint
   
   // Shadow colors
-  shadow: 'rgba(0, 0, 0, 0.3)',
-  shadowPrimary: 'rgba(17, 180, 212, 0.4)',
+  shadow: 'rgba(0, 0, 0, 0.4)',
+  shadowPrimary: 'rgba(17, 180, 212, 0.3)',
   
   // Overlay colors
-  overlay: 'rgba(0, 0, 0, 0.5)',
+  overlay: 'rgba(15, 20, 25, 0.7)',
+  
+  // Island dark specific
+  cardBackground: '#1e2d3a',  // Slightly elevated card bg
+  inputBackground: '#152028', // Input fields
+  divider: '#2a3a48',         // Subtle dividers
 } as const;
 
 // Legacy export for backward compatibility (uses light theme by default)
@@ -125,20 +140,20 @@ export const Colors = {
   
   // Background colors
   backgroundLight: '#f6f8f8',
-  backgroundDark: '#101f22',
+  backgroundDark: '#0f1419',  // Island dark
   
   // Surface colors
   surfaceLight: '#ffffff',
-  surfaceDark: '#1f2937',
+  surfaceDark: '#1a2632',     // Island dark surface
   
   // Gradient backgrounds (from Tailwind config)
   gradientFromLight: '#f8fafc', // slate-50
   gradientViaLight: 'rgba(236, 254, 255, 0.5)', // cyan-50/50
   gradientToLight: 'rgba(240, 253, 250, 0.3)', // teal-50/30
   
-  gradientFromDark: '#111827', // gray-900
-  gradientViaDark: '#111827',
-  gradientToDark: '#1f2937', // gray-800
+  gradientFromDark: '#0f1419',  // Island dark
+  gradientViaDark: '#152028',   // Island dark via
+  gradientToDark: '#1a2632',    // Island dark to
   
   // Text colors
   textPrimary: '#111827',
@@ -174,11 +189,11 @@ export const Colors = {
   
   // Border colors
   borderLight: '#e5e7eb',
-  borderDark: '#374151',
+  borderDark: '#2d3f4f',      // Island dark border
   
   // Glass effect colors
   glassLight: 'rgba(255, 255, 255, 0.9)',
-  glassDark: 'rgba(31, 41, 55, 0.9)',
+  glassDark: 'rgba(26, 38, 50, 0.95)',  // Island dark glass
   glassOverlay: 'rgba(255, 255, 255, 0.2)',
   
   // Shadow colors
