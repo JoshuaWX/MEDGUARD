@@ -123,13 +123,9 @@ const SignUpScreen: React.FC = () => {
   const [state, setState] = useState('');
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [isPasswordStrong, setIsPasswordStrong] = useState(false);
 
   const [useLocation, setUseLocation] = useState(true);
-  
-  // Password strength state
-  const [passwordScore, setPasswordScore] = useState(0);
-  const [passwordValid, setPasswordValid] = useState(false);
-  const MIN_PASSWORD_SCORE = 2; // Minimum "Fair" strength required
   
   // Location verification state (optional)
   const [locationVerifying, setLocationVerifying] = useState(false);
@@ -222,18 +218,6 @@ const SignUpScreen: React.FC = () => {
     }
   };
 
-  // Callback for password strength changes
-  const handlePasswordScoreChange = (score: number, isValid: boolean) => {
-    setPasswordScore(score);
-    setPasswordValid(isValid);
-  };
-
-  // User inputs to penalize in password scoring (name, email)
-  const passwordUserInputs = [
-    fullName,
-    email.split('@')[0], // email username part
-  ];
-
   const handleContinue = async () => {
     setError(null);
 
@@ -267,19 +251,17 @@ const SignUpScreen: React.FC = () => {
       setError('Please enter a password');
       return;
     }
-    
-    // Check password strength
-    if (!passwordValid) {
-      setError('Please create a stronger password (at least "Fair" strength)');
-      return;
-    }
-    
     if (!confirmPassword) {
       setError('Please confirm your password');
       return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    if (!isPasswordStrong) {
+      setError('Please choose a stronger password');
       return;
     }
 
@@ -436,13 +418,12 @@ const SignUpScreen: React.FC = () => {
                   onChangeText={setPassword}
                   icon={<LockIcon size={20} color={colors.primary} />}
                 />
-                
-                {/* Password Strength Indicator */}
+
                 <PasswordStrengthIndicator
                   password={password}
-                  userInputs={passwordUserInputs}
-                  minScore={MIN_PASSWORD_SCORE}
-                  onScoreChange={handlePasswordScoreChange}
+                  userInputs={[fullName, email]}
+                  minScore={2}
+                  onScoreChange={(score, isValid) => setIsPasswordStrong(isValid)}
                 />
 
                 <Input

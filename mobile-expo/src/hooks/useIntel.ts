@@ -52,6 +52,7 @@ export interface IntelV2 {
       pm10?: { value: number; status: string };
       o3?: number;
       no2?: number;
+      co?: number;
     };
     source: string;
   } | null;

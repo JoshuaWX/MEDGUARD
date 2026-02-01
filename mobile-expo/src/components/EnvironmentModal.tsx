@@ -112,12 +112,42 @@ export const EnvironmentModal: React.FC<EnvironmentModalProps> = ({
                     </Text>
                   </View>
 
-                  <Text style={[styles.sectionTitle, { color: themed.text }]}>Pollutants</Text>
+                  <Text style={[styles.sectionTitle, { color: themed.text }]}>
+                    {data.airQuality.insight?.dominantPollutant
+                      ? `Pollutants (Primary: ${data.airQuality.insight.dominantPollutant})`
+                      : 'Pollutants'}
+                  </Text>
                   <View style={styles.pollutantGrid}>
-                    <PollutantItem label="PM2.5" value={data.airQuality.pollutants.pm2_5?.value} status={data.airQuality.pollutants.pm2_5?.status} isDark={isDark} />
-                    <PollutantItem label="PM10" value={data.airQuality.pollutants.pm10?.value} status={data.airQuality.pollutants.pm10?.status} isDark={isDark} />
-                    <PollutantItem label="NO2" value={data.airQuality.pollutants.no2} isDark={isDark} />
-                    <PollutantItem label="O3" value={data.airQuality.pollutants.o3} isDark={isDark} />
+                    <PollutantItem
+                      label="PM2.5"
+                      value={data.airQuality.insight?.pollutants?.pm2_5?.value}
+                      status={data.airQuality.insight?.pollutants?.pm2_5?.status}
+                      isDark={isDark}
+                    />
+                    <PollutantItem
+                      label="PM10"
+                      value={data.airQuality.insight?.pollutants?.pm10?.value}
+                      status={data.airQuality.insight?.pollutants?.pm10?.status}
+                      isDark={isDark}
+                    />
+                    <PollutantItem
+                      label="CO"
+                      value={data.airQuality.insight?.pollutants?.co?.value}
+                      status={data.airQuality.insight?.pollutants?.co?.status}
+                      isDark={isDark}
+                    />
+                    <PollutantItem
+                      label="NO₂"
+                      value={data.airQuality.insight?.pollutants?.no2?.value}
+                      status={data.airQuality.insight?.pollutants?.no2?.status}
+                      isDark={isDark}
+                    />
+                    <PollutantItem
+                      label="O₃"
+                      value={data.airQuality.insight?.pollutants?.o3?.value}
+                      status={data.airQuality.insight?.pollutants?.o3?.status}
+                      isDark={isDark}
+                    />
                   </View>
                   
                   <Text style={[styles.sectionTitle, { color: themed.text, marginTop: 24 }]}>Recommendations</Text>

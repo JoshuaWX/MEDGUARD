@@ -12,6 +12,16 @@ import { useTheme } from '../hooks/useTheme';
 
 export type AQILevel = 'good' | 'fair' | 'moderate' | 'poor' | 'very_poor';
 
+/**
+ * AQI Insight data structure
+ * 
+ * NOTE: AQI is calculated using a health-first, "worst pollutant" approach:
+ *   Priority: PM2.5 > PM10 > CO > NO₂
+ * 
+ * The dominantPollutant field indicates which pollutant drove the AQI calculation.
+ * This ensures particulate matter (most health-critical) is never masked by
+ * lower-priority pollutants like NO₂.
+ */
 export interface AQIInsight {
   level: AQILevel;
   levelKey: string;
@@ -24,7 +34,10 @@ export interface AQIInsight {
     pm10?: { value: number; status: string };
     o3?: { value: number; status: string };
     no2?: { value: number; status: string };
+    co?: { value: number; status: string };
   };
+  /** Which pollutant drove the overall AQI (e.g., "PM2.5", "PM10", "CO", "NO₂") */
+  dominantPollutant?: string;
 }
 
 interface AQICardProps {
@@ -123,10 +136,18 @@ const AQICard: React.FC<AQICardProps> = ({
       {/* Pollutant Breakdown (if available and not compact) */}
       {!compact && insight.pollutants && (
         <View style={styles.pollutantsContainer}>
-          <Text style={[styles.sectionTitle, { color: themed.text }]}>
-            Pollutant Levels
-          </Text>
+          <View style={styles.pollutantHeader}>
+            <Text style={[styles.sectionTitle, { color: themed.text }]}>
+              Pollutant Levels
+            </Text>
+            {insight.dominantPollutant && (
+              <Text style={[styles.dominantLabel, { color: config.textColor }]}>
+                Primary: {insight.dominantPollutant}
+              </Text>
+            )}
+          </View>
           <View style={styles.pollutantsGrid}>
+            {/* PM2.5 first - highest priority for health */}
             {insight.pollutants.pm2_5 && (
               <PollutantBadge
                 label="PM2.5"
@@ -134,6 +155,7 @@ const AQICard: React.FC<AQICardProps> = ({
                 status={insight.pollutants.pm2_5.status}
                 unit="μg/m³"
                 themed={themed}
+                isPrimary={insight.dominantPollutant === 'PM2.5'}
               />
             )}
             {insight.pollutants.pm10 && (
@@ -143,6 +165,17 @@ const AQICard: React.FC<AQICardProps> = ({
                 status={insight.pollutants.pm10.status}
                 unit="μg/m³"
                 themed={themed}
+                isPrimary={insight.dominantPollutant === 'PM10'}
+              />
+            )}
+            {insight.pollutants.co && (
+              <PollutantBadge
+                label="CO"
+                value={insight.pollutants.co.value}
+                status={insight.pollutants.co.status}
+                unit="μg/m³"
+                themed={themed}
+                isPrimary={insight.dominantPollutant === 'CO'}
               />
             )}
             {insight.pollutants.o3 && (
@@ -161,6 +194,7 @@ const AQICard: React.FC<AQICardProps> = ({
                 status={insight.pollutants.no2.status}
                 unit="μg/m³"
                 themed={themed}
+                isPrimary={insight.dominantPollutant === 'NO₂'}
               />
             )}
           </View>
@@ -209,6 +243,8 @@ interface PollutantBadgeProps {
   status: string;
   unit: string;
   themed: ReturnType<typeof useThemedColors>;
+  /** Highlight this pollutant as the one driving the AQI */
+  isPrimary?: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -216,14 +252,24 @@ const statusColors: Record<string, string> = {
   Fair: '#22c55e',
   Moderate: '#f59e0b',
   Poor: '#ef4444',
+  Hazardous: '#7c3aed',
 };
 
-const PollutantBadge: React.FC<PollutantBadgeProps> = ({ label, value, status, unit, themed }) => {
+const PollutantBadge: React.FC<PollutantBadgeProps> = ({ label, value, status, unit, themed, isPrimary }) => {
   const statusColor = statusColors[status] || themed.textSecondary;
   
   return (
-    <View style={[styles.pollutantBadge, { borderColor: statusColor }]}>
-      <Text style={[styles.pollutantLabel, { color: themed.textSecondary }]}>{label}</Text>
+    <View style={[
+      styles.pollutantBadge, 
+      { borderColor: statusColor },
+      isPrimary && styles.pollutantBadgePrimary,
+    ]}>
+      <View style={styles.pollutantLabelRow}>
+        <Text style={[styles.pollutantLabel, { color: themed.textSecondary }]}>{label}</Text>
+        {isPrimary && (
+          <View style={[styles.primaryIndicator, { backgroundColor: statusColor }]} />
+        )}
+      </View>
       <Text style={[styles.pollutantValue, { color: themed.text }]}>
         {value.toFixed(1)}
       </Text>
@@ -293,10 +339,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(128, 128, 128, 0.2)',
   },
+  pollutantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  dominantLabel: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.semibold,
+  },
   sectionTitle: {
     fontSize: FontSize.sm,
     fontFamily: FontFamily.semibold,
-    marginBottom: Spacing.sm,
   },
   pollutantsGrid: {
     flexDirection: 'row',
@@ -309,6 +364,20 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     alignItems: 'center',
     minWidth: 70,
+  },
+  pollutantBadgePrimary: {
+    borderWidth: 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  pollutantLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  primaryIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   pollutantLabel: {
     fontSize: FontSize.xs,

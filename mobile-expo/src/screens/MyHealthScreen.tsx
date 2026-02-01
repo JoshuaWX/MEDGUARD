@@ -1,6 +1,9 @@
 /**
  * MyHealthScreen
  * Health tracking with symptom logging
+ * 
+ * FEATURE BLOCKED: This screen is under development.
+ * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -37,6 +40,7 @@ import {
   ArrowRightIcon,
   LocationIcon,
   Avatar,
+  FeatureBlockedScreen,
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
@@ -53,6 +57,12 @@ import {
   Gradients,
 } from '../../theme';
 
+// ============================================================================
+// FEATURE FLAG
+// Set to true when the feature is ready for release
+// ============================================================================
+const FEATURE_ENABLED = false;
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const SYMPTOMS = [
@@ -67,6 +77,30 @@ const SYMPTOMS = [
 ];
 
 const MyHealthScreen: React.FC = () => {
+  const { t } = useI18n();
+
+  // Show feature blocked screen if feature is not enabled
+  if (!FEATURE_ENABLED) {
+    return (
+      <FeatureBlockedScreen
+        title={t('my_health')}
+        description="Personal health tracking and symptom logging is coming soon. Monitor your wellness score and log symptoms for AI-powered insights."
+        icon="health"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
+
+  // Original screen content (rendered when FEATURE_ENABLED = true)
+  return <MyHealthScreenContent />;
+};
+
+// ============================================================================
+// ORIGINAL SCREEN CONTENT
+// Separated for clean feature flag pattern
+// ============================================================================
+const MyHealthScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { logSymptoms, loading } = useSymptoms();

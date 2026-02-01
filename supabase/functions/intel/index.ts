@@ -387,7 +387,7 @@ serve(async (req: Request) => {
       riskAssessment = assessDiseaseRisks(weatherData, forecastData, stateNormalized);
     }
 
-    // Get AQI insights if available
+    // Get AQI insights if available (health-first calculation happens inside getAQIInsight)
     const aqiInsight = aqiResult ? getAQIInsight(aqiResult) : null;
 
     // Get season info
@@ -421,16 +421,20 @@ serve(async (req: Request) => {
         source: weatherResult.source,
       } : null,
       
-      // NEW: Air Quality data
+      // NEW: Air Quality data with health-first AQI calculation
+      // AQI is computed from pollutant concentrations using "worst pollutant" approach
+      // Priority: PM2.5 > PM10 > CO > NO₂ (see risk-engine.ts for details)
       airQuality: aqiResult ? {
         aqi: aqiResult.aqi,
         insight: aqiInsight,
+        // Keep a lightweight pollutant object for UI convenience.
+        // PM2.5/PM10 include status so the app can show health-oriented badges.
         pollutants: {
-          pm2_5: aqiResult.pm2_5,
-          pm10: aqiResult.pm10,
+          pm2_5: aqiInsight?.pollutants?.pm2_5,
+          pm10: aqiInsight?.pollutants?.pm10,
           o3: aqiResult.o3,
-
           no2: aqiResult.no2,
+          co: aqiResult.co,
         },
         source: 'OpenWeather',
       } : null,

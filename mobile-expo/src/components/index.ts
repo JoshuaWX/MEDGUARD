@@ -16,6 +16,8 @@ export { default as ThemeModeSelector } from './ThemeModeSelector';
 export { default as PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 export { default as RiskCard } from './RiskCard';
 export { default as AQICard } from './AQICard';
+export { default as FeatureBlockedScreen } from './FeatureBlockedScreen';
+export type { FeatureIconType } from './FeatureBlockedScreen';
 export type { DiseaseRisk, RiskLevel } from './RiskCard';
 export type { AQIInsight, AQILevel } from './AQICard';
 export * from './Icons';

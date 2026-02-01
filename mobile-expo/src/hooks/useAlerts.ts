@@ -32,6 +32,7 @@ interface AirQualityData {
     pm10?: number;
     o3?: number;
     no2?: number;
+    co?: number;
   };
   source: string;
 }

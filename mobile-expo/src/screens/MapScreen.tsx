@@ -1,6 +1,9 @@
 /**
  * MapScreen
  * UI scaffold matching the original map.html layout (static - no map logic).
+ * 
+ * FEATURE BLOCKED: This screen is under development.
+ * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
  */
 
 import React from 'react';
@@ -16,7 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
-import { ArrowBackIcon, ChevronDownIcon, LocationIcon } from '../components';
+import { ArrowBackIcon, ChevronDownIcon, LocationIcon, FeatureBlockedScreen } from '../components';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
@@ -28,6 +31,12 @@ import {
   Shadows,
   useThemedColors,
 } from '../../theme';
+
+// ============================================================================
+// FEATURE FLAG
+// Set to true when the feature is ready for release
+// ============================================================================
+const FEATURE_ENABLED = false;
 
 const MAP_BG_URI =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuCAPWSL2asbAADrThVKxzPYcMB4a-6zl1XNwhgJdxonOA2o4C9Bj2f49_JhxInHe3oU2NKBP8HRpclw16zK8_vA2u0_jww07JBBxJpz6kMbmtmRO3KySBflylhnqFB7plOgvDrJySDB02rguGsOwnpj7ya9Y36he3QUerbM3mSoqhBdDnTF0kxEaKMCQlS6rNxrLHh6qan4JehYfB1CWlc-UJGCTFbbR1rR45eEk5P8BpGObP-y2DkmiVXbD27pRXEMu7iZkUydYI0';
@@ -43,6 +52,30 @@ const SearchIcon: React.FC<{ size?: number; color?: string }> = ({
 );
 
 const MapScreen: React.FC = () => {
+  const { t } = useI18n();
+
+  // Show feature blocked screen if feature is not enabled
+  if (!FEATURE_ENABLED) {
+    return (
+      <FeatureBlockedScreen
+        title={t('disease_map')}
+        description="Interactive disease mapping and real-time outbreak tracking is coming soon. Stay tuned for location-based health insights."
+        icon="map"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
+
+  // Original screen content (rendered when FEATURE_ENABLED = true)
+  return <MapScreenContent />;
+};
+
+// ============================================================================
+// ORIGINAL SCREEN CONTENT
+// Separated for clean feature flag pattern
+// ============================================================================
+const MapScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { t } = useI18n();

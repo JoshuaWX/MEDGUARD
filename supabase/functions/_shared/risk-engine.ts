@@ -135,7 +135,70 @@ export const RISK_THRESHOLDS = {
   },
 } as const;
 
-// AQI thresholds (OpenWeather 1-5 scale)
+// ============================================================================
+// AQI CALCULATION - HEALTH-FIRST APPROACH
+// ============================================================================
+// 
+// CRITICAL: AQI must be calculated from actual pollutant concentrations, NOT
+// from a single pollutant like NO₂. The "worst pollutant" approach is used:
+// the pollutant with the highest sub-index determines the overall AQI.
+//
+// PRIORITY ORDER (by health impact):
+//   1. PM2.5 (Fine particulate matter - highest priority)
+//   2. PM10  (Coarse particulate matter)
+//   3. CO    (Carbon monoxide)
+//   4. NO₂   (Nitrogen dioxide - lowest priority)
+//
+// WHY PM2.5 IS PRIORITIZED:
+// - PM2.5 particles penetrate deep into lungs and bloodstream
+// - Strong link to cardiovascular and respiratory diseases
+// - Major health concern in Nigerian urban areas (traffic, generators, cooking)
+// - WHO classifies PM2.5 as the most health-relevant air pollutant
+//
+// WHY NO₂-ONLY IS UNSAFE:
+// - NO₂ alone does not capture particulate pollution which causes most harm
+// - Areas with high generator/traffic PM2.5 can show "Good" AQI if only NO₂ is used
+// - This can lead users to believe air is safe when it's actually hazardous
+//
+// ============================================================================
+
+// PM2.5 Thresholds (μg/m³) - EPA/WHO-aligned for public health
+export const PM25_THRESHOLDS = {
+  good: { max: 12, aqiRange: [0, 50] },           // 0–12 μg/m³ = Good (AQI 0-50)
+  moderate: { max: 35, aqiRange: [51, 100] },     // 12–35 μg/m³ = Moderate (AQI 51-100)
+  unhealthySensitive: { max: 55, aqiRange: [101, 150] }, // 35–55 μg/m³ = Unhealthy for Sensitive Groups
+  unhealthy: { max: 150, aqiRange: [151, 200] }, // 55–150 μg/m³ = Unhealthy
+  hazardous: { max: Infinity, aqiRange: [201, 300] }, // >150 μg/m³ = Hazardous
+} as const;
+
+// PM10 Thresholds (μg/m³)
+export const PM10_THRESHOLDS = {
+  good: { max: 54, aqiRange: [0, 50] },
+  moderate: { max: 154, aqiRange: [51, 100] },
+  unhealthySensitive: { max: 254, aqiRange: [101, 150] },
+  unhealthy: { max: 354, aqiRange: [151, 200] },
+  hazardous: { max: Infinity, aqiRange: [201, 300] },
+} as const;
+
+// CO Thresholds (μg/m³) - converted from ppm
+export const CO_THRESHOLDS = {
+  good: { max: 4400, aqiRange: [0, 50] },           // ~4.4 mg/m³
+  moderate: { max: 9400, aqiRange: [51, 100] },     // ~9.4 mg/m³
+  unhealthySensitive: { max: 12400, aqiRange: [101, 150] },
+  unhealthy: { max: 15400, aqiRange: [151, 200] },
+  hazardous: { max: Infinity, aqiRange: [201, 300] },
+} as const;
+
+// NO₂ Thresholds (μg/m³) - LOWEST PRIORITY
+export const NO2_THRESHOLDS = {
+  good: { max: 40, aqiRange: [0, 50] },
+  moderate: { max: 80, aqiRange: [51, 100] },
+  unhealthySensitive: { max: 180, aqiRange: [101, 150] },
+  unhealthy: { max: 280, aqiRange: [151, 200] },
+  hazardous: { max: Infinity, aqiRange: [201, 300] },
+} as const;
+
+// Legacy AQI levels for backward compatibility with OpenWeather 1-5 scale
 export const AQI_LEVELS = {
   good: 1,
   fair: 2,
@@ -554,10 +617,142 @@ export interface AQIInsight {
     pm10?: { value: number; status: string };
     o3?: { value: number; status: string };
     no2?: { value: number; status: string };
+    co?: { value: number; status: string };
   };
+  dominantPollutant?: string;  // Which pollutant drove the AQI
 }
 
+/**
+ * Calculate sub-AQI for a single pollutant based on concentration breakpoints.
+ * Returns a value from 0-300+ where higher = worse air quality.
+ */
+function calculateSubAQI(
+  concentration: number,
+  thresholds: { max: number; aqiRange: [number, number] }[]
+): number {
+  let prevMax = 0;
+  for (const { max, aqiRange } of thresholds) {
+    if (concentration <= max) {
+      // Linear interpolation within this bracket
+      const range = max - prevMax;
+      const aqiSpan = aqiRange[1] - aqiRange[0];
+      const ratio = range > 0 ? (concentration - prevMax) / range : 0;
+      return aqiRange[0] + ratio * aqiSpan;
+    }
+    prevMax = max;
+  }
+  // Beyond all thresholds = hazardous
+  return 300;
+}
+
+/**
+ * Convert sub-AQI (0-300) to OpenWeather-compatible 1-5 scale for backward compatibility
+ */
+function subAQIToScale5(subAQI: number): number {
+  if (subAQI <= 50) return 1;   // Good
+  if (subAQI <= 100) return 2;  // Fair
+  if (subAQI <= 150) return 3;  // Moderate
+  if (subAQI <= 200) return 4;  // Poor
+  return 5;                      // Very Poor
+}
+
+/**
+ * Get pollutant status label from sub-AQI
+ */
+function getStatusFromSubAQI(subAQI: number): string {
+  if (subAQI <= 50) return 'Good';
+  if (subAQI <= 100) return 'Fair';
+  if (subAQI <= 150) return 'Moderate';
+  if (subAQI <= 200) return 'Poor';
+  return 'Hazardous';
+}
+
+/**
+ * HEALTH-FIRST AQI CALCULATION
+ * 
+ * This function computes AQI using the "worst pollutant" approach with
+ * proper health-based prioritization:
+ * 
+ *   1. PM2.5 (PRIMARY) - Most health-critical, deep lung penetration
+ *   2. PM10 (SECONDARY) - Coarse particles, respiratory irritant
+ *   3. CO (SECONDARY) - Cardiovascular stress
+ *   4. NO₂ (LOWEST) - Respiratory irritant, but less critical alone
+ * 
+ * The pollutant with the HIGHEST sub-index determines the overall AQI.
+ * This ensures we never underreport risk from particulate pollution.
+ */
 export function getAQIInsight(aqi: AQIData): AQIInsight {
+  // Calculate sub-AQI for each available pollutant
+  const pollutantScores: { name: string; subAQI: number; value: number; priority: number }[] = [];
+  
+  // Priority 1: PM2.5 (MOST CRITICAL for health)
+  if (aqi.pm2_5 !== undefined && aqi.pm2_5 >= 0) {
+    const subAQI = calculateSubAQI(aqi.pm2_5, [
+      { max: 12, aqiRange: [0, 50] },
+      { max: 35, aqiRange: [51, 100] },
+      { max: 55, aqiRange: [101, 150] },
+      { max: 150, aqiRange: [151, 200] },
+      { max: 250, aqiRange: [201, 300] },
+    ]);
+    pollutantScores.push({ name: 'PM2.5', subAQI, value: aqi.pm2_5, priority: 1 });
+  }
+  
+  // Priority 2: PM10
+  if (aqi.pm10 !== undefined && aqi.pm10 >= 0) {
+    const subAQI = calculateSubAQI(aqi.pm10, [
+      { max: 54, aqiRange: [0, 50] },
+      { max: 154, aqiRange: [51, 100] },
+      { max: 254, aqiRange: [101, 150] },
+      { max: 354, aqiRange: [151, 200] },
+      { max: 424, aqiRange: [201, 300] },
+    ]);
+    pollutantScores.push({ name: 'PM10', subAQI, value: aqi.pm10, priority: 2 });
+  }
+  
+  // Priority 3: CO (μg/m³)
+  if (aqi.co !== undefined && aqi.co >= 0) {
+    const subAQI = calculateSubAQI(aqi.co, [
+      { max: 4400, aqiRange: [0, 50] },
+      { max: 9400, aqiRange: [51, 100] },
+      { max: 12400, aqiRange: [101, 150] },
+      { max: 15400, aqiRange: [151, 200] },
+      { max: 30400, aqiRange: [201, 300] },
+    ]);
+    pollutantScores.push({ name: 'CO', subAQI, value: aqi.co, priority: 3 });
+  }
+  
+  // Priority 4: NO₂ (LOWEST priority - should not drive AQI alone)
+  if (aqi.no2 !== undefined && aqi.no2 >= 0) {
+    const subAQI = calculateSubAQI(aqi.no2, [
+      { max: 40, aqiRange: [0, 50] },
+      { max: 80, aqiRange: [51, 100] },
+      { max: 180, aqiRange: [101, 150] },
+      { max: 280, aqiRange: [151, 200] },
+      { max: 400, aqiRange: [201, 300] },
+    ]);
+    pollutantScores.push({ name: 'NO₂', subAQI, value: aqi.no2, priority: 4 });
+  }
+  
+  // Determine overall AQI from WORST pollutant (highest sub-AQI)
+  // If tied, prefer higher priority pollutant (lower priority number)
+  let dominantPollutant = 'PM2.5';
+  let worstSubAQI = 0;
+  
+  if (pollutantScores.length > 0) {
+    pollutantScores.sort((a, b) => {
+      if (b.subAQI !== a.subAQI) return b.subAQI - a.subAQI; // Highest subAQI first
+      return a.priority - b.priority; // If tied, higher priority (lower number) wins
+    });
+    worstSubAQI = pollutantScores[0].subAQI;
+    dominantPollutant = pollutantScores[0].name;
+  } else {
+    // Fallback to OpenWeather AQI if no pollutant data available
+    // (This should rarely happen but provides backward compatibility)
+    worstSubAQI = (aqi.aqi - 1) * 50; // Convert 1-5 to approximate 0-200
+  }
+  
+  // Convert to level
+  const calculatedAQI = subAQIToScale5(worstSubAQI);
   const levelMap: Record<number, AQIInsight['level']> = {
     1: 'good',
     2: 'fair',
@@ -565,10 +760,10 @@ export function getAQIInsight(aqi: AQIData): AQIInsight {
     4: 'poor',
     5: 'very_poor',
   };
+  const level = levelMap[calculatedAQI] || 'moderate';
   
-  const level = levelMap[aqi.aqi] || 'moderate';
-  
-  const insights: Record<AQIInsight['level'], Omit<AQIInsight, 'level' | 'levelKey' | 'pollutants'>> = {
+  // Health insights based on calculated level
+  const insights: Record<AQIInsight['level'], Omit<AQIInsight, 'level' | 'levelKey' | 'pollutants' | 'dominantPollutant'>> = {
     good: {
       description: 'Air quality is satisfactory',
       healthImplications: 'Air quality poses little or no risk',
@@ -596,17 +791,18 @@ export function getAQIInsight(aqi: AQIData): AQIInsight {
     },
     poor: {
       description: 'Air quality is unhealthy',
-      healthImplications: 'Everyone may begin to experience health effects',
+      healthImplications: 'Everyone may begin to experience health effects; sensitive groups at higher risk',
       recommendations: [
         'Limit outdoor physical activities',
         'Keep windows and doors closed',
         'Use air purifiers if available',
         'Wear a mask outdoors if necessary',
+        `Primary concern: ${dominantPollutant} levels are elevated`,
       ],
       sensitiveGroups: ['Children', 'Elderly', 'People with heart or lung disease', 'Pregnant women'],
     },
     very_poor: {
-      description: 'Air quality is very unhealthy',
+      description: 'Air quality is hazardous',
       healthImplications: 'Health alert: everyone may experience serious health effects',
       recommendations: [
         'Avoid all outdoor physical activities',
@@ -614,6 +810,7 @@ export function getAQIInsight(aqi: AQIData): AQIInsight {
         'Use air purifiers',
         'Seek medical attention if experiencing symptoms',
         'Wear N95 masks if going outdoors is unavoidable',
+        `⚠️ Primary pollutant: ${dominantPollutant}`,
       ],
       sensitiveGroups: ['Everyone, especially vulnerable populations'],
     },
@@ -621,19 +818,31 @@ export function getAQIInsight(aqi: AQIData): AQIInsight {
   
   const insight = insights[level];
   
-  // Add pollutant breakdown if available
+  // Build pollutant breakdown with calculated status
   const pollutants: AQIInsight['pollutants'] = {};
-  if (aqi.pm2_5 !== undefined) {
-    pollutants.pm2_5 = {
-      value: aqi.pm2_5,
-      status: aqi.pm2_5 <= 10 ? 'Good' : aqi.pm2_5 <= 25 ? 'Fair' : aqi.pm2_5 <= 50 ? 'Moderate' : 'Poor',
-    };
+  
+  for (const p of pollutantScores) {
+    const status = getStatusFromSubAQI(p.subAQI);
+    if (p.name === 'PM2.5') {
+      pollutants.pm2_5 = { value: p.value, status };
+    } else if (p.name === 'PM10') {
+      pollutants.pm10 = { value: p.value, status };
+    } else if (p.name === 'NO₂') {
+      pollutants.no2 = { value: p.value, status };
+    } else if (p.name === 'CO') {
+      pollutants.co = { value: p.value, status };
+    }
   }
-  if (aqi.pm10 !== undefined) {
-    pollutants.pm10 = {
-      value: aqi.pm10,
-      status: aqi.pm10 <= 20 ? 'Good' : aqi.pm10 <= 50 ? 'Fair' : aqi.pm10 <= 100 ? 'Moderate' : 'Poor',
-    };
+  
+  // Add O3 if available (informational only, not used in primary calculation)
+  if (aqi.o3 !== undefined) {
+    const o3SubAQI = calculateSubAQI(aqi.o3, [
+      { max: 60, aqiRange: [0, 50] },
+      { max: 120, aqiRange: [51, 100] },
+      { max: 180, aqiRange: [101, 150] },
+      { max: 240, aqiRange: [151, 200] },
+    ]);
+    pollutants.o3 = { value: aqi.o3, status: getStatusFromSubAQI(o3SubAQI) };
   }
   
   return {
@@ -641,6 +850,7 @@ export function getAQIInsight(aqi: AQIData): AQIInsight {
     levelKey: `aqi_${level}`,
     ...insight,
     pollutants: Object.keys(pollutants).length > 0 ? pollutants : undefined,
+    dominantPollutant,
   };
 }
 

@@ -24,9 +24,11 @@ function RootNavigator() {
   const { user, initialized, loading } = useAuth();
   const lastRoutedRef = React.useRef<string>('');
   const hasShownWelcomeThisRunRef = React.useRef(false);
+  const navReadyRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!initialized || loading) return;
+    if (!navReadyRef.current) return;
 
     const isAuthed = Boolean(user?.id);
     const profileComplete = Boolean((user as any)?.user_metadata?.profile_complete === true);
@@ -34,6 +36,7 @@ function RootNavigator() {
     const target = isAuthed ? (profileComplete ? 'MainTabs' : 'SignUp2') : unauthTarget;
 
     const current = navigationRef.getCurrentRoute()?.name;
+    if (!current) return;
     if (!isAuthed && (current === 'SignIn' || current === 'SignUp')) {
       // User is actively in the auth flow; don't bounce them back to Welcome.
       return;
@@ -42,6 +45,14 @@ function RootNavigator() {
     const marker = `${user?.id || 'anon'}:${target}`;
     if (lastRoutedRef.current === marker) return;
     lastRoutedRef.current = marker;
+
+    // Avoid resetting to the route we're already on (causes double-mount flash on startup).
+    if (current === target) {
+      if (!isAuthed && target === 'Welcome') {
+        hasShownWelcomeThisRunRef.current = true;
+      }
+      return;
+    }
 
     if (!isAuthed && target === 'Welcome') {
       hasShownWelcomeThisRunRef.current = true;
@@ -55,7 +66,12 @@ function RootNavigator() {
   }, [initialized, loading, user, navigationRef]);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        navReadyRef.current = true;
+      }}
+    >
       <Stack.Navigator
         initialRouteName="Welcome"
         screenOptions={{

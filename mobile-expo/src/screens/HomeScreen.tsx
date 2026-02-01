@@ -283,6 +283,7 @@ const HomeScreen: React.FC = () => {
                 >
                   {(() => {
                     const aqiData = getAqiLabel(intel.airQuality.aqi);
+                    const dominant = intel.airQuality.insight?.dominantPollutant;
                     return (
                       <>
                         <View style={styles.envCardHeader}>
@@ -294,6 +295,11 @@ const HomeScreen: React.FC = () => {
                         <Text style={[styles.envCardValue, { color: aqiData.color }]}>
                           {aqiData.label}
                         </Text>
+                        {!!dominant && (
+                          <Text style={[styles.envCardHint, { color: colors.textMuted }]} numberOfLines={1}>
+                            Primary: {dominant}
+                          </Text>
+                        )}
                         <Text style={[styles.envCardHint, { color: colors.textMuted }]}>
                           Tap for details
                         </Text>
