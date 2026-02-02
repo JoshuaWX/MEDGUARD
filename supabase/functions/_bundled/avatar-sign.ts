@@ -1,8 +1,49 @@
+// STANDALONE BUNDLED VERSION - for Supabase Dashboard deployment
 // @deno-types="https://deno.land/std@0.224.0/http/server.ts"
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { corsHeaders } from '../_shared/cors.ts';
-import { createAdminClient, createUserClient } from '../_shared/supabase.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
+// ============ Inlined from _shared/cors.ts ============
+const corsHeaders: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+
+// ============ Inlined from _shared/env.ts ============
+function requiredEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value || !value.trim()) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
+// ============ Inlined from _shared/supabase.ts ============
+function createUserClient(req: Request) {
+  const supabaseUrl = requiredEnv('SUPABASE_URL');
+  const supabaseAnonKey = requiredEnv('SUPABASE_ANON_KEY');
+  const authHeader = req.headers.get('Authorization') ?? '';
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
+}
+
+function createAdminClient() {
+  const supabaseUrl = requiredEnv('SUPABASE_URL');
+  const serviceRoleKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY');
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+}
+
+// ============ Main function code ============
 interface SignRequest {
   path?: string;
   expiresIn?: number;

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>MedGuard Icon Generator</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 { color: #10B981; margin-bottom: 10px; }
+    .subtitle { color: #888; margin-bottom: 40px; }
+    .preview {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .icon-box {
+      background: #2a2a4e;
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .icon-box h3 { margin: 0 0 10px; color: #10B981; }
+    .icon-box p { margin: 5px 0; color: #888; font-size: 14px; }
+    canvas { border-radius: 20%; display: block; margin: 10px auto; }
+    button {
+      background: #10B981;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover { background: #059669; }
+    .instructions {
+      max-width: 600px;
+      margin: 40px auto;
+      text-align: left;
+      background: #2a2a4e;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .instructions h2 { color: #10B981; }
+    .instructions ol { line-height: 1.8; }
+    code { background: #1a1a2e; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>🛡️ MedGuard Icon Generator</h1>
+  <p class="subtitle">Shield + Checkmark App Icon</p>
+
+  <div class="preview">
+    <div class="icon-box">
+      <h3>iOS Icon</h3>
+      <p>icon.png</p>
+      <canvas id="icon" width="1024" height="1024"></canvas>
+      <p>1024 × 1024</p>
+      <button onclick="download('icon', 'icon.png')">Download icon.png</button>
+    </div>
+
+    <div class="icon-box">
+      <h3>Android Adaptive</h3>
+      <p>adaptive-icon.png</p>
+      <canvas id="adaptive" width="1024" height="1024"></canvas>
+      <p>1024 × 1024</p>
+      <button onclick="download('adaptive', 'adaptive-icon.png')">Download adaptive-icon.png</button>
+    </div>
+
+    <div class="icon-box">
+      <h3>Favicon</h3>
+      <p>favicon.png</p>
+      <canvas id="favicon" width="48" height="48"></canvas>
+      <p>48 × 48</p>
+      <button onclick="download('favicon', 'favicon.png')">Download favicon.png</button>
+    </div>
+
+    <div class="icon-box">
+      <h3>Splash Icon</h3>
+      <p>splash-icon.png</p>
+      <canvas id="splash" width="512" height="512"></canvas>
+      <p>512 × 512</p>
+      <button onclick="download('splash', 'splash-icon.png')">Download splash-icon.png</button>
+    </div>
+  </div>
+
+  <div class="instructions">
+    <h2>📋 Instructions</h2>
+    <ol>
+      <li>Click each <strong>Download</strong> button above</li>
+      <li>Move the downloaded files to <code>mobile-expo/assets/</code></li>
+      <li>Replace the existing placeholder files</li>
+      <li>Rebuild your app: <code>npx expo start -c</code></li>
+    </ol>
+  </div>
+
+  <script>
+    // MedGuard Shield + Checkmark SVG
+    const svgIcon = `
+      <svg width="1024" height="1024" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#10B981"/>
+            <stop offset="100%" style="stop-color:#059669"/>
+          </linearGradient>
+        </defs>
+        <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+        <g transform="translate(48, 38) scale(0.625)" fill="#FFFFFF">
+          <path d="M208,40H48A16,16,0,0,0,32,56v58.78c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Zm-4.12,70.55c-4.48,70.06-59.2,95.23-75.88,101.44-16.53-6.16-71.28-31.33-75.88-101.44V56h151.76ZM167.66,101.66,119.31,150a8,8,0,0,1-11.31,0L88.34,130.34a8,8,0,0,1,11.32-11.32L114,133.37l42.34-42.35a8,8,0,0,1,11.32,11.32Z"/>
+        </g>
+      </svg>
+    `;
+
+    // Adaptive icon (no rounded corners, Android handles masking)
+    const svgAdaptive = `
+      <svg width="1024" height="1024" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#10B981"/>
+            <stop offset="100%" style="stop-color:#059669"/>
+          </linearGradient>
+        </defs>
+        <rect width="256" height="256" fill="url(#bg2)"/>
+        <g transform="translate(64, 54) scale(0.5)" fill="#FFFFFF">
+          <path d="M208,40H48A16,16,0,0,0,32,56v58.78c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Zm-4.12,70.55c-4.48,70.06-59.2,95.23-75.88,101.44-16.53-6.16-71.28-31.33-75.88-101.44V56h151.76ZM167.66,101.66,119.31,150a8,8,0,0,1-11.31,0L88.34,130.34a8,8,0,0,1,11.32-11.32L114,133.37l42.34-42.35a8,8,0,0,1,11.32,11.32Z"/>
+        </g>
+      </svg>
+    `;
+
+    function renderSVG(canvasId, svgString, size) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      const blob = new Blob([svgString], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+
+    function download(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Render all icons
+    renderSVG('icon', svgIcon, 1024);
+    renderSVG('adaptive', svgAdaptive, 1024);
+    renderSVG('favicon', svgIcon, 48);
+    renderSVG('splash', svgIcon, 512);
+  </script>
+</body>
+</html>

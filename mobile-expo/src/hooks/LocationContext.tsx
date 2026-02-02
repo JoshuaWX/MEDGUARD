@@ -280,10 +280,6 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
       if (results.length > 0) {
         const result = results[0];
         
-        // Debug: Log raw geocoding result to see what we're getting
-        console.log('[Geocode] Raw result:', JSON.stringify(result, null, 2));
-        console.log('[Geocode] City:', result.city, 'Region:', result.region, 'SubRegion:', result.subregion);
-        
         // Fix: Use subregion or district as city fallback (expo-location sometimes puts city in wrong field)
         // On Android, the "city" field sometimes contains business names or POIs
         const cityName = result.subregion || result.district || result.city;
