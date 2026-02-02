@@ -2,6 +2,8 @@
  * ProfileScreen
  * UI parity pass aligned to profile.html (hero header + stacked cards)
  * Keeps existing auth/profile logic unchanged.
+ * 
+ * GUEST GATED: Guests see sign-in required blocker.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -52,10 +54,12 @@ import {
   LogoutIcon,
   SettingsIcon,
   UserIcon,
+  FeatureBlockedScreen,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
 import {
   BorderRadius,
@@ -81,8 +85,22 @@ const ProfileScreen: React.FC = () => {
   const { user, loading, refresh, updateProfile, updateAvatar } = useUser();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
+  const { isGuest } = useAuthGate();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
+
+  // Guest users see sign-in required blocker
+  if (isGuest) {
+    return (
+      <FeatureBlockedScreen
+        title={t('profile')}
+        description="Sign in to manage your profile, upload an avatar, and personalize your health experience."
+        icon="generic"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
 
   const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);

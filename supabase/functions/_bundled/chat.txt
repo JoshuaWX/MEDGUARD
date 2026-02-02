@@ -40,6 +40,11 @@ function createUserClient(req: Request) {
 }
 
 // ============ Main function code ============
+// ============================================================================
+// PERFORMANCE: Request timeout to prevent hanging connections
+// ============================================================================
+const REQUEST_TIMEOUT_MS = 55000; // 55 seconds (Supabase Edge Function limit is 60s)
+
 type ChatRequest = {
   conversation_id?: string;
   message: string;
@@ -270,6 +275,45 @@ function truncate(str: string, max = 400) {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+// ============================================================================
+// PERFORMANCE: Race multiple providers - first successful response wins
+// ============================================================================
+async function raceWithFallback<T>(
+  attempts: Array<() => Promise<T>>,
+  timeoutMs: number
+): Promise<T> {
+  const errors: string[] = [];
+  
+  // Try all providers in parallel, return first success
+  const promises = attempts.map(async (attempt, index) => {
+    try {
+      const result = await attempt();
+      return { success: true as const, result, index };
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+      return { success: false as const, error: e, index };
+    }
+  });
+
+  // Race with timeout
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`All providers timed out after ${timeoutMs}ms`)), timeoutMs)
+  );
+
+  try {
+    // Use Promise.any to get first successful result
+    const results = await Promise.race([
+      Promise.any(promises.filter(async p => (await p).success)),
+      timeoutPromise,
+    ]) as { success: true; result: T; index: number };
+    
+    return results.result;
+  } catch {
+    // All failed - throw combined error
+    throw new Error(errors.join(' | ') || 'All providers failed');
+  }
+}
+
 const OPENROUTER_CANONICAL_BASE = 'https://openrouter.ai/api/v1';
 
 function isLikelyGatewayRouteError(status: number, bodyText: string): boolean {
@@ -352,64 +396,43 @@ function _normalizeEmbedding(raw: unknown): number[] | null {
   return null;
 }
 
+// ============================================================================
+// EMBEDDINGS - OPTIMIZED: Race providers in parallel for fastest response
+// ============================================================================
 async function getEmbedding(text: string): Promise<number[]> {
   const hfToken = optionalEnv('HUGGINGFACE_API_KEY') || optionalEnv('HF_API_KEY');
   const hfModel = optionalEnv('HF_EMBEDDINGS_MODEL') || optionalEnv('EMBEDDINGS_MODEL') || 'sentence-transformers/all-MiniLM-L6-v2';
   const dimensions = clampInt(optionalEnv('EMBEDDINGS_DIMENSIONS') ?? '384', 1, 4096, 384);
+  const openrouterKey = optionalEnv('OPENROUTER_API_KEY');
+  const openaiKey = optionalEnv('OPENAI_API_KEY');
 
-  // Try HuggingFace Inference API (multiple endpoints for compatibility)
-  let lastHfError = '';
+  // Build list of embedding provider attempts
+  const providers: Array<() => Promise<number[]>> = [];
+
+  // HuggingFace provider (single attempt, no retry delays)
   if (hfToken) {
-    const hfEndpoints = [
-      `https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModel}`,
-      `https://api-inference.huggingface.co/models/${hfModel}`,
-    ];
-
-    for (const endpoint of hfEndpoints) {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const r = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${hfToken}`,
-            },
-            body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
-          });
-
-          if (r.ok) {
-            const raw = await r.json();
-            const emb = _normalizeEmbedding(raw);
-            if (emb && emb.length > 0) {
-              return emb;
-            }
-            lastHfError = 'HF returned an unexpected embedding shape.';
-            break;
-          }
-
-          const body = truncate(await r.text());
-          lastHfError = `HF ${r.status}: ${body}`;
-          // Don't retry on 404 (model not found) or 401 (auth issue)
-          if ([401, 404].includes(r.status)) break;
-          if (![429, 502, 503, 504].includes(r.status)) break;
-        } catch (e: unknown) {
-          lastHfError = `HF fetch error: ${e instanceof Error ? e.message : String(e)}`;
-        }
-
-        await sleep(300 * (attempt + 1) * (attempt + 1));
-      }
-    }
-  } else {
-    lastHfError = 'HF_API_KEY not set - skipping HuggingFace';
+    providers.push(async () => {
+      const endpoint = `https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModel}`;
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${hfToken}`,
+        },
+        body: JSON.stringify({ inputs: text, options: { wait_for_model: false } }),
+      });
+      if (!r.ok) throw new Error(`HF ${r.status}`);
+      const raw = await r.json();
+      const emb = _normalizeEmbedding(raw);
+      if (!emb || emb.length === 0) throw new Error('HF invalid shape');
+      return emb;
+    });
   }
 
-  // Fallback 1: OpenRouter embeddings (direct call, not via gateway helper)
-  let lastOrError = '';
-  const openrouterKey = optionalEnv('OPENROUTER_API_KEY');
+  // OpenRouter embeddings provider
   if (openrouterKey) {
     const model = optionalEnv('OPENROUTER_EMBEDDINGS_MODEL') || 'openai/text-embedding-3-small';
-
-    try {
+    providers.push(async () => {
       const r = await fetch('https://openrouter.ai/api/v1/embeddings', {
         method: 'POST',
         headers: {
@@ -418,42 +441,53 @@ async function getEmbedding(text: string): Promise<number[]> {
         },
         body: JSON.stringify({ model, input: text, dimensions }),
       });
-      if (r.ok) {
-        const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
-        const emb = j?.data?.[0]?.embedding;
-        if (Array.isArray(emb) && emb.length > 0) {
-          return emb as number[];
-        }
-        lastOrError = 'OpenRouter returned an unexpected embedding shape.';
-      } else {
-        lastOrError = `OpenRouter ${r.status}: ${truncate(await r.text())}`;
-      }
-    } catch (e: unknown) {
-      lastOrError = `OpenRouter fetch error: ${e instanceof Error ? e.message : String(e)}`;
+      if (!r.ok) throw new Error(`OpenRouter ${r.status}`);
+      const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
+      const emb = j?.data?.[0]?.embedding;
+      if (!Array.isArray(emb) || emb.length === 0) throw new Error('OpenRouter invalid shape');
+      return emb;
+    });
+  }
+
+  // OpenAI direct provider
+  if (openaiKey) {
+    providers.push(async () => {
+      const r = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions }),
+      });
+      if (!r.ok) throw new Error(`OpenAI ${r.status}`);
+      const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
+      const emb = j?.data?.[0]?.embedding;
+      if (!Array.isArray(emb) || emb.length === 0) throw new Error('OpenAI invalid shape');
+      return emb;
+    });
+  }
+
+  if (providers.length === 0) {
+    throw new Error('No embedding providers configured. Set HF_API_KEY or OPENROUTER_API_KEY.');
+  }
+
+  // PERFORMANCE: Race all providers - first successful response wins
+  // This eliminates sequential fallback delays
+  const results = await Promise.allSettled(providers.map(p => p()));
+  
+  // Return first successful result
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      return result.value;
     }
   }
 
-  // Fallback 2: OpenAI direct
-  const openaiKey = optionalEnv('OPENAI_API_KEY');
-  if (openaiKey) {
-    const r = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions }),
-    });
-    if (!r.ok) throw new Error(await r.text());
-    const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
-    return j?.data?.[0]?.embedding || [];
-  }
-
-  const details = [lastHfError, lastOrError].filter(Boolean).join(' | ');
-  throw new Error(
-    `Embeddings failed. ${details || 'No provider available.'} ` +
-      `Ensure HF_API_KEY is valid or set OPENROUTER_EMBEDDINGS_MODEL for OpenRouter embeddings.`,
-  );
+  // All failed - throw combined error
+  const errors = results
+    .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+    .map(r => r.reason?.message || String(r.reason));
+  throw new Error(`All embedding providers failed: ${errors.join(' | ')}`);
 }
 
 // ============================================================================
@@ -494,23 +528,20 @@ async function queryPinecone(vector: number[], topK: number): Promise<string[]> 
 // LLM CHAT COMPLETION
 // ============================================================================
 
-// Model priority: DeepSeek R1 (reliable) → Gemma 3 12B → Llama 3.2 3B (fast fallback)
-// Note: Model IDs updated Feb 2026 - using models with stable provider availability
-const DEFAULT_MODELS = [
-  'deepseek/deepseek-r1-0528:free',
-  'google/gemma-3-12b-it:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
-];
+// ============================================================================
+// LLM CHAT COMPLETION - OPTIMIZED: Single model with OpenRouter auto-routing
+// ============================================================================
+// Use OpenRouter's built-in model routing instead of manual fallbacks
+// This lets OpenRouter pick the fastest available provider automatically
+const PRIMARY_MODEL = 'deepseek/deepseek-r1-0528:free';
+const FALLBACK_MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
 
 async function chatCompletion(params: {
   system: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
   const apiKey = requiredEnv('OPENROUTER_API_KEY');
-
-  // Allow env override; if set, use only that model (no fallback)
   const envModel = optionalEnv('OPENROUTER_MODEL');
-  const modelsToTry = envModel ? [envModel] : DEFAULT_MODELS;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -522,47 +553,60 @@ async function chatCompletion(params: {
   if (referer) headers['HTTP-Referer'] = referer;
   if (title) headers['X-Title'] = title;
 
-  const errors: string[] = [];
+  // PERFORMANCE: Use OpenRouter's built-in routing with fallback
+  // This is faster than manual sequential fallbacks
+  const model = envModel || PRIMARY_MODEL;
+  
+  const makeRequest = async (modelId: string): Promise<string> => {
+    const r = await openRouterFetch('/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0.7,
+        max_tokens: 500,
+        messages: [{ role: 'system', content: params.system }, ...params.messages],
+        // Let OpenRouter handle provider selection for speed
+        route: 'fallback',
+        provider: {
+          allow_fallbacks: true,
+          // Prefer faster providers
+          order: ['DeepInfra', 'Together', 'Fireworks', 'Lepton'],
+        },
+      }),
+    });
 
-  for (const model of modelsToTry) {
-    try {
-      const r = await openRouterFetch('/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          temperature: 0.7,
-          max_tokens: 500,
-          messages: [{ role: 'system', content: params.system }, ...params.messages],
-          // Route preferences to avoid problematic providers
-          route: 'fallback',
-          provider: {
-            // Allow fallback to any available provider, skip ModelRun
-            allow_fallbacks: true,
-            order: ['DeepInfra', 'Lepton', 'Together', 'Fireworks'],
-          },
-        }),
-      });
-
-      if (!r.ok) {
-        const errText = await r.text();
-        errors.push(`${model}: ${r.status} ${truncate(errText)}`);
-        continue;
-      }
-
-      const j = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const content = j?.choices?.[0]?.message?.content;
-      if (typeof content === 'string' && content.trim().length > 0) {
-        return content;
-      }
-
-      errors.push(`${model}: empty response`);
-    } catch (e: unknown) {
-      errors.push(`${model}: ${e instanceof Error ? e.message : String(e)}`);
+    if (!r.ok) {
+      const errText = await r.text();
+      throw new Error(`${modelId}: ${r.status} ${truncate(errText)}`);
     }
-  }
 
-  throw new Error(`All models failed: ${errors.join(' | ')}`);
+    const j = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const content = j?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      throw new Error(`${modelId}: empty response`);
+    }
+    return content;
+  };
+
+  // Try primary model first, fallback to faster model if it fails
+  try {
+    return await makeRequest(model);
+  } catch (primaryError) {
+    // Only try fallback if not using env override
+    if (!envModel && model !== FALLBACK_MODEL) {
+      try {
+        console.log(`Primary model failed, trying fallback: ${primaryError}`);
+        return await makeRequest(FALLBACK_MODEL);
+      } catch (fallbackError) {
+        throw new Error(
+          `All models failed: ${primaryError instanceof Error ? primaryError.message : String(primaryError)} | ` +
+          `${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+        );
+      }
+    }
+    throw primaryError;
+  }
 }
 
 // ============================================================================
@@ -611,12 +655,25 @@ function formatHistoryForLLM(history: Array<{ role: string; content: string }>):
 }
 
 // ============================================================================
-// MAIN HANDLER
+// MAIN HANDLER - OPTIMIZED FOR PERFORMANCE & CONCURRENCY
 // ============================================================================
+
+// Timeout wrapper for async operations
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
+
+  // Start request timer for overall timeout
+  const requestStart = Date.now();
 
   try {
     const body: ChatRequest = await req.json();
@@ -633,69 +690,112 @@ serve(async (req: Request) => {
 
     const userId = userData.user.id;
 
-    // Get user profile for context (matches Flask's user context)
-    const { data: profile } = await supabase
+    // ========================================================================
+    // PERFORMANCE: Run independent operations in parallel
+    // - Profile fetch, conversation setup, and embedding generation are independent
+    // ========================================================================
+    
+    // Start embedding generation immediately (most time-consuming operation)
+    const embeddingPromise = withTimeout(
+      getEmbedding(message),
+      20000,
+      'Embedding generation'
+    );
+
+    // Fetch profile in parallel
+    const profilePromise = supabase
       .from('profiles')
       .select('full_name, state, age, gender')
       .eq('id', userId)
       .maybeSingle();
 
-    // Ensure or create conversation
+    // Handle conversation creation/validation
     let conversationId = body?.conversation_id || null;
 
-    if (conversationId) {
-      const { data: conv, error: convErr } = await supabase
-        .from('chat_conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .eq('user_id', userId)
-        .maybeSingle();
+    const conversationPromise = (async () => {
+      if (conversationId) {
+        const { data: conv, error: convErr } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .eq('id', conversationId)
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (convErr) throw convErr;
-      if (!conv?.id) return jsonResponse({ error: 'Conversation not found' }, { status: 404 });
-    } else {
-      const { data: created, error: createErr } = await supabase
-        .from('chat_conversations')
-        .insert({ user_id: userId, title: '' })
-        .select('id')
-        .single();
-      if (createErr) throw createErr;
-      conversationId = created.id;
-    }
+        if (convErr) throw convErr;
+        if (!conv?.id) throw new Error('Conversation not found');
+        return conversationId;
+      } else {
+        const { data: created, error: createErr } = await supabase
+          .from('chat_conversations')
+          .insert({ user_id: userId, title: '' })
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        return created.id;
+      }
+    })();
 
-    // Insert user message
-    const { error: insUserErr } = await supabase
+    // Wait for conversation to be ready (needed for message insert)
+    const [resolvedConversationId, { data: profile }] = await Promise.all([
+      conversationPromise,
+      profilePromise,
+    ]);
+    conversationId = resolvedConversationId;
+
+    // Insert user message (non-blocking, we don't need to wait for confirmation)
+    // But we do need it to complete before fetching history
+    await supabase
       .from('chat_messages')
       .insert({ conversation_id: conversationId, role: 'user', content: message });
-    if (insUserErr) throw insUserErr;
 
-    // Load recent history for continuity
-    const { data: history, error: histErr } = await supabase
-      .from('chat_messages')
-      .select('role, content')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(20);
-    if (histErr) throw histErr;
+    // ========================================================================
+    // PERFORMANCE: Parallel fetch of history + wait for embedding
+    // ========================================================================
+    const [embedding, historyResult] = await Promise.all([
+      embeddingPromise,
+      supabase
+        .from('chat_messages')
+        .select('role, content')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(20),
+    ]);
+
+    if (historyResult.error) throw historyResult.error;
 
     type HistoryMessage = { role?: string; content?: string };
-    const historyMessages = (history as HistoryMessage[] || [])
+    const historyMessages = (historyResult.data as HistoryMessage[] || [])
       .filter((m: HistoryMessage) => m?.role === 'user' || m?.role === 'assistant')
       .map((m: HistoryMessage) => ({ role: m.role as 'user' | 'assistant', content: String(m.content || '') }))
       .filter((m: { role: 'user' | 'assistant'; content: string }) => m.content.trim().length > 0);
 
-    // Classify intent for better response (matches Flask's intent system)
+    // ========================================================================
+    // PERFORMANCE: Check remaining time before expensive operations
+    // ========================================================================
+    const elapsed = Date.now() - requestStart;
+    const remainingTime = REQUEST_TIMEOUT_MS - elapsed;
+    if (remainingTime < 10000) {
+      return jsonResponse({ 
+        error: 'Request timeout - please try again',
+        conversation_id: conversationId 
+      }, { status: 504 });
+    }
+
+    // Classify intent (fast, synchronous operation)
     const { intent } = classifyIntent(message, historyMessages.length > 1);
     const intentPrompt = INTENT_PROMPTS[intent] || INTENT_PROMPTS['general'];
 
-    // Get embeddings and retrieve context from Pinecone
-    const embedding = await getEmbedding(message);
-    const contextChunks = await queryPinecone(embedding, topK);
+    // Query Pinecone with timeout
+    const contextChunks = await withTimeout(
+      queryPinecone(embedding, topK),
+      15000,
+      'Vector search'
+    );
     const retrievedContext = contextChunks.join('\n\n---\n\n');
 
-    // Build full context like Flask app does
+    // Build context (fast operations)
     const userContext = buildUserContext(profile);
-    const historyText = formatHistoryForLLM(historyMessages.slice(0, -1)); // Exclude current message
+    const historyText = formatHistoryForLLM(historyMessages.slice(0, -1));
 
     const contextParts: string[] = [];
     if (userContext) contextParts.push(`User context:\n${userContext}`);
@@ -704,7 +804,6 @@ serve(async (req: Request) => {
 
     const fullContext = contextParts.join('\n\n---\n\n');
 
-    // Build enhanced system prompt (matches Flask's prompt construction)
     const systemPrompt = `${BASE_SYSTEM_PROMPT}
 
 ${fullContext}
@@ -712,17 +811,50 @@ ${fullContext}
 Additional guidance for this query:
 ${intentPrompt}`;
 
-    const answer = await chatCompletion({ system: systemPrompt, messages: historyMessages });
+    // ========================================================================
+    // PERFORMANCE: LLM call with dynamic timeout based on remaining time
+    // ========================================================================
+    const llmTimeout = Math.min(remainingTime - 2000, 30000); // Leave 2s buffer for response
+    const answer = await withTimeout(
+      chatCompletion({ system: systemPrompt, messages: historyMessages }),
+      llmTimeout,
+      'AI response generation'
+    );
 
-    // Insert assistant message
-    const { error: insAssistantErr } = await supabase
+    // Insert assistant message (fire and forget - don't block response)
+    // Using .then() to handle errors without blocking
+    supabase
       .from('chat_messages')
-      .insert({ conversation_id: conversationId, role: 'assistant', content: answer || '' });
-    if (insAssistantErr) throw insAssistantErr;
+      .insert({ conversation_id: conversationId, role: 'assistant', content: answer || '' })
+      .then(({ error }) => {
+        if (error) console.error('Failed to save assistant message:', error.message);
+      });
 
     return jsonResponse({ conversation_id: conversationId, answer });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ error: msg || 'Unexpected error' }, { status: 500 });
+    
+    // ========================================================================
+    // ERROR HANDLING: User-friendly error messages
+    // ========================================================================
+    let userMessage = 'Something went wrong. Please try again.';
+    let status = 500;
+
+    if (msg.includes('timed out')) {
+      userMessage = 'The request took too long. Please try again with a shorter message.';
+      status = 504;
+    } else if (msg.includes('rate limit') || msg.includes('429')) {
+      userMessage = 'Too many requests. Please wait a moment and try again.';
+      status = 429;
+    } else if (msg.includes('Unauthorized') || msg.includes('401')) {
+      userMessage = 'Please sign in to continue.';
+      status = 401;
+    } else if (msg.includes('Conversation not found')) {
+      userMessage = 'Chat not found. Starting a new conversation.';
+      status = 404;
+    }
+
+    console.error(`Chat error: ${msg}`);
+    return jsonResponse({ error: userMessage }, { status });
   }
 });

@@ -1,9 +1,16 @@
 /**
  * WelcomeScreen
  * Premium welcome experience with modern UI and image carousel
+ * 
+ * PERFORMANCE OPTIMIZATIONS (Feb 2026):
+ * - All animations use native-driven Reanimated worklets
+ * - Reduced particle count and animation complexity on low-end Android
+ * - Memoized components to prevent unnecessary re-renders
+ * - Background image preloading for smoother transitions
+ * - Worklet annotations for native thread execution
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, memo, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +19,7 @@ import {
   StatusBar,
   ImageBackground,
   Pressable,
+  Platform,
 } from 'react-native';
 import Svg, { Path, Circle, Defs } from 'react-native-svg';
 import Animated, {
@@ -54,19 +62,25 @@ import {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// PERF: Detect low-end Android devices
+const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 
 // Rotating background images - health/medical themed
+// PERF: Reduced image quality on low-end devices
+const IMAGE_QUALITY = isLowEndDevice ? 60 : 80;
 const HERO_IMAGES = [
-  'https://images.unsplash.com/photo-1584982751601-97dcc096659c?auto=format&fit=crop&w=1200&q=80', // Medical professional
-  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1200&q=80', // Doctor with stethoscope
-  'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=1200&q=80', // Healthcare technology
-  'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1200&q=80', // Medical equipment
-  'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=1200&q=80', // Health monitoring
-  'https://images.unsplash.com/photo-1551190822-a9333d879b1f?auto=format&fit=crop&w=1200&q=80', // Medical team
+  `https://images.unsplash.com/photo-1584982751601-97dcc096659c?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
+  `https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
+  `https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
+  `https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
+  `https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
+  `https://images.unsplash.com/photo-1551190822-a9333d879b1f?auto=format&fit=crop&w=800&q=${IMAGE_QUALITY}`,
 ];
 
-const IMAGE_CHANGE_INTERVAL = 5000; // Change image every 5 seconds
+// PERF: Slower transitions on low-end devices to reduce frame drops
+const IMAGE_CHANGE_INTERVAL = isLowEndDevice ? 7000 : 5000;
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -83,10 +97,12 @@ const LANGUAGES = [
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIMATED COMPONENTS FOR WELCOME SCREEN
+// PERF: All components memoized and use worklet annotations
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Animated Pulse Ring Component
-const PulseRing: React.FC<{ delay: number; size: number }> = ({ delay, size }) => {
+// PERF: Memoized to prevent re-renders, reduced animation complexity on low-end devices
+const PulseRing: React.FC<{ delay: number; size: number }> = memo(({ delay, size }) => {
   const scale = useSharedValue(0.8);
   const opacity = useSharedValue(0);
 
@@ -95,9 +111,12 @@ const PulseRing: React.FC<{ delay: number; size: number }> = ({ delay, size }) =
       scale.value = 0.8;
       opacity.value = 0.6;
       
+      // PERF: Slower, simpler animations on low-end devices
+      const animDuration = isLowEndDevice ? 2500 : 2000;
+      
       scale.value = withDelay(delay, withRepeat(
         withSequence(
-          withTiming(1.5, { duration: 2000, easing: Easing.out(Easing.ease) }),
+          withTiming(1.5, { duration: animDuration, easing: Easing.out(Easing.ease) }),
           withTiming(0.8, { duration: 0 })
         ),
         -1,
@@ -106,7 +125,7 @@ const PulseRing: React.FC<{ delay: number; size: number }> = ({ delay, size }) =
       
       opacity.value = withDelay(delay, withRepeat(
         withSequence(
-          withTiming(0, { duration: 2000, easing: Easing.out(Easing.ease) }),
+          withTiming(0, { duration: animDuration, easing: Easing.out(Easing.ease) }),
           withTiming(0.6, { duration: 0 })
         ),
         -1,
@@ -115,12 +134,15 @@ const PulseRing: React.FC<{ delay: number; size: number }> = ({ delay, size }) =
     };
     
     startAnimation();
-  }, []);
+  }, [delay]);
 
-  const style = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
+  const style = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ scale: scale.value }],
+      opacity: opacity.value,
+    };
+  });
 
   return (
     <Animated.View style={[{
@@ -132,19 +154,29 @@ const PulseRing: React.FC<{ delay: number; size: number }> = ({ delay, size }) =
       borderColor: 'rgba(255, 255, 255, 0.4)',
     }, style]} />
   );
-};
+});
+
+// PERF: Add display name for debugging
+PulseRing.displayName = 'PulseRing';
 
 // Animated Floating Particle
-const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number }> = ({ delay, startX, startY }) => {
+// PERF: Memoized and uses random values computed once
+const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number }> = memo(({ delay, startX, startY }) => {
   const translateY = useSharedValue(0);
   const translateX = useSharedValue(0);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.5);
+  
+  // PERF: Memoize random offset to prevent recalculation
+  const randomXOffset = useMemo(() => Math.random() * 40 - 20, []);
 
   useEffect(() => {
+    // PERF: Slower animations on low-end devices
+    const animDuration = isLowEndDevice ? 5000 : 4000;
+    
     translateY.value = withDelay(delay, withRepeat(
       withSequence(
-        withTiming(-100, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(-100, { duration: animDuration, easing: Easing.inOut(Easing.ease) }),
         withTiming(0, { duration: 0 })
       ),
       -1,
@@ -153,7 +185,7 @@ const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number
     
     translateX.value = withDelay(delay, withRepeat(
       withSequence(
-        withTiming(Math.random() * 40 - 20, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(randomXOffset, { duration: animDuration, easing: Easing.inOut(Easing.ease) }),
         withTiming(0, { duration: 0 })
       ),
       -1,
@@ -163,7 +195,7 @@ const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number
     opacity.value = withDelay(delay, withRepeat(
       withSequence(
         withTiming(0.8, { duration: 500 }),
-        withTiming(0.8, { duration: 3000 }),
+        withTiming(0.8, { duration: animDuration - 1000 }),
         withTiming(0, { duration: 500 }),
         withTiming(0, { duration: 0 })
       ),
@@ -171,25 +203,30 @@ const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number
       false
     ));
     
+    // PERF: Adjust scale animation duration
+    const scaleDuration = isLowEndDevice ? 4500 : 3500;
     scale.value = withDelay(delay, withRepeat(
       withSequence(
         withTiming(1, { duration: 500 }),
-        withTiming(0.5, { duration: 3500 }),
+        withTiming(0.5, { duration: scaleDuration }),
         withTiming(0.5, { duration: 0 })
       ),
       -1,
       false
     ));
-  }, []);
+  }, [delay, randomXOffset]);
 
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-    opacity: opacity.value,
-  }));
+  const style = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: scale.value },
+      ],
+      opacity: opacity.value,
+    };
+  });
 
   return (
     <Animated.View style={[{
@@ -202,7 +239,10 @@ const FloatingParticle: React.FC<{ delay: number; startX: number; startY: number
       backgroundColor: 'rgba(255, 255, 255, 0.6)',
     }, style]} />
   );
-};
+});
+
+// PERF: Add display name for debugging
+FloatingParticle.displayName = 'FloatingParticle';
 
 const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -315,10 +355,12 @@ const WelcomeScreen: React.FC = () => {
     setTimeout(() => setShowContent(true), 400);
 
     // Continuous glow pulse
+    // PERF: Slower glow animation on low-end devices
+    const glowDuration = isLowEndDevice ? 2500 : 2000;
     glowScale.value = withDelay(600, withRepeat(
       withSequence(
-        withTiming(1.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(1.3, { duration: glowDuration, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: glowDuration, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
@@ -326,48 +368,61 @@ const WelcomeScreen: React.FC = () => {
     
     glowOpacity.value = withDelay(600, withRepeat(
       withSequence(
-        withTiming(0.8, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.4, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.8, { duration: glowDuration, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.4, { duration: glowDuration, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
     ));
   }, []);
 
-  // Animated styles
-  const bgStyle = useAnimatedStyle(() => ({
-    opacity: bgOpacity.value,
-    transform: [{ scale: bgZoom.value }],
-  }));
+  // PERF: Animated styles with worklet annotations for native thread execution
+  const bgStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      opacity: bgOpacity.value,
+      transform: [{ scale: bgZoom.value }],
+    };
+  });
 
   // Crossfade image styles
-  const image1Style = useAnimatedStyle(() => ({
-    opacity: imageOpacity1.value,
-  }));
+  const image1Style = useAnimatedStyle(() => {
+    'worklet';
+    return { opacity: imageOpacity1.value };
+  });
 
-  const image2Style = useAnimatedStyle(() => ({
-    opacity: imageOpacity2.value,
-  }));
+  const image2Style = useAnimatedStyle(() => {
+    'worklet';
+    return { opacity: imageOpacity2.value };
+  });
 
-  const logoContainerStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: logoScale.value },
-      { rotate: `${logoRotate.value}deg` },
-    ],
-  }));
+  const logoContainerStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [
+        { scale: logoScale.value },
+        { rotate: `${logoRotate.value}deg` },
+      ],
+    };
+  });
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [{ scale: glowScale.value }],
-  }));
+  const glowStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      opacity: glowOpacity.value,
+      transform: [{ scale: glowScale.value }],
+    };
+  });
 
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
+  const contentStyle = useAnimatedStyle(() => {
+    'worklet';
+    return { opacity: contentOpacity.value };
+  });
 
-  const handleSignUp = () => navigation.navigate('SignUp');
-  const handleSignIn = () => navigation.navigate('SignIn');
-  const handleGuest = () => navigation.navigate('MainTabs');
+  // PERF: Memoize navigation callbacks to prevent re-renders
+  const handleSignUp = useCallback(() => navigation.navigate('SignUp'), [navigation]);
+  const handleSignIn = useCallback(() => navigation.navigate('SignIn'), [navigation]);
+  const handleGuest = useCallback(() => navigation.navigate('MainTabs'), [navigation]);
 
   return (
     <View style={styles.container}>
@@ -398,30 +453,39 @@ const WelcomeScreen: React.FC = () => {
         />
       </Animated.View>
 
-      {/* Floating Particles */}
+      {/* Floating Particles - PERF: Reduced count on low-end devices */}
       <View style={styles.particlesContainer} pointerEvents="none">
         <FloatingParticle delay={0} startX={SCREEN_WIDTH * 0.2} startY={SCREEN_HEIGHT * 0.6} />
         <FloatingParticle delay={500} startX={SCREEN_WIDTH * 0.5} startY={SCREEN_HEIGHT * 0.7} />
         <FloatingParticle delay={1000} startX={SCREEN_WIDTH * 0.8} startY={SCREEN_HEIGHT * 0.5} />
-        <FloatingParticle delay={1500} startX={SCREEN_WIDTH * 0.3} startY={SCREEN_HEIGHT * 0.8} />
-        <FloatingParticle delay={2000} startX={SCREEN_WIDTH * 0.7} startY={SCREEN_HEIGHT * 0.65} />
-        <FloatingParticle delay={2500} startX={SCREEN_WIDTH * 0.1} startY={SCREEN_HEIGHT * 0.75} />
+        {/* PERF: Only render additional particles on high-end devices */}
+        {!isLowEndDevice && (
+          <>
+            <FloatingParticle delay={1500} startX={SCREEN_WIDTH * 0.3} startY={SCREEN_HEIGHT * 0.8} />
+            <FloatingParticle delay={2000} startX={SCREEN_WIDTH * 0.7} startY={SCREEN_HEIGHT * 0.65} />
+            <FloatingParticle delay={2500} startX={SCREEN_WIDTH * 0.1} startY={SCREEN_HEIGHT * 0.75} />
+          </>
+        )}
       </View>
 
-      {/* Floating Shapes */}
-      <FloatingShape size={100} top={100} left={-30} delay={200} duration={8000} />
-      <FloatingShape size={70} top={180} right={20} delay={400} duration={6000} />
-      <FloatingShape size={50} bottom={280} left={40} delay={600} duration={7000} />
+      {/* Floating Shapes - PERF: Reduced on low-end devices */}
+      <FloatingShape size={100} top={100} left={-30} delay={200} duration={isLowEndDevice ? 10000 : 8000} />
+      {!isLowEndDevice && (
+        <>
+          <FloatingShape size={70} top={180} right={20} delay={400} duration={6000} />
+          <FloatingShape size={50} bottom={280} left={40} delay={600} duration={7000} />
+        </>
+      )}
 
       {/* Main Content */}
       <View style={[styles.content, { paddingTop: insets.top + Spacing.xl }]}>
         {/* Header Section */}
         <View style={styles.header}>
-          {/* Logo with Pulse Rings */}
+          {/* Logo with Pulse Rings - PERF: Reduced to 2 rings on low-end devices */}
           <View style={styles.logoWrapper}>
             <PulseRing delay={0} size={160} />
             <PulseRing delay={700} size={160} />
-            <PulseRing delay={1400} size={160} />
+            {!isLowEndDevice && <PulseRing delay={1400} size={160} />}
             
             {/* Glow Effect */}
             <Animated.View style={[styles.logoGlow, glowStyle]}>
@@ -600,7 +664,7 @@ interface FeatureIconSvgProps {
   index: number;
 }
 
-const FeatureIconSvg: React.FC<FeatureIconSvgProps> = ({ type, label, index }) => {
+const FeatureIconSvg: React.FC<FeatureIconSvgProps> = memo(({ type, label, index }) => {
   const scale = useSharedValue(0.8);
   const opacity = useSharedValue(0);
 
@@ -608,12 +672,15 @@ const FeatureIconSvg: React.FC<FeatureIconSvgProps> = ({ type, label, index }) =
     const delay = 500 + index * 120;
     scale.value = withDelay(delay, withSpring(1, { damping: 12, stiffness: 100 }));
     opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
-  }, []);
+  }, [index, scale, opacity]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      opacity: opacity.value,
+      transform: [{ scale: scale.value }],
+    };
+  });
 
   const renderIcon = () => {
     switch (type) {
@@ -650,8 +717,7 @@ const FeatureIconSvg: React.FC<FeatureIconSvgProps> = ({ type, label, index }) =
       <Text style={styles.featureLabel}>{label}</Text>
     </Animated.View>
   );
-};
-
+});
 const styles = StyleSheet.create({
   container: {
     flex: 1,

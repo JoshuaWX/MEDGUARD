@@ -3,6 +3,7 @@
  * UI scaffold matching the original map.html layout (static - no map logic).
  * 
  * FEATURE BLOCKED: This screen is under development.
+ * GUEST GATED: Guests see "Sign-in required" message.
  * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
  */
 
@@ -21,6 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { ArrowBackIcon, ChevronDownIcon, LocationIcon, FeatureBlockedScreen } from '../components';
 import { useTheme } from '../hooks/useTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -53,8 +55,22 @@ const SearchIcon: React.FC<{ size?: number; color?: string }> = ({
 
 const MapScreen: React.FC = () => {
   const { t } = useI18n();
+  const { isGuest } = useAuthGate();
 
-  // Show feature blocked screen if feature is not enabled
+  // Guest users see sign-in required message
+  if (isGuest) {
+    return (
+      <FeatureBlockedScreen
+        title={t('disease_map')}
+        description="Sign in to access interactive disease mapping and real-time outbreak tracking for your location."
+        icon="map"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
+
+  // Show feature blocked screen if feature is not enabled (for authenticated users)
   if (!FEATURE_ENABLED) {
     return (
       <FeatureBlockedScreen

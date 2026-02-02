@@ -2,6 +2,11 @@
  * ChatbotScreen
  * Native AI health assistant chat matching Flask chatbot.html UI
  * Features: sidebar chat history drawer, theme toggle, persisted memory
+ * 
+ * GUEST MODE:
+ * - No chat history persistence
+ * - No profile context/memory
+ * - Limited requests per session
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,10 +38,12 @@ import {
   MoonIcon,
   PencilIcon,
   TrashIcon,
+  AuthGateModal,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
 import { supabase } from '../services/supabase';
 import { invokeEdgeFunction } from '../services/edge';
@@ -44,6 +51,9 @@ import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 280;
+
+// Guest mode limits
+const GUEST_MAX_REQUESTS_PER_SESSION = 10;
 
 // Theme colors matching Flask chatbot
 const DarkTheme = {
@@ -98,12 +108,23 @@ function deriveConversationTitle(text: string) {
 const ChatbotScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user: authUser } = useAuth();
+  const { user: authUser, isGuest } = useAuth();
   const { user } = useUser();
   const { t } = useI18n();
+  const { showAuthGate, AuthGateModalComponent } = useAuthGate();
 
   const scrollRef = useRef<ScrollView | null>(null);
   const sidebarAnim = useRef(new RNAnimated.Value(-SIDEBAR_WIDTH)).current;
+  
+  // ============================================================================
+  // PERFORMANCE: AbortController for cancelling pending requests on unmount
+  // ============================================================================
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // ============================================================================
+  // GUEST MODE: Track request count for rate limiting
+  // ============================================================================
+  const guestRequestCountRef = useRef(0);
 
   // Theme state - synced with global app theme
   const { isDark: isDarkMode, toggleTheme } = useTheme();
@@ -132,7 +153,8 @@ const ChatbotScreen: React.FC = () => {
   const updateConversationTitle = useCallback(
     async (convId: string, title: string) => {
       const nextTitle = title.trim();
-      if (!authUser?.id || !convId || !nextTitle) return;
+      // Skip for guests (no history persistence)
+      if (isGuest || !authUser?.id || !convId || !nextTitle) return;
       try {
         const { error: err } = await supabase
           .from('chat_conversations')
@@ -159,6 +181,19 @@ const ChatbotScreen: React.FC = () => {
     []
   );
 
+  // ============================================================================
+  // PERFORMANCE: Cancel pending requests when leaving the screen
+  // ============================================================================
+  useEffect(() => {
+    return () => {
+      // Abort any pending chat request when unmounting
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // Toggle sidebar animation
   useEffect(() => {
     RNAnimated.timing(sidebarAnim, {
@@ -168,8 +203,14 @@ const ChatbotScreen: React.FC = () => {
     }).start();
   }, [sidebarOpen]);
 
-  // Load conversations list
+  // Load conversations list (skip for guests - no history persistence)
   const loadConversations = useCallback(async () => {
+    // Guests don't have persisted conversations
+    if (isGuest) {
+      setConversationsLoading(false);
+      return;
+    }
+
     if (!authUser?.id) {
       setConversationsLoading(false);
       return;
@@ -191,7 +232,7 @@ const ChatbotScreen: React.FC = () => {
     } finally {
       setConversationsLoading(false);
     }
-  }, [authUser?.id]);
+  }, [authUser?.id, isGuest]);
 
   useEffect(() => {
     loadConversations();
@@ -353,40 +394,86 @@ const ChatbotScreen: React.FC = () => {
       const trimmed = text.trim();
       if (!trimmed || sending) return;
 
+      // ========================================================================
+      // GUEST MODE: Rate limiting - show auth gate when limit reached
+      // ========================================================================
+      if (isGuest) {
+        guestRequestCountRef.current += 1;
+        if (guestRequestCountRef.current > GUEST_MAX_REQUESTS_PER_SESSION) {
+          showAuthGate({
+            title: 'Chat limit reached',
+            message: 'Sign in to continue chatting and unlock unlimited conversations with history.',
+          });
+          return;
+        }
+      }
+
+      // ========================================================================
+      // PERFORMANCE: Cancel any previous pending request
+      // ========================================================================
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       setSending(true);
       setError(null);
       setDraft('');
 
-      // Optimistic UI
+      // Optimistic UI - show user message immediately for responsiveness
       const optimisticId = `local-${Date.now()}`;
       setMessages((prev) => [...prev, { id: optimisticId, role: 'user', content: trimmed }]);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
 
       const wasFirstMessageInUI = messages.length === 0;
 
+      // ========================================================================
+      // PERFORMANCE: Pass AbortController signal for cancellation support
+      // ========================================================================
       const { data, error: invokeErr } = await invokeEdgeFunction<{
         conversation_id: string;
         answer: string;
       }>('chat', {
         conversation_id: conversationId || undefined,
         message: trimmed,
+      }, {
+        signal,
+        timeout: 60000, // 60 second timeout
+        retries: 1, // Retry once on transient errors
       });
 
+      // Check if request was cancelled (user left screen or sent new message)
+      if (signal.aborted) {
+        return; // Don't update state if cancelled
+      }
+
       if (invokeErr || !data?.answer) {
-        setError(invokeErr?.message || 'Chat request failed');
+        // User-friendly error messages
+        let userMessage = invokeErr?.message || 'Chat request failed';
+        if (userMessage.includes('cancelled')) {
+          return; // Don't show error for cancelled requests
+        }
+        if (userMessage.includes('timed out')) {
+          userMessage = 'Response took too long. Please try again.';
+        }
+        setError(userMessage);
         setSending(false);
         return;
       }
 
       const resolvedConversationId = data.conversation_id || conversationId;
-      if (resolvedConversationId && !conversationId) {
+      
+      // Skip conversation tracking for guests (no history persistence)
+      if (!isGuest && resolvedConversationId && !conversationId) {
         setConversationId(resolvedConversationId);
         // Refresh conversation list
         loadConversations();
       }
 
       // If this was the first message, use it as the chat title.
-      if (resolvedConversationId && wasFirstMessageInUI) {
+      // Skip for guests (no history persistence)
+      if (!isGuest && resolvedConversationId && wasFirstMessageInUI) {
         const derivedTitle = deriveConversationTitle(trimmed);
         // Only set the title if it's currently empty or still the placeholder.
         const current = conversations.find((c) => c.id === resolvedConversationId);
@@ -402,10 +489,10 @@ const ChatbotScreen: React.FC = () => {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     },
-    [conversationId, conversations, loadConversations, messages.length, sending, updateConversationTitle]
+    [conversationId, conversations, isGuest, loadConversations, messages.length, sending, showAuthGate, updateConversationTitle]
   );
 
-  const userInitial = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
+  const userInitial = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || (isGuest ? 'G' : 'U');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
@@ -441,7 +528,33 @@ const ChatbotScreen: React.FC = () => {
         <View style={styles.sidebarContent}>
           <Text style={[styles.sidebarSectionTitle, { color: theme.textMuted }]}>Recent Chats</Text>
           <ScrollView style={styles.chatHistoryList} showsVerticalScrollIndicator={false}>
-            {conversationsLoading ? (
+            {isGuest ? (
+              // Guest mode: show sign-in prompt instead of history
+              <View style={{ paddingHorizontal: 16, paddingTop: 20 }}>
+                <Text style={[styles.emptyState, { color: theme.textMuted, marginBottom: 12 }]}>
+                  Chat history is not available in guest mode.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setSidebarOpen(false);
+                    showAuthGate({
+                      feature: 'chat history and personalized conversations',
+                    });
+                  }}
+                  style={{
+                    backgroundColor: theme.accent,
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: Colors.textLight, fontFamily: FontFamily.semibold, fontSize: 14 }}>
+                    Sign in to save chats
+                  </Text>
+                </Pressable>
+              </View>
+            ) : conversationsLoading ? (
               <ActivityIndicator color={theme.textMuted} style={{ marginTop: 20 }} />
             ) : conversations.length === 0 ? (
               <Text style={[styles.emptyState, { color: theme.textMuted }]}>No chats yet</Text>
@@ -495,7 +608,7 @@ const ChatbotScreen: React.FC = () => {
         <View style={[styles.sidebarFooter, { borderTopColor: theme.borderColor }]}>
           <View style={styles.userMenu}>
             <LinearGradient
-              colors={[theme.accent, '#3b82f6']}
+              colors={isGuest ? ['#6b7280', '#4b5563'] : [theme.accent, '#3b82f6']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.userAvatar}
@@ -503,7 +616,7 @@ const ChatbotScreen: React.FC = () => {
               <Text style={styles.userAvatarText}>{userInitial}</Text>
             </LinearGradient>
             <Text style={[styles.userName, { color: theme.textPrimary }]} numberOfLines={1}>
-              {user?.name || user?.email || 'User'}
+              {isGuest ? 'Guest' : (user?.name || user?.email || 'User')}
             </Text>
           </View>
         </View>
@@ -719,11 +832,17 @@ const ChatbotScreen: React.FC = () => {
               </Pressable>
             </View>
             <Text style={[styles.inputFooter, { color: theme.textMuted }]}>
-              AI answers are informational only. Consult a doctor for medical advice.
+              {isGuest 
+                ? `Guest mode · ${Math.max(0, GUEST_MAX_REQUESTS_PER_SESSION - guestRequestCountRef.current)} messages remaining`
+                : 'AI answers are informational only. Consult a doctor for medical advice.'
+              }
             </Text>
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* Auth gate modal for guests hitting rate limit */}
+      <AuthGateModalComponent />
     </View>
   );
 };

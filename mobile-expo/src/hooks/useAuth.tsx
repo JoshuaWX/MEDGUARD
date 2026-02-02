@@ -19,6 +19,8 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
+  /** True when user is browsing without authentication (guest mode) */
+  isGuest: boolean;
 }
 
 interface SignUpData {
@@ -55,6 +57,8 @@ type AuthContextValue = AuthState & {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   completeOnboarding: () => Promise<void>;
+  /** Enter guest mode (no authentication) */
+  continueAsGuest: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -204,17 +208,24 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     user: null,
     loading: true,
     initialized: false,
+    isGuest: false,
   });
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // Check if previously entered guest mode
+        const guestFlag = await AsyncStorage.getItem('mg_guest_mode');
+        const isGuest = guestFlag === '1';
+
         const { data: { session } } = await supabase.auth.getSession();
         setState({
           session,
           user: session?.user ?? null,
           loading: false,
           initialized: true,
+          // Only guest if no session AND guest flag is set
+          isGuest: !session && isGuest,
         });
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -225,11 +236,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      // If user signs in, clear guest mode
+      if (event === 'SIGNED_IN' && session?.user) {
+        await AsyncStorage.removeItem('mg_guest_mode');
+      }
+
       setState((prev) => ({
         ...prev,
         session,
         user: session?.user ?? null,
         loading: false,
+        // Clear guest mode on sign in
+        isGuest: session?.user ? false : prev.isGuest,
       }));
 
       if (event === 'SIGNED_IN' && session?.user) {
@@ -389,6 +407,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const signOut = useCallback(async () => {
     try {
       await clearStagedOnboardingData();
+      // Clear guest mode flag on sign out
+      await AsyncStorage.removeItem('mg_guest_mode');
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.warn('Supabase signOut error:', error.message);
@@ -399,6 +419,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ...prev,
         session: null,
         user: null,
+        isGuest: false,
       }));
     } catch (e) {
       console.warn('signOut exception:', e);
@@ -407,8 +428,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ...prev,
         session: null,
         user: null,
+        isGuest: false,
       }));
     }
+  }, []);
+
+  /**
+   * Enter guest mode - allows browsing without authentication.
+   * Guest users have limited access to features.
+   */
+  const continueAsGuest = useCallback(() => {
+    AsyncStorage.setItem('mg_guest_mode', '1').catch(() => {});
+    setState((prev) => ({
+      ...prev,
+      isGuest: true,
+      session: null,
+      user: null,
+    }));
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -437,8 +473,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       signOut,
       resetPassword,
       completeOnboarding,
+      continueAsGuest,
     }),
-    [state, signIn, signUp, signInWithGoogle, signOut, resetPassword, completeOnboarding]
+    [state, signIn, signUp, signInWithGoogle, signOut, resetPassword, completeOnboarding, continueAsGuest]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

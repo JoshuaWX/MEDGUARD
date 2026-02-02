@@ -1,10 +1,11 @@
 /**
  * FloatingActionButton Component
  * Recreates the FAB chatbot button with pulse animation
+ * Optimized for low-end Android devices
  */
 
-import React, { useEffect } from 'react';
-import { StyleSheet, Pressable, View } from 'react-native';
+import React, { useEffect, memo, useCallback } from 'react';
+import { StyleSheet, Pressable, View, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,54 +21,67 @@ import { Colors, Shadows, BorderRadius, Duration } from '../../theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+// Detect low-end Android devices (API level < 28 = Android 9)
+const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
+
 interface FloatingActionButtonProps {
   onPress: () => void;
 }
 
-const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ onPress }) => {
+const FloatingActionButton: React.FC<FloatingActionButtonProps> = memo(({ onPress }) => {
   const scale = useSharedValue(1);
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0.3);
+
+  // Use slower, simpler animation on low-end devices
+  const pulseDuration = isLowEndDevice ? Duration.pulse * 1.5 : Duration.pulse;
+  const pulseMaxScale = isLowEndDevice ? 1.1 : 1.15;
 
   useEffect(() => {
     // Continuous pulse animation for the ring
     pulseScale.value = withRepeat(
       withSequence(
-        withTiming(1.15, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) })
+        withTiming(pulseMaxScale, { duration: pulseDuration / 2, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: pulseDuration / 2, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       false
     );
     pulseOpacity.value = withRepeat(
       withSequence(
-        withTiming(0, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.3, { duration: Duration.pulse / 2, easing: Easing.inOut(Easing.ease) })
+        withTiming(0, { duration: pulseDuration / 2, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: pulseDuration / 2, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       false
     );
-  }, []);
+  }, [pulseDuration, pulseMaxScale, pulseScale, pulseOpacity]);
 
-  const handlePressIn = () => {
+  const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.95, { damping: 15 });
-  };
+  }, [scale]);
 
-  const handlePressOut = () => {
+  const handlePressOut = useCallback(() => {
     scale.value = withSpring(1.1, { damping: 15 });
     setTimeout(() => {
       scale.value = withSpring(1, { damping: 15 });
     }, 100);
-  };
+  }, [scale]);
 
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const buttonStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
-  }));
+  const pulseStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ scale: pulseScale.value }],
+      opacity: pulseOpacity.value,
+    };
+  });
 
   return (
     <View style={styles.container}>
@@ -110,7 +124,7 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ onPress }) 
       </AnimatedPressable>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

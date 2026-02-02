@@ -1,6 +1,8 @@
 /**
  * SettingsScreen
  * UI scaffold aligned to settings.html (Settings & Support)
+ * 
+ * GUEST GATED: Location sharing toggle disabled for guests.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -11,10 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector } from '../components';
+import { GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, AuthGateModal } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -31,8 +34,19 @@ const SettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { lang, setLang, t } = useI18n();
   const { isDark, colors, mode } = useTheme();
+  const { isGuest, requireAuth, AuthGateModalComponent } = useAuthGate();
 
   const [locationSharing, setLocationSharing] = useState(true);
+
+  // Handler for location sharing toggle - requires auth for guests
+  const handleLocationToggle = (value: boolean) => {
+    if (isGuest) {
+      // Show auth gate modal instead of toggling
+      requireAuth('location sharing and personalized alerts');
+      return;
+    }
+    setLocationSharing(value);
+  };
 
   const bottomPadding = useMemo(() => {
     const min = 24;
@@ -90,14 +104,15 @@ const SettingsScreen: React.FC = () => {
                 <View style={styles.toggleHeaderRow}>
                   <Text style={[styles.toggleLabel, { color: colors.text }]}>{t('share_location_toggle')}</Text>
                   <Switch
-                    value={locationSharing}
-                    onValueChange={setLocationSharing}
+                    value={isGuest ? false : locationSharing}
+                    onValueChange={handleLocationToggle}
                     trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
                     thumbColor={Colors.surfaceLight}
+                    disabled={isGuest}
                   />
                 </View>
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-                  {t('share_location_desc')}
+                  {isGuest ? 'Sign in to enable location sharing for personalized alerts.' : t('share_location_desc')}
                 </Text>
               </View>
             </View>
@@ -170,6 +185,9 @@ const SettingsScreen: React.FC = () => {
           </View>
         </ScrollView>
       </View>
+
+      {/* Auth gate modal for guests trying to access restricted features */}
+      <AuthGateModalComponent />
     </LinearGradient>
   );
 };

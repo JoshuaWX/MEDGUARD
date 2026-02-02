@@ -1,10 +1,11 @@
 /**
  * MedGuard Tab Navigator
  * Preserves exact bottom navigation from web
+ * Optimized for low-end Android devices
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -25,8 +26,11 @@ import { Colors, Spacing, BorderRadius, FontSize, FontFamily } from '../../theme
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+// Detect low-end Android devices (API level < 28 = Android 9)
+const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
+
 // Icon components matching web SVGs exactly
-const HomeIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
+const HomeIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
@@ -40,9 +44,9 @@ const HomeIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) =>
     <Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     <Polyline points="9 22 9 12 15 12 15 22" />
   </Svg>
-);
+));
 
-const MapIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
+const MapIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
@@ -57,9 +61,9 @@ const MapIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => 
     <Line x1={8} y1={2} x2={8} y2={18} />
     <Line x1={16} y1={6} x2={16} y2={22} />
   </Svg>
-);
+));
 
-const HealthIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
+const HealthIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
@@ -72,9 +76,9 @@ const HealthIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) 
   >
     <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
   </Svg>
-);
+));
 
-const ProfileIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
+const ProfileIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
   <Svg
     width={20}
     height={20}
@@ -88,17 +92,22 @@ const ProfileIcon = ({ focused, isDark }: { focused: boolean; isDark: boolean })
     <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
     <Circle cx={12} cy={7} r={4} />
   </Svg>
-);
+));
 
 interface TabIconWrapperProps {
   focused: boolean;
   children: React.ReactNode;
 }
 
-const TabIconWrapper: React.FC<TabIconWrapperProps> = ({ focused, children }) => {
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(focused ? 1 : 1, { damping: 15 }) }],
-  }));
+const TabIconWrapper: React.FC<TabIconWrapperProps> = memo(({ focused, children }) => {
+  const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    // Disable spring animation on low-end devices
+    const scaleValue = isLowEndDevice ? 1 : withSpring(focused ? 1 : 1, { damping: 15 });
+    return {
+      transform: [{ scale: scaleValue }],
+    };
+  });
 
   return (
     <Animated.View style={[styles.iconWrapper, animatedStyle]}>
@@ -116,7 +125,28 @@ const TabIconWrapper: React.FC<TabIconWrapperProps> = ({ focused, children }) =>
       )}
     </Animated.View>
   );
-};
+});
+
+// Tab bar background component - uses solid background on low-end devices instead of expensive blur
+const TabBarBackground = memo(({ isDark }: { isDark: boolean }) => {
+  if (isLowEndDevice) {
+    // Use solid background on low-end devices to avoid expensive blur effect
+    return (
+      <View style={[StyleSheet.absoluteFill, styles.tabBarBg, { 
+        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: isDark ? '#374151' : Colors.borderLight,
+      }]} />
+    );
+  }
+  return (
+    <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+      <View style={[styles.tabBarBg, { 
+        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : Colors.whiteAlpha90,
+        borderColor: isDark ? '#374151' : Colors.borderLight,
+      }]} />
+    </BlurView>
+  );
+});
 
 function TabNavigator() {
   const { isDark, colors } = useTheme();
@@ -126,14 +156,7 @@ function TabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarBackground: () => (
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
-            <View style={[styles.tabBarBg, { 
-              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : Colors.whiteAlpha90,
-              borderColor: isDark ? '#374151' : Colors.borderLight,
-            }]} />
-          </BlurView>
-        ),
+        tabBarBackground: () => <TabBarBackground isDark={isDark} />,
         tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: isDark ? '#9ca3af' : Colors.textSecondary,

@@ -3,6 +3,7 @@
  * Health tracking with symptom logging
  * 
  * FEATURE BLOCKED: This screen is under development.
+ * GUEST GATED: Guests see preview UI with sign-in prompt.
  * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
  */
 
@@ -45,6 +46,7 @@ import {
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
 import { useTheme } from '../hooks/useTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -78,8 +80,22 @@ const SYMPTOMS = [
 
 const MyHealthScreen: React.FC = () => {
   const { t } = useI18n();
+  const { isGuest } = useAuthGate();
 
-  // Show feature blocked screen if feature is not enabled
+  // Guest users see sign-in required message
+  if (isGuest) {
+    return (
+      <FeatureBlockedScreen
+        title={t('my_health')}
+        description="Sign in to access personal health tracking, symptom logging, and AI-powered wellness insights."
+        icon="health"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
+
+  // Show feature blocked screen if feature is not enabled (for authenticated users)
   if (!FEATURE_ENABLED) {
     return (
       <FeatureBlockedScreen

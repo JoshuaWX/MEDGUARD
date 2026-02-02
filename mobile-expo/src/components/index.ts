@@ -17,6 +17,7 @@ export { default as PasswordStrengthIndicator } from './PasswordStrengthIndicato
 export { default as RiskCard } from './RiskCard';
 export { default as AQICard } from './AQICard';
 export { default as FeatureBlockedScreen } from './FeatureBlockedScreen';
+export { default as AuthGateModal } from './AuthGateModal';
 export type { FeatureIconType } from './FeatureBlockedScreen';
 export type { DiseaseRisk, RiskLevel } from './RiskCard';
 export type { AQIInsight, AQILevel } from './AQICard';
