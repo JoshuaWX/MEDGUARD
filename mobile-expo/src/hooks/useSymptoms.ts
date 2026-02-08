@@ -1,6 +1,9 @@
 /**
  * useSymptoms hook
- * Symptom logging functionality
+ * @deprecated Use useHealthCheckin instead. This legacy hook used a separate
+ * numeric 0-100 risk scoring system. The unified check-in system
+ * (low/moderate/elevated) in useHealthCheckin replaces all functionality.
+ * Kept only for reference — no screens import this hook.
  */
 
 import { useState, useCallback } from 'react';

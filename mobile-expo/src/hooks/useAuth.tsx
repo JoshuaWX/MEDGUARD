@@ -11,6 +11,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
 import { supabase } from '../services/supabase';
 import { AuthChangeEvent, Session, User, AuthError } from '@supabase/supabase-js';
 
@@ -59,6 +60,12 @@ type AuthContextValue = AuthState & {
   completeOnboarding: () => Promise<void>;
   /** Enter guest mode (no authentication) */
   continueAsGuest: () => void;
+  /** True when a recovery deep link has been verified and user must set a new password */
+  pendingRecovery: boolean;
+  /** Set a new password after recovery verification */
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
+  /** Clear the pendingRecovery flag (e.g. on dismiss) */
+  clearRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -210,6 +217,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     initialized: false,
     isGuest: false,
   });
+  const [pendingRecovery, setPendingRecovery] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -234,6 +242,44 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
 
     initializeAuth();
+
+    // ── Deep link handler: email confirmation callback ──────────────────
+    // When a user taps the confirmation link in their email,
+    // the link opens the app via medguard://signin?token_hash=...&type=signup.
+    // We extract the token and verify the OTP to establish a session.
+    const handleDeepLink = async (event: { url: string }) => {
+      try {
+        const url = event.url;
+        if (!url) return;
+        const parsed = Linking.parse(url);
+        const tokenHash = parsed.queryParams?.token_hash as string | undefined;
+        const type = parsed.queryParams?.type as string | undefined;
+
+        if (tokenHash && type) {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as any,
+          });
+          if (error) {
+            console.warn('Deep link OTP verification failed:', error.message);
+          } else if (type === 'recovery') {
+            // Recovery verified — flag so the UI can show "Set New Password"
+            setPendingRecovery(true);
+          }
+          // On success, onAuthStateChange will fire SIGNED_IN and update state.
+        }
+      } catch (e) {
+        console.warn('Deep link handler error:', e);
+      }
+    };
+
+    // Listen for incoming deep links while app is open
+    const linkSubscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Handle the case where the app was cold-started from a deep link
+    Linking.getInitialURL().then((url: string | null) => {
+      if (url) handleDeepLink({ url });
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       // If user signs in, clear guest mode
@@ -261,6 +307,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     return () => {
       subscription.unsubscribe();
+      linkSubscription.remove();
     };
   }, []);
 
@@ -328,10 +375,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         longitude: typeof signUpData.longitude === 'number' ? signUpData.longitude : null,
       };
 
+      // Include emailRedirectTo so the confirmation email deep-links back into
+      // the app's sign-in screen (medguard://signin).
+      const redirectUrl = Linking.createURL('signin');
+
       const { data, error } = await supabase.auth.signUp({
         email: signUpData.email,
         password: signUpData.password,
-        options: { data: meta },
+        options: { data: meta, emailRedirectTo: redirectUrl },
       });
 
       if (error) throw error;
@@ -449,12 +500,30 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const resetPassword = useCallback(async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const redirectUrl = Linking.createURL('auth/callback');
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
       if (error) throw error;
       return { error: null };
     } catch (error) {
       return { error: error as AuthError };
     }
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setPendingRecovery(false);
+      return { error: null };
+    } catch (error) {
+      return { error: error as AuthError };
+    }
+  }, []);
+
+  const clearRecovery = useCallback(() => {
+    setPendingRecovery(false);
   }, []);
 
   const completeOnboarding = useCallback(async () => {
@@ -474,8 +543,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       resetPassword,
       completeOnboarding,
       continueAsGuest,
+      pendingRecovery,
+      updatePassword,
+      clearRecovery,
     }),
-    [state, signIn, signUp, signInWithGoogle, signOut, resetPassword, completeOnboarding, continueAsGuest]
+    [state, signIn, signUp, signInWithGoogle, signOut, resetPassword, completeOnboarding, continueAsGuest, pendingRecovery, updatePassword, clearRecovery]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

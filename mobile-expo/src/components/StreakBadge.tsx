@@ -1,18 +1,29 @@
 /**
- * StreakBadge Component
- * 
- * Displays the user's daily check-in streak.
- * 
+ * StreakBadge Component (v3 — Professional)
+ *
+ * DESIGN:
+ * - Compact mode: pill chip with Ionicons icon + streak count (for title row)
+ * - Full mode: animated SVG progress ring + milestone info
+ * - Professional Ionicons for streak tiers (no emojis)
+ * - Calm color progression: green → purple → blue → gold
+ *
  * PUBLIC HEALTH REASONING:
- * - Light gamification to encourage habit-building
- * - Supportive, not competitive language
- * - No pressure or shame for missed days
- * - Celebrates consistency, not perfection
+ * - Supportive, never punishing for missed days
+ * - Celebrates consistency over perfection
+ * - No competitive framing
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Colors,
   BorderRadius,
@@ -23,12 +34,36 @@ import {
   useThemedColors,
 } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
-import { getStreakEmoji, getStreakMessage } from '../services/healthCheckin';
+import { getStreakMessage } from '../services/healthCheckin';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface StreakBadgeProps {
   currentStreak: number;
   longestStreak?: number;
   compact?: boolean;
+}
+
+// Ring constants
+const RING_SIZE = 72;
+const STROKE_WIDTH = 5;
+const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const NEXT_MILESTONE = (s: number) => {
+  if (s < 7) return 7;
+  if (s < 14) return 14;
+  if (s < 30) return 30;
+  return 30;
+};
+
+/** Professional icon + accent color for streak tier */
+function getStreakTier(streak: number): { icon: string; color: string } {
+  if (streak >= 30) return { icon: 'trophy', color: '#f59e0b' };
+  if (streak >= 14) return { icon: 'flame', color: '#ef4444' };
+  if (streak >= 7) return { icon: 'star', color: Colors.primary };
+  if (streak >= 3) return { icon: 'flash', color: '#8b5cf6' };
+  return { icon: 'fitness', color: '#10b981' };
 }
 
 const StreakBadge: React.FC<StreakBadgeProps> = ({
@@ -38,58 +73,106 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
 }) => {
   const { isDark } = useTheme();
   const themed = useThemedColors(isDark);
-  const emoji = getStreakEmoji(currentStreak);
   const message = getStreakMessage(currentStreak);
+  const { icon: iconName, color: accent } = getStreakTier(currentStreak);
 
-  // Streak color based on length
-  const getStreakColor = () => {
-    if (currentStreak >= 30) return '#f59e0b';  // Gold for 30+ days
-    if (currentStreak >= 14) return '#ef4444';  // Red fire for 14+ days
-    if (currentStreak >= 7) return Colors.primary;  // Brand color for 7+ days
-    return Colors.success;  // Green for starting out
-  };
+  // Animate ring fill
+  const milestone = NEXT_MILESTONE(currentStreak);
+  const progress = Math.min(currentStreak / milestone, 1);
+  const dashOffset = useSharedValue(CIRCUMFERENCE);
 
+  useEffect(() => {
+    dashOffset.value = withTiming(CIRCUMFERENCE * (1 - progress), {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [progress]);
+
+  const ringProps = useAnimatedProps(() => ({
+    strokeDashoffset: dashOffset.value,
+  }));
+
+  // ── Compact chip (inline, for title row) ──────────────────────────────
   if (compact) {
     return (
-      <View style={[styles.compactContainer, { backgroundColor: themed.surface }]}>
-        <Text style={styles.compactEmoji}>{emoji}</Text>
-        <Text style={[styles.compactStreak, { color: getStreakColor() }]}>
-          {currentStreak}
-        </Text>
-        <Text style={[styles.compactLabel, { color: themed.textSecondary }]}>
-          day streak
-        </Text>
-      </View>
+      <Animated.View entering={FadeIn.duration(350)}>
+        <View
+          style={[
+            styles.chip,
+            {
+              backgroundColor: accent + '14',
+              borderColor: accent + '30',
+            },
+          ]}
+        >
+          <Ionicons name={iconName as any} size={14} color={accent} />
+          <Text style={[styles.chipCount, { color: accent }]}>{currentStreak}</Text>
+          <Text style={[styles.chipLabel, { color: themed.textSecondary }]}>
+            day{currentStreak !== 1 ? 's' : ''}
+          </Text>
+        </View>
+      </Animated.View>
     );
   }
 
+  // ── Full card ─────────────────────────────────────────────────────────
   return (
     <Animated.View
-      entering={FadeIn.duration(400)}
-      style={[styles.container, { backgroundColor: themed.surface }]}
+      entering={FadeIn.duration(450)}
+      style={[styles.card, { backgroundColor: themed.surface }]}
     >
-      <View style={styles.streakRow}>
-        <Text style={styles.emoji}>{emoji}</Text>
-        <View style={styles.streakInfo}>
-          <View style={styles.countRow}>
-            <Text style={[styles.count, { color: getStreakColor() }]}>
-              {currentStreak}
-            </Text>
-            <Text style={[styles.countLabel, { color: themed.textSecondary }]}>
-              day streak
-            </Text>
-          </View>
-          <Text style={[styles.message, { color: themed.text }]}>
-            {message}
-          </Text>
+      {/* Progress ring + count */}
+      <View style={styles.ringWrap}>
+        <Svg width={RING_SIZE} height={RING_SIZE} style={styles.svg}>
+          {/* Track */}
+          <Circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RADIUS}
+            stroke={isDark ? Colors.whiteAlpha10 : '#e5e7eb'}
+            strokeWidth={STROKE_WIDTH}
+            fill="none"
+          />
+          {/* Fill */}
+          <AnimatedCircle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RADIUS}
+            stroke={accent}
+            strokeWidth={STROKE_WIDTH}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+            animatedProps={ringProps}
+            rotation="-90"
+            origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+          />
+        </Svg>
+        {/* Centre number */}
+        <View style={styles.ringCenter}>
+          <Text style={[styles.ringCount, { color: accent }]}>{currentStreak}</Text>
         </View>
       </View>
 
-      {/* Longest streak (if different from current) */}
+      {/* Text area */}
+      <View style={styles.textArea}>
+        <View style={styles.streakTitleRow}>
+          <Ionicons name={iconName as any} size={20} color={accent} />
+          <Text style={[styles.message, { color: themed.text }]}>{message}</Text>
+        </View>
+        <Text style={[styles.milestoneHint, { color: themed.textSecondary }]}>
+          {currentStreak < 30
+            ? `Next milestone: ${milestone} days`
+            : 'You reached the top milestone!'}
+        </Text>
+      </View>
+
+      {/* Personal best */}
       {longestStreak !== undefined && longestStreak > currentStreak && (
-        <View style={[styles.longestRow, { borderTopColor: themed.border }]}>
-          <Text style={[styles.longestLabel, { color: themed.textMuted }]}>
-            🏆 Personal best: {longestStreak} days
+        <View style={[styles.bestRow, { borderTopColor: themed.border }]}>
+          <Ionicons name="trophy-outline" size={14} color={themed.textMuted} />
+          <Text style={[styles.bestText, { color: themed.textMuted }]}>
+            Personal best: {longestStreak} days
           </Text>
         </View>
       )}
@@ -98,70 +181,81 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  // ── Compact chip ──────────────────────────────────────────────────────
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  chipCount: { fontFamily: FontFamily.bold, fontSize: FontSize.sm },
+  chipLabel: { fontFamily: FontFamily.regular, fontSize: FontSize.xs },
+
+  // ── Full card ─────────────────────────────────────────────────────────
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
+    gap: Spacing.base,
     ...Shadows.sm,
   },
-  streakRow: {
-    flexDirection: 'row',
+  ringWrap: {
+    width: RING_SIZE,
+    height: RING_SIZE,
     alignItems: 'center',
-    gap: Spacing.base,
+    justifyContent: 'center',
   },
-  emoji: {
-    fontSize: 40,
+  svg: {
+    position: 'absolute',
   },
-  streakInfo: {
+  ringCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringCount: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize['2xl'],
+  },
+  textArea: {
     flex: 1,
   },
-  countRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.sm,
-  },
-  count: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize['3xl'],
-  },
-  countLabel: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.base,
-  },
-  message: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    marginTop: 2,
-  },
-  longestRow: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-  },
-  longestLabel: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-  },
-  // Compact variant
-  compactContainer: {
+  streakTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.xs,
+    gap: 8,
+    marginBottom: 4,
   },
-  compactEmoji: {
-    fontSize: FontSize.lg,
+  message: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base * 1.3,
+    flex: 1,
   },
-  compactStreak: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.lg,
-  },
-  compactLabel: {
+  milestoneHint: {
     fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
+    marginTop: 4,
+    marginLeft: 28,
+  },
+  bestRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  bestText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
   },
 });
 

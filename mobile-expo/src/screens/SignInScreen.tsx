@@ -33,7 +33,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
-import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
+import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon, ResetPasswordModal } from '../components';
 import { useAuth } from '../hooks/useAuth';
 // continueAsGuest is destructured from useAuth below
 import { useTheme } from '../hooks/useTheme';
@@ -48,19 +48,27 @@ import {
   Duration,
   Gradients,
 } from '../../theme';
+import { useRoute, RouteProp } from '@react-navigation/native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignIn'>;
+type SignInRouteProp = RouteProp<RootStackParamList, 'SignIn'>;
 
 const HERO_BG_URI =
   'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=800&q=80';
 
 const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<SignInRouteProp>();
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithGoogle, loading, continueAsGuest } = useAuth();
+  const { signIn, signInWithGoogle, loading, continueAsGuest, resetPassword, pendingRecovery, updatePassword, clearRecovery } = useAuth();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotVisible, setForgotVisible] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -114,6 +122,22 @@ const SignInScreen: React.FC = () => {
     // Set guest mode flag in auth context, then navigate
     continueAsGuest();
     navigation.navigate('MainTabs');
+  };
+
+  const handleForgotPassword = async () => {
+    setForgotError(null);
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your email address above, then tap Forgot Password.');
+      return;
+    }
+    setForgotLoading(true);
+    const { error: resetErr } = await resetPassword(forgotEmail.trim());
+    setForgotLoading(false);
+    if (resetErr) {
+      setForgotError(resetErr.message);
+    } else {
+      setForgotSent(true);
+    }
   };
 
   const handleBack = () => {
@@ -221,7 +245,10 @@ const SignInScreen: React.FC = () => {
                 </View>
                 <Text style={[styles.rememberText, { color: colors.textSecondary }]}>{t('remember_me')}</Text>
               </Pressable>
-              <Pressable>
+              <Pressable onPress={() => {
+                setForgotEmail(email); // pre-fill from email input
+                handleForgotPassword();
+              }}>
                 <Text style={[styles.forgotText, { color: colors.primary }]}>{t('forgot_password')}</Text>
               </Pressable>
             </View>
@@ -267,6 +294,16 @@ const SignInScreen: React.FC = () => {
 
           {/* Guest button footer */}
           <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base, backgroundColor: colors.surface, borderTopColor: isDark ? colors.border : Colors.borderLight }]}>
+            {forgotSent && (
+              <Text style={[styles.forgotSentText, { color: colors.primary }]}>
+                Password reset email sent. Check your inbox.
+              </Text>
+            )}
+            {forgotError && (
+              <Text style={[styles.forgotSentText, { color: Colors.danger }]}>
+                {forgotError}
+              </Text>
+            )}
             <Button
               title={t('guest_continue')}
               onPress={handleGuest}
@@ -277,6 +314,13 @@ const SignInScreen: React.FC = () => {
               style={{ ...styles.guestButton, backgroundColor: colors.background, borderColor: isDark ? colors.border : Colors.borderLight }}
             />
           </View>
+
+          {/* Reset Password Modal — shown when recovery deep link is verified */}
+          <ResetPasswordModal
+            visible={pendingRecovery}
+            onSubmit={updatePassword}
+            onDismiss={clearRecovery}
+          />
         </KeyboardAvoidingView>
       </View>
     </LinearGradient>
@@ -480,6 +524,12 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     fontSize: 18,
+  },
+  forgotSentText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
   },
 });
 

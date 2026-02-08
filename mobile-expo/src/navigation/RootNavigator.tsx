@@ -5,6 +5,7 @@
 import React from 'react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Linking from 'expo-linking';
 
 import { RootStackParamList } from './types';
 import TabNavigator from './TabNavigator';
@@ -65,9 +66,37 @@ function RootNavigator() {
     }
   }, [initialized, loading, user, navigationRef]);
 
+  // Deep linking: maps medguard://signin → SignIn screen, medguard://auth/callback → SignIn
+  const linking = React.useMemo(() => ({
+    prefixes: [Linking.createURL('/'), 'medguard://'],
+    config: {
+      screens: {
+        SignIn: {
+          path: 'signin',
+        },
+        Welcome: 'welcome',
+        SignUp: 'signup',
+      },
+    },
+    // Custom subscribe to also handle auth/callback → SignIn with resetPassword mode
+    getPathFromState: undefined,
+    getStateFromPath: (path: string, options: any) => {
+      // Map auth/callback to SignIn with mode param
+      if (path.startsWith('auth/callback')) {
+        return {
+          routes: [{ name: 'SignIn', params: { mode: 'resetPassword' } }],
+        };
+      }
+      // Fall back to default
+      const { getStateFromPath: defaultGetState } = require('@react-navigation/native');
+      return defaultGetState(path, options);
+    },
+  }), []);
+
   return (
     <NavigationContainer
       ref={navigationRef}
+      linking={linking}
       onReady={() => {
         navReadyRef.current = true;
       }}

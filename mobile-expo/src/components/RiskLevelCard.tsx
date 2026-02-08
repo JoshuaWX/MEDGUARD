@@ -1,18 +1,30 @@
 /**
- * RiskLevelCard Component
- * 
- * Displays the calculated health risk level with guidance.
- * 
+ * RiskLevelCard Component (v3 — Professional)
+ *
+ * DESIGN:
+ * - Left accent bar with animated scaleY entrance
+ * - Ionicons in tinted circle (no emojis)
+ * - "What you can do" guidance with bulb icon
+ * - Compact pill variant for inline preview
+ * - Clean type hierarchy
+ *
  * PUBLIC HEALTH REASONING:
- * - Clear visual hierarchy for risk communication
- * - Non-alarmist colors and language
- * - Actionable guidance without diagnosis
- * - Subtle disclaimer to avoid medical certainty
+ * - Non-alarmist: amber (not red) for elevated
+ * - Actionable guidance, not diagnosis
+ * - Clear disclaimer in every view
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  FadeIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Colors,
   BorderRadius,
@@ -31,6 +43,12 @@ interface RiskLevelCardProps {
   compact?: boolean;
 }
 
+const RISK_META: Record<RiskLevel, { icon: string; bg: string }> = {
+  low: { icon: 'checkmark-circle', bg: 'rgba(16,185,129,0.10)' },
+  moderate: { icon: 'information-circle', bg: 'rgba(59,130,246,0.10)' },
+  elevated: { icon: 'warning', bg: 'rgba(245,158,11,0.10)' },
+};
+
 const RiskLevelCard: React.FC<RiskLevelCardProps> = ({
   level,
   showGuidance = true,
@@ -39,103 +57,134 @@ const RiskLevelCard: React.FC<RiskLevelCardProps> = ({
   const { isDark } = useTheme();
   const themed = useThemedColors(isDark);
   const display = getRiskLevelDisplay(level);
+  const meta = RISK_META[level];
 
-  const getBackgroundColor = () => {
-    switch (level) {
-      case 'elevated':
-        return 'rgba(245, 158, 11, 0.1)';  // Amber tint
-      case 'moderate':
-        return 'rgba(59, 130, 246, 0.1)';  // Blue tint
-      case 'low':
-      default:
-        return 'rgba(16, 185, 129, 0.1)';  // Green tint
-    }
-  };
+  // Animated accent bar
+  const barScale = useSharedValue(0);
+  useEffect(() => {
+    barScale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+  }, [level]);
 
-  const getIcon = () => {
-    switch (level) {
-      case 'elevated':
-        return '⚠️';
-      case 'moderate':
-        return 'ℹ️';
-      case 'low':
-      default:
-        return '✅';
-    }
-  };
+  const barStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: barScale.value }],
+  }));
 
+  // ── Compact pill ──────────────────────────────────────────────────────
   if (compact) {
     return (
-      <View style={[styles.compactContainer, { backgroundColor: getBackgroundColor() }]}>
-        <Text style={styles.compactIcon}>{getIcon()}</Text>
-        <Text style={[styles.compactLabel, { color: display.color }]}>
-          {display.label} Risk
-        </Text>
-      </View>
+      <Animated.View entering={FadeIn.duration(300)}>
+        <View style={[styles.compactRow, { backgroundColor: meta.bg }]}>
+          <Ionicons name={meta.icon as any} size={18} color={display.color} />
+          <Text style={[styles.compactLabel, { color: display.color }]}>
+            {display.label}
+          </Text>
+        </View>
+      </Animated.View>
     );
   }
 
+  // ── Full card ─────────────────────────────────────────────────────────
   return (
     <Animated.View
-      entering={FadeInUp.duration(400)}
-      style={[styles.container, { backgroundColor: getBackgroundColor() }]}
+      entering={FadeInUp.duration(450)}
+      style={[styles.card, { backgroundColor: meta.bg }]}
     >
-      {/* Risk Level Header */}
-      <View style={styles.header}>
-        <Text style={styles.icon}>{getIcon()}</Text>
-        <View style={styles.headerText}>
-          <Text style={[styles.levelLabel, { color: display.color }]}>
-            {display.label} Health Awareness
-          </Text>
-          <Text style={[styles.description, { color: themed.textSecondary }]}>
-            {display.description}
-          </Text>
+      {/* Left accent bar */}
+      <Animated.View
+        style={[
+          styles.accentBar,
+          { backgroundColor: display.color },
+          barStyle,
+        ]}
+      />
+
+      <View style={styles.body}>
+        {/* Header row: icon circle + label + description */}
+        <View style={styles.headerRow}>
+          <View style={[styles.iconCircle, { backgroundColor: display.color + '1A' }]}>
+            <Ionicons name={meta.icon as any} size={26} color={display.color} />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={[styles.levelLabel, { color: display.color }]}>
+              {display.label} Health Awareness
+            </Text>
+            <Text style={[styles.description, { color: themed.textSecondary }]}>
+              {display.description}
+            </Text>
+          </View>
         </View>
+
+        {/* Guidance box */}
+        {showGuidance && (
+          <View style={[styles.guidanceBox, { backgroundColor: themed.surface }]}>
+            <View style={styles.guidanceTitleRow}>
+              <Ionicons name="bulb-outline" size={18} color={themed.text} />
+              <Text style={[styles.guidanceTitle, { color: themed.text }]}>
+                What you can do
+              </Text>
+            </View>
+            <Text style={[styles.guidanceText, { color: themed.textSecondary }]}>
+              {display.guidance}
+            </Text>
+          </View>
+        )}
+
+        {/* Disclaimer */}
+        <Text style={[styles.disclaimer, { color: themed.textMuted }]}>
+          For awareness only — not a medical diagnosis. Consult a healthcare provider for medical advice.
+        </Text>
       </View>
-
-      {/* Guidance */}
-      {showGuidance && (
-        <View style={[styles.guidanceBox, { backgroundColor: themed.surface }]}>
-          <Text style={[styles.guidanceTitle, { color: themed.text }]}>
-            💡 What you can do
-          </Text>
-          <Text style={[styles.guidanceText, { color: themed.textSecondary }]}>
-            {display.guidance}
-          </Text>
-        </View>
-      )}
-
-      {/* Disclaimer */}
-      <Text style={[styles.disclaimer, { color: themed.textMuted }]}>
-        This is for awareness only and is not a medical diagnosis. Consult a healthcare provider for medical advice.
-      </Text>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: Spacing.lg,
+  // ── Compact ───────────────────────────────────────────────────────────
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    alignSelf: 'flex-start',
+  },
+  compactLabel: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
+
+  // ── Full card ─────────────────────────────────────────────────────────
+  card: {
+    flexDirection: 'row',
     borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
     marginVertical: Spacing.md,
     ...Shadows.sm,
   },
-  header: {
+  accentBar: {
+    width: 5,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderBottomLeftRadius: BorderRadius.xl,
+  },
+  body: {
+    flex: 1,
+    padding: Spacing.lg,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.md,
     marginBottom: Spacing.base,
   },
-  icon: {
-    fontSize: 32,
-    marginTop: 2,
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerText: {
-    flex: 1,
-  },
+  headerText: { flex: 1 },
   levelLabel: {
     fontFamily: FontFamily.bold,
-    fontSize: FontSize.xl,
+    fontSize: FontSize.lg,
     marginBottom: 4,
   },
   description: {
@@ -148,15 +197,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
   },
+  guidanceTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Spacing.xs,
+  },
   guidanceTitle: {
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.base,
-    marginBottom: Spacing.xs,
   },
   guidanceText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     lineHeight: FontSize.sm * 1.6,
+    marginLeft: 26,
   },
   disclaimer: {
     fontFamily: FontFamily.regular,
@@ -164,23 +219,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     lineHeight: FontSize.xs * 1.5,
-  },
-  // Compact variant
-  compactContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    alignSelf: 'flex-start',
-  },
-  compactIcon: {
-    fontSize: FontSize.base,
-  },
-  compactLabel: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
   },
 });
 

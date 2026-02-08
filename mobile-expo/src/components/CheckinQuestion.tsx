@@ -1,22 +1,28 @@
 /**
- * CheckinQuestion Component
- * 
- * A Yes/No question button for daily health check-ins.
- * Designed for simple, accessible health self-assessment.
- * 
+ * CheckinQuestion Component (v3 — Professional)
+ *
+ * DESIGN:
+ * - Horizontal card: Ionicons icon circle → question text → Yes / No toggle buttons
+ * - Professional Ionicons (no emojis)
+ * - Yes button: checkmark icon, No button: close icon
+ * - Spring micro-interaction on press (scale 0.88 → 1)
+ * - Selected state: solid fill with white icon + text
+ * - Calm border tint changes to match selection
+ *
  * PUBLIC HEALTH REASONING:
- * - Clear yes/no format reduces ambiguity
- * - Visual feedback helps users track their responses
- * - Accessible design for all users
+ * - Clear yes/no reduces ambiguity
+ * - Green = "No" (healthy), Amber = "Yes" (concern worth noting)
+ * - Accessible 44×36 min touch targets
  */
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Colors,
   BorderRadius,
@@ -32,7 +38,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface CheckinQuestionProps {
   question: string;
-  emoji?: string;
+  icon?: string;
+  iconColor?: string;
   value: boolean | null;
   onChange: (value: boolean) => void;
   disabled?: boolean;
@@ -40,69 +47,100 @@ interface CheckinQuestionProps {
 
 const CheckinQuestion: React.FC<CheckinQuestionProps> = ({
   question,
-  emoji,
+  icon = 'heart-outline',
+  iconColor = Colors.primary,
   value,
   onChange,
   disabled = false,
 }) => {
   const { isDark } = useTheme();
   const themed = useThemedColors(isDark);
-  
+
   const scaleYes = useSharedValue(1);
   const scaleNo = useSharedValue(1);
 
-  const handlePressIn = (isYes: boolean) => {
-    if (isYes) {
-      scaleYes.value = withSpring(0.95, { damping: 15 });
-    } else {
-      scaleNo.value = withSpring(0.95, { damping: 15 });
-    }
+  const press = (isYes: boolean, down: boolean) => {
+    const sv = isYes ? scaleYes : scaleNo;
+    sv.value = withSpring(down ? 0.88 : 1, { damping: 14, stiffness: 280 });
   };
 
-  const handlePressOut = (isYes: boolean) => {
-    if (isYes) {
-      scaleYes.value = withSpring(1, { damping: 15 });
-    } else {
-      scaleNo.value = withSpring(1, { damping: 15 });
-    }
-  };
-
-  const animatedYesStyle = useAnimatedStyle(() => ({
+  const yesStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scaleYes.value }],
   }));
-
-  const animatedNoStyle = useAnimatedStyle(() => ({
+  const noStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scaleNo.value }],
   }));
 
+  const isYes = value === true;
+  const isNo = value === false;
+
+  const borderColor = isYes
+    ? 'rgba(245,158,11,0.35)'
+    : isNo
+    ? 'rgba(16,185,129,0.35)'
+    : isDark
+    ? Colors.whiteAlpha10
+    : Colors.borderLight;
+
   return (
-    <View style={[styles.container, { backgroundColor: themed.surface }]}>
-      <View style={styles.questionRow}>
-        {emoji && <Text style={styles.emoji}>{emoji}</Text>}
-        <Text style={[styles.question, { color: themed.text }]}>{question}</Text>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: isDark ? Colors.whiteAlpha10 : '#ffffff',
+          borderColor,
+        },
+      ]}
+    >
+      {/* Icon badge */}
+      <View
+        style={[
+          styles.iconBadge,
+          {
+            backgroundColor: isYes
+              ? 'rgba(245,158,11,0.10)'
+              : isNo
+              ? 'rgba(16,185,129,0.10)'
+              : (iconColor + '14'),
+          },
+        ]}
+      >
+        <Ionicons
+          name={icon as any}
+          size={20}
+          color={isYes ? '#d97706' : isNo ? '#059669' : iconColor}
+        />
       </View>
-      
-      <View style={styles.buttonsRow}>
+
+      {/* Question text */}
+      <Text style={[styles.question, { color: themed.text }]} numberOfLines={2}>
+        {question}
+      </Text>
+
+      {/* Toggle buttons */}
+      <View style={styles.toggleGroup}>
         <AnimatedPressable
           onPress={() => !disabled && onChange(true)}
-          onPressIn={() => handlePressIn(true)}
-          onPressOut={() => handlePressOut(true)}
-          style={[animatedYesStyle]}
+          onPressIn={() => press(true, true)}
+          onPressOut={() => press(true, false)}
+          style={yesStyle}
           disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel="Yes"
         >
           <View
             style={[
-              styles.button,
-              value === true && styles.buttonYesSelected,
-              disabled && styles.buttonDisabled,
+              styles.toggleBtn,
+              isYes && styles.toggleYesActive,
+              disabled && styles.toggleDisabled,
             ]}
           >
-            <Text
-              style={[
-                styles.buttonText,
-                value === true && styles.buttonTextYesSelected,
-              ]}
-            >
+            <Ionicons
+              name={isYes ? 'checkmark-circle' : 'checkmark-circle-outline'}
+              size={15}
+              color={isYes ? '#ffffff' : '#9ca3af'}
+            />
+            <Text style={[styles.toggleText, isYes && styles.toggleTextActive]}>
               Yes
             </Text>
           </View>
@@ -110,24 +148,26 @@ const CheckinQuestion: React.FC<CheckinQuestionProps> = ({
 
         <AnimatedPressable
           onPress={() => !disabled && onChange(false)}
-          onPressIn={() => handlePressIn(false)}
-          onPressOut={() => handlePressOut(false)}
-          style={[animatedNoStyle]}
+          onPressIn={() => press(false, true)}
+          onPressOut={() => press(false, false)}
+          style={noStyle}
           disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel="No"
         >
           <View
             style={[
-              styles.button,
-              value === false && styles.buttonNoSelected,
-              disabled && styles.buttonDisabled,
+              styles.toggleBtn,
+              isNo && styles.toggleNoActive,
+              disabled && styles.toggleDisabled,
             ]}
           >
-            <Text
-              style={[
-                styles.buttonText,
-                value === false && styles.buttonTextNoSelected,
-              ]}
-            >
+            <Ionicons
+              name={isNo ? 'close-circle' : 'close-circle-outline'}
+              size={15}
+              color={isNo ? '#ffffff' : '#9ca3af'}
+            />
+            <Text style={[styles.toggleText, isNo && styles.toggleTextActive]}>
               No
             </Text>
           </View>
@@ -138,62 +178,65 @@ const CheckinQuestion: React.FC<CheckinQuestionProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: Spacing.base,
-    borderRadius: BorderRadius.xl,
-    marginBottom: Spacing.md,
-    ...Shadows.sm,
-  },
-  questionRow: {
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1.5,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+    ...Shadows.xs,
   },
-  emoji: {
-    fontSize: FontSize.xl,
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   question: {
     flex: 1,
     fontFamily: FontFamily.medium,
-    fontSize: FontSize.base,
-    lineHeight: FontSize.base * 1.4,
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.45,
   },
-  buttonsRow: {
+  toggleGroup: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: 8,
   },
-  button: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+  toggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
-    backgroundColor: Colors.surfaceLight,
-    minWidth: 80,
-    alignItems: 'center',
+    backgroundColor: 'transparent',
+    minWidth: 68,
+    justifyContent: 'center',
   },
-  buttonYesSelected: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',  // Red tint for "yes I have symptom"
-    borderColor: Colors.danger,
+  toggleYesActive: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#f59e0b',
   },
-  buttonNoSelected: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',  // Green tint for "no symptom"
-    borderColor: Colors.success,
+  toggleNoActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  toggleDisabled: {
+    opacity: 0.4,
   },
-  buttonText: {
+  toggleText: {
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#9ca3af',
   },
-  buttonTextYesSelected: {
-    color: Colors.danger,
-  },
-  buttonTextNoSelected: {
-    color: Colors.success,
+  toggleTextActive: {
+    color: '#ffffff',
   },
 });
 

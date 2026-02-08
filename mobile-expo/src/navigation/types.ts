@@ -6,7 +6,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Welcome: undefined;
-  SignIn: undefined;
+  SignIn: { mode?: 'resetPassword' } | undefined;
   SignUp: undefined;
   SignUp2: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;

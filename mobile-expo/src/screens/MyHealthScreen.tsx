@@ -53,7 +53,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GlassCard,
   Button,
-  SymptomButton,
   HeartIcon,
   ShieldIcon,
   ArrowRightIcon,
@@ -66,7 +65,6 @@ import {
   CommunityTrendCard,
 } from '../components';
 import { useUser } from '../hooks/useUser';
-import { useSymptoms } from '../hooks/useSymptoms';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
@@ -88,28 +86,32 @@ import {
 // ============================================================================
 const FEATURE_ENABLED = true;
 
+/**
+ * Derive a 0-100 wellness score from the latest check-in risk level.
+ * If no check-in exists yet today, defaults to neutral (75).
+ *
+ * PUBLIC HEALTH NOTE: This is a self-awareness indicator only,
+ * NOT a clinical health metric.
+ */
+function deriveWellnessScore(riskLevel: 'low' | 'moderate' | 'elevated' | null): number {
+  switch (riskLevel) {
+    case 'low':      return 92;
+    case 'moderate': return 65;
+    case 'elevated': return 40;
+    default:         return 75; // No check-in yet today
+  }
+}
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// Old symptom toggle buttons (kept for quick logging)
-const SYMPTOMS = [
-  { id: 'fever', key: 'symptom_fever', emoji: '🤒' },
-  { id: 'headache', key: 'symptom_headache', emoji: '🤕' },
-  { id: 'fatigue', key: 'symptom_fatigue', emoji: '😩' },
-  { id: 'cough', key: 'symptom_cough', emoji: '🤧' },
-  { id: 'bodyPain', key: 'symptom_body_pain', emoji: '💪' },
-  { id: 'nausea', key: 'symptom_nausea', emoji: '🤢' },
-  { id: 'dizziness', key: 'symptom_dizziness', emoji: '😵' },
-  { id: 'chills', key: 'symptom_chills', emoji: '🥶' },
-];
-
 // Daily check-in questions (Yes/No format)
-const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; emoji: string }> = [
-  { key: 'hasFever', question: 'checkin_fever', emoji: '🤒' },
-  { key: 'hasHeadache', question: 'checkin_headache', emoji: '🤕' },
-  { key: 'hasFatigue', question: 'checkin_fatigue', emoji: '😩' },
-  { key: 'hasDigestiveIssues', question: 'checkin_digestive', emoji: '🤢' },
-  { key: 'hasWaterExposure', question: 'checkin_water_exposure', emoji: '💧' },
-  { key: 'hasSickContact', question: 'checkin_sick_contact', emoji: '🤝' },
+const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; icon: string; iconColor: string }> = [
+  { key: 'hasFever', question: 'checkin_fever', icon: 'thermometer-outline', iconColor: '#ef4444' },
+  { key: 'hasHeadache', question: 'checkin_headache', icon: 'pulse-outline', iconColor: '#8b5cf6' },
+  { key: 'hasFatigue', question: 'checkin_fatigue', icon: 'moon-outline', iconColor: '#6366f1' },
+  { key: 'hasDigestiveIssues', question: 'checkin_digestive', icon: 'nutrition-outline', iconColor: '#f59e0b' },
+  { key: 'hasWaterExposure', question: 'checkin_water_exposure', icon: 'water-outline', iconColor: '#0ea5e9' },
+  { key: 'hasSickContact', question: 'checkin_sick_contact', icon: 'people-outline', iconColor: '#ec4899' },
 ];
 
 const MyHealthScreen: React.FC = () => {
@@ -153,7 +155,6 @@ const MyHealthScreen: React.FC = () => {
 const MyHealthScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
-  const { logSymptoms, loading } = useSymptoms();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
@@ -172,13 +173,12 @@ const MyHealthScreenContent: React.FC = () => {
     refresh,
   } = useHealthCheckin();
 
-  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [checkinAnswers, setCheckinAnswers] = useState<Partial<CheckinAnswers>>({});
   const [freeTextSymptoms, setFreeTextSymptoms] = useState('');
   const [showCheckinForm, setShowCheckinForm] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const healthScore = user?.healthScore ?? 85;
+  const healthScore = deriveWellnessScore(todayCheckin?.riskLevel ?? null);
   const displayName = user?.name || 'User';
 
   // Pulse ring animation for health score
@@ -208,29 +208,6 @@ const MyHealthScreenContent: React.FC = () => {
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
   }));
-
-  const toggleSymptom = (id: string) => {
-    setSelectedSymptoms(prev =>
-      prev.includes(id)
-        ? prev.filter(s => s !== id)
-        : [...prev, id]
-    );
-  };
-
-  const handleLogSymptoms = async () => {
-    if (selectedSymptoms.length === 0) {
-      Alert.alert('No Symptoms Selected', 'Please select at least one symptom to log.');
-      return;
-    }
-
-    try {
-      await logSymptoms(selectedSymptoms);
-      setSelectedSymptoms([]);
-      Alert.alert('Symptoms Logged', 'Your symptoms have been recorded. We\'ll analyze them for health insights.');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to log symptoms. Please try again.');
-    }
-  };
 
   // Handle check-in answer
   const handleCheckinAnswer = (key: keyof CheckinAnswers, value: boolean) => {
@@ -358,6 +335,7 @@ const MyHealthScreenContent: React.FC = () => {
                     <StreakBadge
                       currentStreak={streak.currentStreak}
                       longestStreak={streak.longestStreak}
+                      compact
                     />
                   )}
                 </View>
@@ -374,6 +352,29 @@ const MyHealthScreenContent: React.FC = () => {
               ) : showCheckinForm ? (
                 // Show check-in form
                 <View style={styles.checkinForm}>
+                  {/* Progress indicator */}
+                  <View style={styles.progressRow}>
+                    {CHECKIN_QUESTIONS.map((q) => {
+                      const answered = checkinAnswers[q.key] !== undefined;
+                      return (
+                        <View
+                          key={q.key}
+                          style={[
+                            styles.progressSegment,
+                            answered && {
+                              backgroundColor: checkinAnswers[q.key]
+                                ? '#f59e0b'
+                                : '#10b981',
+                            },
+                          ]}
+                        />
+                      );
+                    })}
+                  </View>
+                  <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                    {Object.keys(checkinAnswers).length} of {CHECKIN_QUESTIONS.length} answered
+                  </Text>
+
                   {CHECKIN_QUESTIONS.map((q, index) => (
                     <Animated.View
                       key={q.key}
@@ -381,7 +382,8 @@ const MyHealthScreenContent: React.FC = () => {
                     >
                       <CheckinQuestion
                         question={t(q.question)}
-                        emoji={q.emoji}
+                        icon={q.icon}
+                        iconColor={q.iconColor}
                         value={checkinAnswers[q.key] ?? null}
                         onChange={(val: boolean) => handleCheckinAnswer(q.key, val)}
                       />
@@ -445,17 +447,28 @@ const MyHealthScreenContent: React.FC = () => {
           </Animated.View>
 
           {/* ============================================================== */}
-          {/* COMMUNITY TRENDS SECTION (NEW) */}
+          {/* STREAK + COMMUNITY TRENDS */}
           {/* ============================================================== */}
-          {communityTrends && communityTrends.length > 0 && (
-            <Animated.View entering={FadeInUp.delay(200).duration(450)}>
-              <CommunityTrendCard
-                trend={communityTrends[0]}
-                message={trendMessage}
-                state={user?.state || 'your area'}
+
+          {/* Full streak card (shown after at least one check-in) */}
+          {streak && streak.currentStreak > 0 && (
+            <Animated.View entering={FadeInUp.delay(180).duration(450)}>
+              <StreakBadge
+                currentStreak={streak.currentStreak}
+                longestStreak={streak.longestStreak}
               />
+              <View style={{ height: Spacing.base }} />
             </Animated.View>
           )}
+
+          {/* Community trends (always render — component handles empty state) */}
+          <Animated.View entering={FadeInUp.delay(200).duration(450)}>
+            <CommunityTrendCard
+              trend={communityTrends.length > 0 ? communityTrends[0] : null}
+              message={trendMessage}
+              state={user?.state || 'your area'}
+            />
+          </Animated.View>
 
           {/* Health Tip (card structure closer to web) */}
           <Animated.View entering={FadeInUp.delay(250).duration(450)}>
@@ -481,38 +494,6 @@ const MyHealthScreenContent: React.FC = () => {
               </View>
             </GlassCard>
           </Animated.View>
-
-          {/* Symptom Logging (quick toggle buttons) */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('how_feeling_today')}</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{t('select_symptoms')}</Text>
-
-            <View style={styles.symptomsGrid}>
-              {SYMPTOMS.map((symptom, index) => (
-                <Animated.View
-                  key={symptom.id}
-                  entering={FadeInUp.delay(300 + index * 50).duration(400)}
-                >
-                  <SymptomButton
-                    label={t(symptom.key)}
-                    emoji={symptom.emoji}
-                    selected={selectedSymptoms.includes(symptom.id)}
-                    onPress={() => toggleSymptom(symptom.id)}
-                  />
-                </Animated.View>
-              ))}
-            </View>
-
-            {selectedSymptoms.length > 0 && (
-              <Animated.View entering={FadeIn.duration(300)} style={styles.logButtonContainer}>
-                <Button
-                  title={`${t(selectedSymptoms.length > 1 ? 'log_symptoms' : 'log_symptom')}: ${selectedSymptoms.length}`}
-                  onPress={handleLogSymptoms}
-                  loading={loading}
-                />
-              </Animated.View>
-            )}
-          </View>
 
           {/* Nearby Clinics */}
           <View style={styles.section}>
@@ -738,6 +719,23 @@ const styles = StyleSheet.create({
   checkinForm: {
     gap: Spacing.sm,
   },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: Spacing.xs,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderLight,
+  },
+  progressText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    marginBottom: Spacing.sm,
+  },
   riskPreview: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -864,14 +862,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.sm,
     color: Colors.primary,
-  },
-  symptomsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  logButtonContainer: {
-    marginTop: Spacing.xl,
   },
   clinicCard: {
     flexDirection: 'row',
