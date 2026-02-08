@@ -22,3 +22,9 @@ export type { FeatureIconType } from './FeatureBlockedScreen';
 export type { DiseaseRisk, RiskLevel } from './RiskCard';
 export type { AQIInsight, AQILevel } from './AQICard';
 export * from './Icons';
+
+// Health Check-in Components
+export { default as CheckinQuestion } from './CheckinQuestion';
+export { default as RiskLevelCard } from './RiskLevelCard';
+export { default as StreakBadge } from './StreakBadge';
+export { default as CommunityTrendCard } from './CommunityTrendCard';

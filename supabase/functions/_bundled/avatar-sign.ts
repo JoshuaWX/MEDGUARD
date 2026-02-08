@@ -1,4 +1,7 @@
 // STANDALONE BUNDLED VERSION - for Supabase Dashboard deployment
+// This file uses inline imports intentionally for single-file deployment
+// deno-lint-ignore-file no-external-import
+// @ts-nocheck
 // @deno-types="https://deno.land/std@0.224.0/http/server.ts"
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';

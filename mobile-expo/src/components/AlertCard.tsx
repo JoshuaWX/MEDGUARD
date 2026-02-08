@@ -31,27 +31,32 @@ interface AlertCardProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const severityConfig = {
+const severityConfig: Record<AlertCardProps['severity'], {
+  colors: readonly [string, string];
+  borderColor: string;
+  badgeColor: string;
+  badgeText: string;
+}> = {
   urgent: {
-    colors: ['#ef4444', '#dc2626'],
+    colors: ['#ef4444', '#dc2626'] as const,
     borderColor: Colors.danger,
     badgeColor: Colors.danger,
     badgeText: 'URGENT',
   },
   caution: {
-    colors: ['#fbbf24', '#f97316'],
+    colors: ['#fbbf24', '#f97316'] as const,
     borderColor: Colors.warning,
     badgeColor: Colors.warning,
     badgeText: 'CAUTION',
   },
   info: {
-    colors: ['#10b981', '#14b8a6'],
+    colors: ['#10b981', '#14b8a6'] as const,
     borderColor: Colors.success,
     badgeColor: Colors.success,
     badgeText: 'HEALTH TIP',
   },
   reminder: {
-    colors: [Colors.primary, '#06b6d4'],
+    colors: [Colors.primary, '#06b6d4'] as const,
     borderColor: Colors.primary,
     badgeColor: Colors.primary,
     badgeText: 'REMINDER',

@@ -1,6 +1,6 @@
 /**
  * PasswordStrengthIndicator
- * Real-time password strength feedback using zxcvbn
+ * Real-time password strength feedback using @zxcvbn-ts/core
  */
 
 import React, { useMemo, useEffect } from 'react';
@@ -9,10 +9,23 @@ import Animated, {
   FadeIn, 
   FadeOut 
 } from 'react-native-reanimated';
-import zxcvbn from 'zxcvbn';
+import { zxcvbn, zxcvbnOptions } from '@zxcvbn-ts/core';
+import * as zxcvbnCommonPackage from '@zxcvbn-ts/language-common';
+import * as zxcvbnEnPackage from '@zxcvbn-ts/language-en';
 
 import { useTheme } from '../hooks/useTheme';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize } from '../../theme';
+
+// Configure zxcvbn-ts with language dictionaries
+const options = {
+  translations: zxcvbnEnPackage.translations,
+  graphs: zxcvbnCommonPackage.adjacencyGraphs,
+  dictionary: {
+    ...zxcvbnCommonPackage.dictionary,
+    ...zxcvbnEnPackage.dictionary,
+  },
+};
+zxcvbnOptions.setOptions(options);
 
 interface PasswordStrengthIndicatorProps {
   password: string;

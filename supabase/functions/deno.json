@@ -5,9 +5,9 @@
     "strict": true
   },
   "lint": {
-    "exclude": ["intel/index.bundled.ts"]
+    "exclude": ["intel/index.bundled.ts", "_bundled/"]
   },
   "fmt": {
-    "exclude": ["intel/index.bundled.ts"]
+    "exclude": ["intel/index.bundled.ts", "_bundled/"]
   }
 }

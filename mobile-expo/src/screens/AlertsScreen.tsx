@@ -1,6 +1,11 @@
 /**
  * AlertsScreen
  * Health alerts, disease risks, and AQI
+ * 
+ * ANDROID FIXES:
+ * - Uses flexGrow for proper scrollable content
+ * - Dynamic bottom padding for tab bar avoidance
+ * - Removed fixed heights
  */
 
 import React, { useEffect, useState } from 'react';
@@ -12,6 +17,7 @@ import {
   RefreshControl,
   Pressable,
   ImageBackground,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -150,9 +156,17 @@ const AlertsScreen: React.FC = () => {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: insets.top, paddingBottom: 120 },
+            { 
+              paddingTop: insets.top, 
+              // ANDROID FIX: Dynamic bottom padding to account for safe area and tab bar
+              paddingBottom: Math.max(insets.bottom, 12) + 120,
+              // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+              flexGrow: 1,
+            },
           ]}
           showsVerticalScrollIndicator={false}
+          // ANDROID FIX: Improve scroll performance
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
           }

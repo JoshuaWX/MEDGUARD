@@ -1,5 +1,4 @@
-// @deno-types="https://deno.land/std@0.224.0/http/server.ts"
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabase.ts';
 import { optionalEnv, requiredEnv } from '../_shared/env.ts';
@@ -230,7 +229,7 @@ function classifyIntent(query: string, hasHistory: boolean): { intent: string; c
 // Works without token (rate-limited) or with optional HF_API_KEY for higher limits
 // ============================================================================
 
-function sleep(ms: number) {
+function _sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

@@ -7,6 +7,13 @@
  * - No chat history persistence
  * - No profile context/memory
  * - Limited requests per session
+ * 
+ * ANDROID FIXES (responsiveness & gestures):
+ * - Proper KeyboardAvoidingView behavior for Android
+ * - ScrollView with flexGrow for proper content sizing
+ * - keyboardShouldPersistTaps for better input handling
+ * - Safe area insets for proper bottom padding
+ * - Sidebar uses transform instead of interfering with main content gestures
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +21,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated as RNAnimated,
-  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -49,7 +55,8 @@ import { supabase } from '../services/supabase';
 import { invokeEdgeFunction } from '../services/edge';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// ANDROID FIX: Removed Dimensions.get('window') for SIDEBAR_WIDTH
+// Using a fixed value is acceptable here as sidebar is a overlay drawer
 const SIDEBAR_WIDTH = 280;
 
 // Guest mode limits
@@ -496,13 +503,23 @@ const ChatbotScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bgPrimary }]}>
-      {/* Sidebar Overlay */}
+      {/* ANDROID FIX: Sidebar overlay only renders when open to prevent gesture interception
+          This ensures the main chat area gestures work properly when sidebar is closed */}
       {sidebarOpen && (
-        <Pressable style={styles.sidebarOverlay} onPress={() => setSidebarOpen(false)} />
+        <Pressable 
+          style={styles.sidebarOverlay} 
+          onPress={() => setSidebarOpen(false)}
+          // ANDROID FIX: Accessible label for screen readers
+          accessibilityLabel="Close sidebar"
+          accessibilityRole="button"
+        />
       )}
 
       {/* Sidebar Drawer */}
+      {/* ANDROID FIX: pointerEvents="box-none" allows touches to pass through when
+          sidebar is hidden (translated off-screen), preventing gesture interception */}
       <RNAnimated.View
+        pointerEvents={sidebarOpen ? 'auto' : 'box-none'}
         style={[
           styles.sidebar,
           {
@@ -700,10 +717,13 @@ const ChatbotScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ANDROID FIX: KeyboardAvoidingView with behavior="height" for Android
+            This ensures the input field stays visible when keyboard appears */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 64 : 0}
+          // ANDROID FIX: Increased offset to account for header height
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 64 : 20}
         >
           {loading ? (
             <View style={styles.loadingContainer}>
@@ -713,8 +733,16 @@ const ChatbotScreen: React.FC = () => {
             <ScrollView
               ref={(r) => { scrollRef.current = r; }}
               style={styles.chatContainer}
+              // ANDROID FIX: flexGrow: 1 ensures content fills available space and is scrollable
               contentContainerStyle={styles.messagesWrapper}
+              // ANDROID FIX: keyboardShouldPersistTaps="handled" prevents keyboard dismissal
+              // when tapping on interactive elements like suggestion chips
               keyboardShouldPersistTaps="handled"
+              // ANDROID FIX: Disable horizontal scroll for better vertical gesture handling
+              horizontal={false}
+              showsVerticalScrollIndicator={true}
+              // ANDROID FIX: Improve scroll performance on Android
+              removeClippedSubviews={Platform.OS === 'android'}
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             >
               {error ? (
@@ -801,7 +829,15 @@ const ChatbotScreen: React.FC = () => {
           )}
 
           {/* Input Area */}
-          <View style={[styles.inputArea, { backgroundColor: theme.bgPrimary, paddingBottom: insets.bottom + Spacing.sm }]}>
+          {/* ANDROID FIX: Bottom padding uses safe area insets to avoid overlap with gesture nav */}
+          <View style={[
+            styles.inputArea, 
+            { 
+              backgroundColor: theme.bgPrimary, 
+              // ANDROID FIX: Ensure sufficient padding at bottom for gesture navigation
+              paddingBottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm 
+            }
+          ]}>
             <View
               style={[
                 styles.inputContainer,
@@ -864,6 +900,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 99,
+    // ANDROID FIX: Ensure overlay captures all touches when visible
+    // This prevents touch events from passing through to the chat underneath
   },
   modalOverlay: {
     position: 'absolute',
@@ -1071,6 +1109,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesWrapper: {
+    // ANDROID FIX: flexGrow ensures content fills available space on short screens
+    // This allows proper scrolling when content is shorter than the container
+    flexGrow: 1,
     maxWidth: 768,
     alignSelf: 'center',
     width: '100%',

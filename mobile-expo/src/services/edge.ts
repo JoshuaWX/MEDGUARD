@@ -92,13 +92,15 @@ export async function invokeEdgeFunction<T>(
       });
 
       // Race between the actual request and timeout
-      const { data, error } = await Promise.race([
-        supabase.functions.invoke<T>(name, {
+      const result = await Promise.race([
+        supabase.functions.invoke(name, {
           body,
           headers,
         }),
         timeoutPromise,
       ]);
+      
+      const { data, error } = result as { data: T | null; error: Error | null };
 
       if (error) {
         const anyErr: any = error as any;

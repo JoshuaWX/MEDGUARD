@@ -1,6 +1,10 @@
 /**
  * SignUp2Screen
  * Step 2 of 2 - Personalization welcome
+ * 
+ * ANDROID FIXES:
+ * - ScrollView with flexGrow for proper content sizing
+ * - Dynamic bottom padding for safe area
  */
 
 import React, { useEffect, useState } from 'react';
@@ -10,6 +14,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -95,8 +100,11 @@ const SignUp2Screen: React.FC = () => {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+          contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
+          // ANDROID FIX: Improve scroll performance
+          removeClippedSubviews={Platform.OS === 'android'}
         >
           {/* Welcome Message */}
           <View style={styles.welcomeSection}>

@@ -183,6 +183,66 @@ const messages: Record<LangCode, Messages> = {
 
     // Health disclaimer
     health_disclaimer: 'For awareness only; follow official guidance and consult a clinician for symptoms.',
+
+    // Daily Health Check-in
+    daily_checkin: 'Daily Check-In',
+    daily_checkin_title: 'Daily Health Check-In',
+    daily_checkin_subtitle: 'Quick self-assessment to track your wellness',
+    checkin_prompt: 'How are you feeling today?',
+    checkin_completed_today: "You've already checked in today ✓",
+    checkin_completed_title: 'Check-In Complete',
+    checkin_completed_subtitle: 'Your daily health check-in has been recorded',
+    checkin_already_done: 'You\'ve already checked in today!',
+    checkin_tomorrow: 'Come back tomorrow for your next check-in',
+    checkin_submit: 'Submit Check-In',
+    submit_checkin: 'Submit Check-In',
+    start_daily_checkin: 'Start Daily Check-In',
+    checkin_submitting: 'Submitting...',
+    checkin_incomplete: 'Incomplete Check-In',
+    checkin_answer_all: 'Please answer all questions to continue.',
+    checkin_success: 'Check-In Complete',
+    checkin_recorded: 'Your daily health check-in has been recorded. Stay healthy!',
+    checkin_failed: 'Failed to submit check-in. Please try again.',
+    
+    // Check-in Questions
+    checkin_fever: 'Have you had a fever today?',
+    checkin_headache: 'Do you have a persistent headache?',
+    checkin_fatigue: 'Are you feeling fatigued or weak?',
+    checkin_digestive: 'Any diarrhea or vomiting?',
+    checkin_water_exposure: 'Have you been exposed to stagnant water?',
+    checkin_sick_contact: 'Contact with someone visibly sick?',
+    question_fever: 'Have you had a fever today?',
+    question_headache: 'Do you have a persistent headache?',
+    question_fatigue: 'Are you feeling fatigued or weak?',
+    question_digestive: 'Any diarrhea or vomiting?',
+    question_water: 'Have you been exposed to stagnant water?',
+    question_sick_contact: 'Contact with someone visibly sick?',
+    other_symptoms: 'Other symptoms (optional)',
+    other_symptoms_placeholder: 'Describe any other symptoms...',
+    additional_symptoms_optional: 'Additional symptoms (optional)',
+    describe_symptoms_placeholder: 'Describe any other symptoms you are experiencing...',
+    freetext_not_used_note: '💡 Not used for risk calculation. Helps us improve future check-ins.',
+    current_risk_preview: 'Current risk level:',
+    
+    // Streak
+    streak_title: 'Your Streak',
+    streak_day: 'day',
+    streak_days: 'days',
+    streak_start: 'Start your streak!',
+    
+    // Community Trends
+    community_trends_title: 'Community Health Insights',
+    community_trends_subtitle: 'Anonymous health trends in your area',
+    not_enough_data: 'Not enough data yet',
+    
+    // Risk Levels (awareness, not diagnosis)
+    risk_awareness_low: 'Low',
+    risk_awareness_moderate: 'Moderate',
+    risk_awareness_elevated: 'Elevated',
+    risk_not_diagnosis: 'This is for awareness only and is not a medical diagnosis.',
+    
+    // General
+    error: 'Error',
   },
   yo: {
     app_name: 'MedGuard',

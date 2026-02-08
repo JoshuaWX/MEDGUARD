@@ -3,21 +3,28 @@
  * UI scaffold aligned to settings.html (Settings & Support)
  * 
  * GUEST GATED: Location sharing toggle disabled for guests.
+ * 
+ * ANDROID FIXES:
+ * - Uses flexGrow for proper scrollable content
+ * - Dynamic bottom padding for safe area
+ * - Removed fixed heights
  */
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, AuthGateModal } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
+import { useNotifications } from '../hooks/useNotifications';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -35,8 +42,23 @@ const SettingsScreen: React.FC = () => {
   const { lang, setLang, t } = useI18n();
   const { isDark, colors, mode } = useTheme();
   const { isGuest, requireAuth, AuthGateModalComponent } = useAuthGate();
+  
+  // Notification settings
+  const {
+    loading: notifLoading,
+    saving: notifSaving,
+    permissionGranted,
+    reminderEnabled,
+    reminderTime,
+    reminderTimeDisplay,
+    featureEnabled: notificationsFeatureEnabled,
+    setReminderEnabled,
+    setReminderTime,
+    sendTest,
+  } = useNotifications();
 
   const [locationSharing, setLocationSharing] = useState(true);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Handler for location sharing toggle - requires auth for guests
   const handleLocationToggle = (value: boolean) => {
@@ -46,6 +68,39 @@ const SettingsScreen: React.FC = () => {
       return;
     }
     setLocationSharing(value);
+  };
+
+  // Handler for notification toggle
+  const handleNotificationToggle = async (value: boolean) => {
+    if (isGuest) {
+      requireAuth('notification reminders');
+      return;
+    }
+    await setReminderEnabled(value);
+  };
+
+  // Handler for time picker
+  const handleTimeChange = async (event: any, selectedDate?: Date) => {
+    setShowTimePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      await setReminderTime(`${hours}:${minutes}:00`);
+    }
+  };
+
+  // Handler for test notification
+  const handleTestNotification = async () => {
+    await sendTest();
+    Alert.alert('Test Sent', 'Check your notifications!');
+  };
+
+  // Parse reminder time for picker
+  const getReminderDate = () => {
+    const [hours, minutes] = reminderTime.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
   };
 
   const bottomPadding = useMemo(() => {
@@ -78,7 +133,10 @@ const SettingsScreen: React.FC = () => {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
+          // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding, flexGrow: 1 }]}
+          // ANDROID FIX: Improve scroll performance
+          removeClippedSubviews={Platform.OS === 'android'}
         >
           {/* Appearance / Theme Section */}
           <GlassCard padding={Spacing.cardPadding} style={styles.card}>
@@ -114,6 +172,73 @@ const SettingsScreen: React.FC = () => {
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                   {isGuest ? 'Sign in to enable location sharing for personalized alerts.' : t('share_location_desc')}
                 </Text>
+              </View>
+            </View>
+          </GlassCard>
+
+          {/* Daily Check-in Reminder */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowTop}>
+              <View style={styles.iconWrap}>
+                <BellIcon size={24} color={Colors.primary} />
+              </View>
+              <View style={styles.cardBody}>
+                <View style={styles.toggleHeaderRow}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Daily Check-in Reminder</Text>
+                  <Switch
+                    value={isGuest ? false : reminderEnabled}
+                    onValueChange={handleNotificationToggle}
+                    trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
+                    thumbColor={Colors.surfaceLight}
+                    disabled={isGuest || notifSaving}
+                  />
+                </View>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+                  {isGuest 
+                    ? 'Sign in to receive gentle daily reminders to check in on your health.'
+                    : 'Get a friendly reminder to complete your daily health check-in.'}
+                </Text>
+
+                {/* Time Picker - only show when enabled */}
+                {reminderEnabled && !isGuest && (
+                  <View style={styles.timePickerSection}>
+                    <Text style={[styles.timeLabel, { color: colors.text }]}>Reminder Time</Text>
+                    <Pressable 
+                      onPress={() => setShowTimePicker(true)}
+                      style={[styles.timeButton, { backgroundColor: isDark ? colors.surface : Colors.whiteAlpha90 }]}
+                    >
+                      <ClockIcon size={18} color={colors.textSecondary} />
+                      <Text style={[styles.timeButtonText, { color: colors.text }]}>
+                        {reminderTimeDisplay}
+                      </Text>
+                    </Pressable>
+                    
+                    {showTimePicker && (
+                      <DateTimePicker
+                        value={getReminderDate()}
+                        mode="time"
+                        is24Hour={false}
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={handleTimeChange}
+                      />
+                    )}
+                    
+                    {/* Test notification button */}
+                    <Pressable 
+                      onPress={handleTestNotification}
+                      style={styles.testButton}
+                    >
+                      <Text style={styles.testButtonText}>Send Test Notification</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {/* Permission note */}
+                {!permissionGranted && reminderEnabled && !isGuest && (
+                  <Text style={[styles.permissionNote, { color: Colors.warning }]}>
+                    ⚠️ Please enable notifications in your device settings
+                  </Text>
+                )}
               </View>
             </View>
           </GlassCard>
@@ -196,6 +321,24 @@ function ShieldOutlineIcon({ size = 24, color = Colors.primary }: { size?: numbe
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Svg>
+  );
+}
+
+function BellIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </Svg>
+  );
+}
+
+function ClockIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={12} cy={12} r={10} />
+      <Path d="M12 6v6l4 2" />
     </Svg>
   );
 }
@@ -361,6 +504,53 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.xs,
     color: Colors.whiteAlpha80,
+  },
+  timePickerSection: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.whiteAlpha10,
+    gap: Spacing.sm,
+  },
+  timeLabel: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  timeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.whiteAlpha10,
+    borderRadius: BorderRadius.md,
+    alignSelf: 'flex-start',
+  },
+  timeButtonText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.base,
+    color: Colors.textPrimary,
+  },
+  testButton: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: Colors.whiteAlpha10,
+    borderRadius: BorderRadius.md,
+    alignSelf: 'flex-start',
+  },
+  testButtonText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+  },
+  permissionNote: {
+    marginTop: Spacing.sm,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    color: Colors.warning,
+    fontStyle: 'italic',
   },
 });
 

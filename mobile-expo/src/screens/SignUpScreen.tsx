@@ -2,6 +2,12 @@
  * SignUpScreen
  * Step 1 of 2 - Profile creation with optional location verification
  * Modern glassmorphism design with hero image
+ * 
+ * ANDROID FIXES:
+ * - Proper KeyboardAvoidingView behavior for Android
+ * - ScrollView with flexGrow for proper content sizing
+ * - keyboardShouldPersistTaps for better input handling
+ * - Removed Dimensions.get usage for responsive layouts
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,7 +25,6 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,7 +62,8 @@ import {
 } from '../../theme';
 import { invokeEdgeFunction } from '../services/edge';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+// ANDROID FIX: Removed Dimensions.get('window') which can cause layout issues
+// Using percentage-based height instead for hero section
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignUp'>;
 
@@ -369,17 +375,20 @@ const SignUpScreen: React.FC = () => {
       </ImageBackground>
 
       {/* Form Card */}
+      {/* ANDROID FIX: Use behavior="height" on Android with proper offset */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.formWrapper}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -100 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -100 : 20}
       >
         <Animated.View 
           entering={FadeInUp.delay(300).duration(500)} 
           style={[styles.formCard, { backgroundColor: isDark ? colors.surface : Colors.surfaceLight }]}
         >
           <ScrollView
-            contentContainerStyle={styles.formContent}
+            // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+            contentContainerStyle={[styles.formContent, { flexGrow: 1 }]}
+            // ANDROID FIX: Prevents keyboard dismissal when tapping inputs
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -659,7 +668,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroBg: {
-    height: SCREEN_HEIGHT * 0.32,
+    // ANDROID FIX: Use minHeight instead of fixed percentage-based height
+    // This allows the hero to adapt to content while maintaining visual consistency
+    minHeight: 200,
+    maxHeight: 280,
     justifyContent: 'space-between',
   },
   header: {

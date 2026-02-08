@@ -20,6 +20,7 @@ import {
   RefreshControl,
   Linking,
   StatusBar,
+  Platform,
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -146,6 +147,10 @@ const HomeScreen: React.FC = () => {
   const activeRisks = intel?.riskAssessment?.diseases?.filter(d => d.isActive) || [];
   const topRecommendation = activeRisks[0]?.actions?.[0];
 
+  // ANDROID FIX: Calculate proper bottom padding to account for floating tab bar
+  // This ensures content doesn't get hidden behind the absolute positioned tab navigator
+  const bottomPadding = Math.max(insets.bottom, 12) + 100; // 100 accounts for tab bar + spacing
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -154,7 +159,8 @@ const HomeScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 16, paddingBottom: 100 }
+          // ANDROID FIX: Use flexGrow for proper content sizing on short screens
+          { paddingTop: insets.top + 16, paddingBottom: bottomPadding, flexGrow: 1 }
         ]}
         refreshControl={
           <RefreshControl 
@@ -164,6 +170,8 @@ const HomeScreen: React.FC = () => {
           />
         }
         showsVerticalScrollIndicator={false}
+        // ANDROID FIX: Improve scroll performance
+        removeClippedSubviews={Platform.OS === 'android'}
       >
         {/* Loading State */}
         {intelLoading && !intel ? (

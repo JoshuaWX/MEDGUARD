@@ -172,16 +172,6 @@ export const Colors = {
   info: '#3b82f6',
   infoLight: '#dbeafe',
   
-  // Status colors
-  success: '#10b981',
-  successLight: '#d1fae5',
-  warning: '#f59e0b',
-  warningLight: '#fef3c7',
-  danger: '#ef4444',
-  dangerLight: '#fee2e2',
-  info: '#3b82f6',
-  infoLight: '#dbeafe',
-  
   // Alert severity colors
   alertUrgent: '#ef4444',
   alertCaution: '#f59e0b',

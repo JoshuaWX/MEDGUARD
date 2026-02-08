@@ -4,6 +4,11 @@
  * Keeps existing auth/profile logic unchanged.
  * 
  * GUEST GATED: Guests see sign-in required blocker.
+ * 
+ * ANDROID FIXES:
+ * - Uses flexGrow for proper scrollable content
+ * - Dynamic bottom padding for tab bar avoidance
+ * - Removed fixed heights
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -345,8 +350,18 @@ const ProfileScreen: React.FC = () => {
       <View style={styles.page}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+          contentContainerStyle={[
+            styles.scrollContent, 
+            { 
+              // ANDROID FIX: Dynamic bottom padding for tab bar and safe area
+              paddingBottom: Math.max(insets.bottom, 12) + 120,
+              // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+              flexGrow: 1,
+            }
+          ]}
           showsVerticalScrollIndicator={false}
+          // ANDROID FIX: Improve scroll performance
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
         >
           {/* Hero */}

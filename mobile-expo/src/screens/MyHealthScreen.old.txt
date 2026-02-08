@@ -1,29 +1,13 @@
 /**
  * MyHealthScreen
- * Health tracking with symptom logging, daily check-ins, and community trends
+ * Health tracking with symptom logging
  * 
- * PUBLIC HEALTH REASONING:
- * - Self-assessment for early awareness, NOT diagnosis
- * - Rule-based risk levels (low/moderate/elevated)
- * - Streak gamification for habit-building, not pressure
- * - Anonymous community trends for awareness
- * - Clear disclaimers throughout
- * 
- * FEATURE CONSTRAINTS:
- * - No disease labels
- * - No ML predictions
- * - No medical certainty language
- * - Anonymous aggregation enforced
- * 
+ * FEATURE BLOCKED: This screen is under development.
  * GUEST GATED: Guests see preview UI with sign-in prompt.
- * 
- * ANDROID FIXES:
- * - Uses flexGrow for proper scrollable content
- * - Dynamic bottom padding for tab bar avoidance
- * - Removed fixed heights
+ * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -33,14 +17,12 @@ import {
   Alert,
   Image,
   ImageBackground,
-  TextInput,
-  RefreshControl,
-  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withDelay,
   withRepeat,
   withSequence,
   Easing,
@@ -60,16 +42,11 @@ import {
   LocationIcon,
   Avatar,
   FeatureBlockedScreen,
-  CheckinQuestion,
-  RiskLevelCard,
-  StreakBadge,
-  CommunityTrendCard,
 } from '../components';
 import { useUser } from '../hooks/useUser';
 import { useSymptoms } from '../hooks/useSymptoms';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
-import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -86,11 +63,10 @@ import {
 // FEATURE FLAG
 // Set to true when the feature is ready for release
 // ============================================================================
-const FEATURE_ENABLED = true;
+const FEATURE_ENABLED = false;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// Old symptom toggle buttons (kept for quick logging)
 const SYMPTOMS = [
   { id: 'fever', key: 'symptom_fever', emoji: '🤒' },
   { id: 'headache', key: 'symptom_headache', emoji: '🤕' },
@@ -100,16 +76,6 @@ const SYMPTOMS = [
   { id: 'nausea', key: 'symptom_nausea', emoji: '🤢' },
   { id: 'dizziness', key: 'symptom_dizziness', emoji: '😵' },
   { id: 'chills', key: 'symptom_chills', emoji: '🥶' },
-];
-
-// Daily check-in questions (Yes/No format)
-const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; emoji: string }> = [
-  { key: 'hasFever', question: 'checkin_fever', emoji: '🤒' },
-  { key: 'hasHeadache', question: 'checkin_headache', emoji: '🤕' },
-  { key: 'hasFatigue', question: 'checkin_fatigue', emoji: '😩' },
-  { key: 'hasDigestiveIssues', question: 'checkin_digestive', emoji: '🤢' },
-  { key: 'hasWaterExposure', question: 'checkin_water_exposure', emoji: '💧' },
-  { key: 'hasSickContact', question: 'checkin_sick_contact', emoji: '🤝' },
 ];
 
 const MyHealthScreen: React.FC = () => {
@@ -157,27 +123,7 @@ const MyHealthScreenContent: React.FC = () => {
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
-  // Health check-in state
-  const {
-    loading: checkinLoading,
-    submitting,
-    hasCheckedIn,
-    todayCheckin,
-    streak,
-    communityTrends,
-    trendMessage,
-    submitDailyCheckin,
-    calculateRisk,
-    getRiskDisplay,
-    refresh,
-  } = useHealthCheckin();
-
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
-  const [checkinAnswers, setCheckinAnswers] = useState<Partial<CheckinAnswers>>({});
-  const [freeTextSymptoms, setFreeTextSymptoms] = useState('');
-  const [showCheckinForm, setShowCheckinForm] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
   const healthScore = user?.healthScore ?? 85;
   const displayName = user?.name || 'User';
 
@@ -231,45 +177,6 @@ const MyHealthScreenContent: React.FC = () => {
       Alert.alert('Error', 'Failed to log symptoms. Please try again.');
     }
   };
-
-  // Handle check-in answer
-  const handleCheckinAnswer = (key: keyof CheckinAnswers, value: boolean) => {
-    setCheckinAnswers(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Submit daily check-in
-  const handleSubmitCheckin = async () => {
-    // Validate all questions answered
-    const allAnswered = CHECKIN_QUESTIONS.every(q => checkinAnswers[q.key] !== undefined);
-    if (!allAnswered) {
-      Alert.alert(t('checkin_incomplete'), t('checkin_answer_all'));
-      return;
-    }
-
-    try {
-      await submitDailyCheckin(
-        checkinAnswers as CheckinAnswers,
-        freeTextSymptoms.trim() || undefined
-      );
-      setShowCheckinForm(false);
-      setCheckinAnswers({});
-      setFreeTextSymptoms('');
-      Alert.alert(t('checkin_success'), t('checkin_recorded'));
-    } catch (error) {
-      Alert.alert(t('error'), t('checkin_failed'));
-    }
-  };
-
-  // Pull to refresh
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refresh();
-    setRefreshing(false);
-  }, [refresh]);
-
-  // Calculate current risk preview
-  const currentRisk = calculateRisk(checkinAnswers as CheckinAnswers);
-  const riskDisplay = getRiskDisplay(currentRisk);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return Colors.emerald;
@@ -330,135 +237,12 @@ const MyHealthScreenContent: React.FC = () => {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { 
-              // ANDROID FIX: Dynamic bottom padding for tab bar and safe area
-              paddingBottom: Math.max(insets.bottom, 12) + 120,
-              // ANDROID FIX: flexGrow ensures proper scrolling on short screens
-              flexGrow: 1,
-            },
+            { paddingBottom: 120 },
           ]}
           showsVerticalScrollIndicator={false}
-          // ANDROID FIX: Improve scroll performance
-          removeClippedSubviews={Platform.OS === 'android'}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
         >
-          {/* ============================================================== */}
-          {/* DAILY CHECK-IN SECTION (NEW) */}
-          {/* ============================================================== */}
-          <Animated.View entering={FadeInUp.delay(150).duration(450)}>
-            <GlassCard style={styles.checkinCard}>
-              <View style={styles.checkinHeader}>
-                <View style={styles.checkinTitleRow}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                    {t('daily_checkin')}
-                  </Text>
-                  {streak && streak.currentStreak > 0 && (
-                    <StreakBadge
-                      currentStreak={streak.currentStreak}
-                      longestStreak={streak.longestStreak}
-                    />
-                  )}
-                </View>
-                <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-                  {hasCheckedIn ? t('checkin_completed_today') : t('checkin_prompt')}
-                </Text>
-              </View>
-
-              {hasCheckedIn && todayCheckin ? (
-                // Show today's result
-                <View style={styles.checkinResult}>
-                  <RiskLevelCard level={todayCheckin.riskLevel} />
-                </View>
-              ) : showCheckinForm ? (
-                // Show check-in form
-                <View style={styles.checkinForm}>
-                  {CHECKIN_QUESTIONS.map((q, index) => (
-                    <Animated.View
-                      key={q.key}
-                      entering={FadeInUp.delay(index * 50).duration(300)}
-                    >
-                      <CheckinQuestion
-                        question={t(q.question)}
-                        emoji={q.emoji}
-                        value={checkinAnswers[q.key] ?? null}
-                        onChange={(val: boolean) => handleCheckinAnswer(q.key, val)}
-                      />
-                    </Animated.View>
-                  ))}
-
-                  {/* Real-time risk preview */}
-                  {Object.keys(checkinAnswers).length > 0 && (
-                    <Animated.View entering={FadeIn.duration(300)}>
-                      <View style={[styles.riskPreview, { backgroundColor: riskDisplay.color + '15' }]}>
-                        <Text style={[styles.riskPreviewLabel, { color: colors.textSecondary }]}>
-                          {t('current_risk_preview')}
-                        </Text>
-                        <Text style={[styles.riskPreviewValue, { color: riskDisplay.color }]}>
-                          {riskDisplay.label}
-                        </Text>
-                      </View>
-                    </Animated.View>
-                  )}
-
-                  {/* Optional free-text */}
-                  <View style={styles.freeTextWrap}>
-                    <Text style={[styles.freeTextLabel, { color: colors.textSecondary }]}>
-                      {t('additional_symptoms_optional')}
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.freeTextInput,
-                        {
-                          color: colors.text,
-                          backgroundColor: isDark ? Colors.whiteAlpha10 : Colors.blackAlpha10,
-                          borderColor: isDark ? Colors.whiteAlpha20 : Colors.borderLight,
-                        },
-                      ]}
-                      placeholder={t('describe_symptoms_placeholder')}
-                      placeholderTextColor={colors.textSecondary}
-                      value={freeTextSymptoms}
-                      onChangeText={setFreeTextSymptoms}
-                      multiline
-                      numberOfLines={3}
-                    />
-                    <Text style={[styles.freeTextNote, { color: colors.textSecondary }]}>
-                      {t('freetext_not_used_note')}
-                    </Text>
-                  </View>
-
-                  <Button
-                    title={t('submit_checkin')}
-                    onPress={handleSubmitCheckin}
-                    loading={submitting}
-                  />
-                </View>
-              ) : (
-                // Show start button
-                <Button
-                  title={t('start_daily_checkin')}
-                  onPress={() => setShowCheckinForm(true)}
-                />
-              )}
-            </GlassCard>
-          </Animated.View>
-
-          {/* ============================================================== */}
-          {/* COMMUNITY TRENDS SECTION (NEW) */}
-          {/* ============================================================== */}
-          {communityTrends && communityTrends.length > 0 && (
-            <Animated.View entering={FadeInUp.delay(200).duration(450)}>
-              <CommunityTrendCard
-                trend={communityTrends[0]}
-                message={trendMessage}
-                state={user?.state || 'your area'}
-              />
-            </Animated.View>
-          )}
-
           {/* Health Tip (card structure closer to web) */}
-          <Animated.View entering={FadeInUp.delay(250).duration(450)}>
+          <Animated.View entering={FadeInUp.delay(200).duration(450)}>
             <GlassCard style={styles.tipCard}>
               <View style={styles.tipHeaderRow}>
                 <View style={styles.tipBadgeIcon}>
@@ -482,78 +266,68 @@ const MyHealthScreenContent: React.FC = () => {
             </GlassCard>
           </Animated.View>
 
-          {/* Symptom Logging (quick toggle buttons) */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('how_feeling_today')}</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{t('select_symptoms')}</Text>
+        {/* Symptom Logging */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('how_feeling_today')}</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>{t('select_symptoms')}</Text>
 
-            <View style={styles.symptomsGrid}>
-              {SYMPTOMS.map((symptom, index) => (
-                <Animated.View
-                  key={symptom.id}
-                  entering={FadeInUp.delay(300 + index * 50).duration(400)}
-                >
-                  <SymptomButton
-                    label={t(symptom.key)}
-                    emoji={symptom.emoji}
-                    selected={selectedSymptoms.includes(symptom.id)}
-                    onPress={() => toggleSymptom(symptom.id)}
-                  />
-                </Animated.View>
-              ))}
-            </View>
-
-            {selectedSymptoms.length > 0 && (
-              <Animated.View entering={FadeIn.duration(300)} style={styles.logButtonContainer}>
-                <Button
-                  title={`${t(selectedSymptoms.length > 1 ? 'log_symptoms' : 'log_symptom')}: ${selectedSymptoms.length}`}
-                  onPress={handleLogSymptoms}
-                  loading={loading}
+          <View style={styles.symptomsGrid}>
+            {SYMPTOMS.map((symptom, index) => (
+              <Animated.View
+                key={symptom.id}
+                entering={FadeInUp.delay(300 + index * 50).duration(400)}
+              >
+                <SymptomButton
+                  label={t(symptom.key)}
+                  emoji={symptom.emoji}
+                  selected={selectedSymptoms.includes(symptom.id)}
+                  onPress={() => toggleSymptom(symptom.id)}
                 />
               </Animated.View>
-            )}
+            ))}
           </View>
 
-          {/* Nearby Clinics */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('nearby_clinics')}</Text>
-              <Pressable style={styles.seeAllBtn}>
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>{t('see_all')}</Text>
-                <ArrowRightIcon size={16} color={colors.primary} />
-              </Pressable>
-            </View>
-
-            <Animated.View entering={FadeInUp.delay(500).duration(500)}>
-              <ClinicCard
-                name="General Hospital Lagos"
-                address="123 Marina Road, Lagos Island"
-                distance="2.3 km"
-                status="Open"
-                colors={colors}
+          {selectedSymptoms.length > 0 && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.logButtonContainer}>
+              <Button
+                title={`${t(selectedSymptoms.length > 1 ? 'log_symptoms' : 'log_symptom')}: ${selectedSymptoms.length}`}
+                onPress={handleLogSymptoms}
+                loading={loading}
               />
             </Animated.View>
+          )}
+        </View>
 
-            <Animated.View entering={FadeInUp.delay(600).duration(500)}>
-              <ClinicCard
-                name="St. Nicholas Hospital"
-                address="57 Campbell Street, Lagos"
-                distance="3.1 km"
-                status="Open"
-                colors={colors}
-              />
-            </Animated.View>
+        {/* Nearby Clinics */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('nearby_clinics')}</Text>
+            <Pressable style={styles.seeAllBtn}>
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>{t('see_all')}</Text>
+              <ArrowRightIcon size={16} color={colors.primary} />
+            </Pressable>
           </View>
 
-          {/* Health Disclaimer */}
-          <Animated.View entering={FadeIn.delay(700).duration(400)}>
-            <View style={[styles.disclaimer, { backgroundColor: isDark ? Colors.whiteAlpha10 : Colors.blackAlpha10 }]}>
-              <ShieldIcon size={16} color={colors.textSecondary} />
-              <Text style={[styles.disclaimerText, { color: colors.textSecondary }]}>
-                {t('health_disclaimer')}
-              </Text>
-            </View>
+          <Animated.View entering={FadeInUp.delay(500).duration(500)}>
+            <ClinicCard
+              name="General Hospital Lagos"
+              address="123 Marina Road, Lagos Island"
+              distance="2.3 km"
+              status="Open"
+              colors={colors}
+            />
           </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(600).duration(500)}>
+            <ClinicCard
+              name="St. Nicholas Hospital"
+              address="57 Campbell Street, Lagos"
+              distance="3.1 km"
+              status="Open"
+              colors={colors}
+            />
+          </Animated.View>
+        </View>
         </ScrollView>
       </View>
     </LinearGradient>
@@ -720,66 +494,6 @@ const styles = StyleSheet.create({
     color: Colors.whiteAlpha80,
     marginTop: Spacing.sm,
   },
-  // Check-in styles
-  checkinCard: {
-    marginBottom: Spacing.xl,
-  },
-  checkinHeader: {
-    marginBottom: Spacing.base,
-  },
-  checkinTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  checkinResult: {
-    marginTop: Spacing.sm,
-  },
-  checkinForm: {
-    gap: Spacing.sm,
-  },
-  riskPreview: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  riskPreviewLabel: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-  },
-  riskPreviewValue: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.base,
-  },
-  freeTextWrap: {
-    marginTop: Spacing.base,
-    marginBottom: Spacing.base,
-  },
-  freeTextLabel: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    marginBottom: Spacing.sm,
-  },
-  freeTextInput: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.base,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  freeTextNote: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    fontStyle: 'italic',
-    marginTop: Spacing.xs,
-  },
-  // Tip card styles
   tipCard: {
     marginBottom: Spacing.xl,
   },
@@ -940,20 +654,6 @@ const styles = StyleSheet.create({
   },
   statusTextOpen: {
     color: Colors.emerald,
-  },
-  disclaimer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xl,
-  },
-  disclaimerText: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    lineHeight: FontSize.xs * 1.5,
   },
 });
 

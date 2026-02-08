@@ -2,12 +2,19 @@
  * MedGuard Tab Navigator
  * Preserves exact bottom navigation from web
  * Optimized for low-end Android devices
+ * 
+ * ANDROID FIXES (responsiveness):
+ * - Uses safe area insets to avoid overlap with Android gesture navigation bar
+ * - Removed fixed heights, uses flexbox for proper layout
+ * - Tab bar properly positioned above system navigation
  */
 
 import React, { memo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
+// ANDROID FIX: Import useSafeAreaInsets to respect bottom navigation bar
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -150,12 +157,27 @@ const TabBarBackground = memo(({ isDark }: { isDark: boolean }) => {
 
 function TabNavigator() {
   const { isDark, colors } = useTheme();
+  // ANDROID FIX: Get safe area insets to properly position tab bar above gesture navigation
+  const insets = useSafeAreaInsets();
+  
+  // ANDROID FIX: Calculate dynamic bottom margin to respect system navigation bar
+  // This prevents the tab bar from overlapping with Android's gesture navigation
+  const tabBarBottomMargin = Math.max(insets.bottom, 12);
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        // ANDROID FIX: Use dynamic positioning based on safe area insets
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            // Position tab bar above system navigation with proper margin
+            bottom: tabBarBottomMargin,
+            // ANDROID FIX: Ensure minimum height but allow flexbox to handle content
+            minHeight: 64,
+          },
+        ],
         tabBarBackground: () => <TabBarBackground isDark={isDark} />,
         tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: Colors.primary,
@@ -214,10 +236,11 @@ function TabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 12,
+    // ANDROID FIX: bottom is now set dynamically via screenOptions based on safe area insets
     left: 12,
     right: 12,
-    height: 64,
+    // ANDROID FIX: Use minHeight instead of fixed height for flexibility on different screen sizes
+    minHeight: 64,
     borderRadius: BorderRadius.xl,
     borderTopWidth: 0,
     elevation: 0,

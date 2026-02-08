@@ -46,6 +46,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
 import { Button, FloatingShape, GlassCard, ShieldIcon, ArrowRightIcon } from '../components';
+import { useAuth } from '../hooks/useAuth';
 import { LangCode, useI18n } from '../i18n';
 import {
   Colors,
@@ -247,6 +248,7 @@ FloatingParticle.displayName = 'FloatingParticle';
 const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { continueAsGuest } = useAuth();
   const { lang, setLang, t } = useI18n();
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showContent, setShowContent] = useState(false);
@@ -422,7 +424,11 @@ const WelcomeScreen: React.FC = () => {
   // PERF: Memoize navigation callbacks to prevent re-renders
   const handleSignUp = useCallback(() => navigation.navigate('SignUp'), [navigation]);
   const handleSignIn = useCallback(() => navigation.navigate('SignIn'), [navigation]);
-  const handleGuest = useCallback(() => navigation.navigate('MainTabs'), [navigation]);
+  const handleGuest = useCallback(() => {
+    // Set guest mode flag in auth context, then navigate
+    continueAsGuest();
+    navigation.navigate('MainTabs');
+  }, [navigation, continueAsGuest]);
 
   return (
     <View style={styles.container}>

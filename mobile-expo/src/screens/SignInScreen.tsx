@@ -1,6 +1,11 @@
 /**
  * SignInScreen
  * Recreates the sign-in page with animations
+ * 
+ * ANDROID FIXES:
+ * - Proper KeyboardAvoidingView behavior for Android
+ * - ScrollView with flexGrow for proper content sizing
+ * - keyboardShouldPersistTaps for better input handling
  */
 
 import React, { useState, useEffect } from 'react';
@@ -30,6 +35,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
 import { useAuth } from '../hooks/useAuth';
+// continueAsGuest is destructured from useAuth below
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
@@ -51,7 +57,7 @@ const HERO_BG_URI =
 const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithGoogle, loading } = useAuth();
+  const { signIn, signInWithGoogle, loading, continueAsGuest } = useAuth();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +111,8 @@ const SignInScreen: React.FC = () => {
   };
 
   const handleGuest = () => {
+    // Set guest mode flag in auth context, then navigate
+    continueAsGuest();
     navigation.navigate('MainTabs');
   };
 
@@ -128,9 +136,11 @@ const SignInScreen: React.FC = () => {
       style={styles.container}
     >
       <View style={[styles.page, { backgroundColor: isDark ? colors.surface : Colors.whiteAlpha50 }]}>
+        {/* ANDROID FIX: Use behavior="height" on Android for better keyboard handling */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
+          keyboardVerticalOffset={Platform.OS === 'android' ? 20 : 0}
         >
           {/* Hero Section */}
           <ImageBackground
@@ -176,7 +186,9 @@ const SignInScreen: React.FC = () => {
         {/* Form Section */}
         <ScrollView
           style={[styles.formContainer, { backgroundColor: colors.surface }]}
-          contentContainerStyle={styles.formContent}
+          // ANDROID FIX: flexGrow ensures proper scrolling on short screens
+          contentContainerStyle={[styles.formContent, { flexGrow: 1 }]}
+          // ANDROID FIX: Prevents keyboard dismissal when tapping inputs
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
