@@ -33,7 +33,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
-import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon, ResetPasswordModal } from '../components';
+import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
 import { useAuth } from '../hooks/useAuth';
 // continueAsGuest is destructured from useAuth below
 import { useTheme } from '../hooks/useTheme';
@@ -60,7 +60,7 @@ const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<SignInRouteProp>();
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithGoogle, loading, continueAsGuest, resetPassword, pendingRecovery, updatePassword, clearRecovery } = useAuth();
+  const { signIn, signInWithGoogle, loading, continueAsGuest, resetPassword } = useAuth();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
@@ -315,12 +315,6 @@ const SignInScreen: React.FC = () => {
             />
           </View>
 
-          {/* Reset Password Modal — shown when recovery deep link is verified */}
-          <ResetPasswordModal
-            visible={pendingRecovery}
-            onSubmit={updatePassword}
-            onDismiss={clearRecovery}
-          />
         </KeyboardAvoidingView>
       </View>
     </LinearGradient>

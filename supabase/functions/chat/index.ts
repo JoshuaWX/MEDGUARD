@@ -396,22 +396,16 @@ async function getEmbedding(text: string): Promise<number[]> {
     throw new Error('No embedding providers configured. Set HF_API_KEY or OPENROUTER_API_KEY.');
   }
 
-  // PERFORMANCE: Race all providers - first successful response wins
-  // This eliminates sequential fallback delays
-  const results = await Promise.allSettled(providers.map(p => p()));
-  
-  // Return first successful result
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    }
+  // PERFORMANCE: True race - first successful response wins immediately
+  // Promise.any resolves as soon as the FIRST provider succeeds (unlike allSettled which waits for ALL)
+  try {
+    return await Promise.any(providers.map(p => p()));
+  } catch (aggregateError: unknown) {
+    // All failed - AggregateError contains all individual errors
+    const ae = aggregateError as { errors?: Error[] };
+    const errors = ae?.errors?.map((e) => e?.message || String(e)) || ['Unknown error'];
+    throw new Error(`All embedding providers failed: ${errors.join(' | ')}`);
   }
-
-  // All failed - throw combined error
-  const errors = results
-    .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    .map(r => r.reason?.message || String(r.reason));
-  throw new Error(`All embedding providers failed: ${errors.join(' | ')}`);
 }
 
 // ============================================================================
@@ -449,88 +443,198 @@ async function queryPinecone(vector: number[], topK: number): Promise<string[]> 
 }
 
 // ============================================================================
-// LLM CHAT COMPLETION
+// LLM CHAT COMPLETION — Multi-provider with direct API fallbacks
+// ============================================================================
+// Provider priority:
+//   1. OpenRouter free models (5 models, sequential fallback)
+//   2. Google Gemini API (free tier: 15 RPM, 1M tokens/day)
+//   3. Groq API (free tier: 30 RPM, very fast inference)
+// Set GOOGLE_GEMINI_KEY and/or GROQ_API_KEY as Supabase secrets.
 // ============================================================================
 
-// ============================================================================
-// LLM CHAT COMPLETION - OPTIMIZED: Single model with OpenRouter auto-routing
-// ============================================================================
-// Use OpenRouter's built-in model routing instead of manual fallbacks
-// This lets OpenRouter pick the fastest available provider automatically
-const PRIMARY_MODEL = 'deepseek/deepseek-r1-0528:free';
-const FALLBACK_MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
+const FREE_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+];
 
+// ---------- Google Gemini (direct) ----------
+async function geminiCompletion(params: {
+  system: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<string> {
+  const key = optionalEnv('GOOGLE_GEMINI_KEY');
+  if (!key) throw new Error('GOOGLE_GEMINI_KEY not set');
+
+  const model = optionalEnv('GEMINI_MODEL') || 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+
+  const contents = params.messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: params.system }] },
+      contents,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 500 },
+    }),
+  });
+
+  if (!r.ok) {
+    const errText = await r.text();
+    throw new Error(`Gemini ${r.status}: ${truncate(errText)}`);
+  }
+
+  type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  const j = (await r.json()) as GeminiResponse;
+  const text = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('Gemini: empty response');
+  }
+  return text;
+}
+
+// ---------- Groq (direct) ----------
+async function groqCompletion(params: {
+  system: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}): Promise<string> {
+  const key = optionalEnv('GROQ_API_KEY');
+  if (!key) throw new Error('GROQ_API_KEY not set');
+
+  const model = optionalEnv('GROQ_MODEL') || 'llama-3.1-8b-instant';
+
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.7,
+      max_tokens: 500,
+      messages: [{ role: 'system', content: params.system }, ...params.messages],
+    }),
+  });
+
+  if (!r.ok) {
+    const errText = await r.text();
+    throw new Error(`Groq ${r.status}: ${truncate(errText)}`);
+  }
+
+  const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const content = j?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string' || content.trim().length === 0) {
+    throw new Error('Groq: empty response');
+  }
+  return content;
+}
+
+// ---------- Main chatCompletion with multi-provider fallback ----------
 async function chatCompletion(params: {
   system: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
-  const apiKey = requiredEnv('OPENROUTER_API_KEY');
+  const openrouterKey = optionalEnv('OPENROUTER_API_KEY');
   const envModel = optionalEnv('OPENROUTER_MODEL');
+  const errors: string[] = [];
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${apiKey}`,
-  };
+  // --- OpenRouter path ---
+  if (openrouterKey) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${openrouterKey}`,
+    };
+    const referer = optionalEnv('OPENROUTER_HTTP_REFERER');
+    const title = optionalEnv('OPENROUTER_APP_TITLE') || 'MEDGUARD';
+    if (referer) headers['HTTP-Referer'] = referer;
+    if (title) headers['X-Title'] = title;
 
-  const referer = optionalEnv('OPENROUTER_HTTP_REFERER');
-  const title = optionalEnv('OPENROUTER_APP_TITLE') || 'MEDGUARD';
-  if (referer) headers['HTTP-Referer'] = referer;
-  if (title) headers['X-Title'] = title;
+    const makeRequest = async (modelId: string): Promise<string> => {
+      const r = await openRouterFetch('/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: modelId,
+          temperature: 0.7,
+          max_tokens: 500,
+          messages: [{ role: 'system', content: params.system }, ...params.messages],
+          route: 'fallback',
+          provider: {
+            allow_fallbacks: true,
+            order: ['DeepInfra', 'Together', 'Fireworks', 'Lepton'],
+          },
+        }),
+      });
 
-  // PERFORMANCE: Use OpenRouter's built-in routing with fallback
-  // This is faster than manual sequential fallbacks
-  const model = envModel || PRIMARY_MODEL;
-  
-  const makeRequest = async (modelId: string): Promise<string> => {
-    const r = await openRouterFetch('/chat/completions', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: modelId,
-        temperature: 0.7,
-        max_tokens: 500,
-        messages: [{ role: 'system', content: params.system }, ...params.messages],
-        // Let OpenRouter handle provider selection for speed
-        route: 'fallback',
-        provider: {
-          allow_fallbacks: true,
-          // Prefer faster providers
-          order: ['DeepInfra', 'Together', 'Fireworks', 'Lepton'],
-        },
-      }),
-    });
+      if (!r.ok) {
+        const errText = await r.text();
+        const err = new Error(`${modelId}: ${r.status} ${truncate(errText)}`) as Error & { status: number };
+        err.status = r.status;
+        throw err;
+      }
 
-    if (!r.ok) {
-      const errText = await r.text();
-      throw new Error(`${modelId}: ${r.status} ${truncate(errText)}`);
-    }
+      const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = j?.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || content.trim().length === 0) {
+        throw new Error(`${modelId}: empty response`);
+      }
+      return content;
+    };
 
-    const j = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const content = j?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || content.trim().length === 0) {
-      throw new Error(`${modelId}: empty response`);
-    }
-    return content;
-  };
-
-  // Try primary model first, fallback to faster model if it fails
-  try {
-    return await makeRequest(model);
-  } catch (primaryError) {
-    // Only try fallback if not using env override
-    if (!envModel && model !== FALLBACK_MODEL) {
+    // If user set a specific model via env, just use that (with one retry on 429)
+    if (envModel) {
       try {
-        console.log(`Primary model failed, trying fallback: ${primaryError}`);
-        return await makeRequest(FALLBACK_MODEL);
-      } catch (fallbackError) {
-        throw new Error(
-          `All models failed: ${primaryError instanceof Error ? primaryError.message : String(primaryError)} | ` +
-          `${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
-        );
+        return await makeRequest(envModel);
+      } catch (e: unknown) {
+        if ((e as { status?: number })?.status === 429) {
+          await _sleep(2000);
+          return await makeRequest(envModel);
+        }
+        throw e;
       }
     }
-    throw primaryError;
+
+    // Cycle through free models
+    for (const modelId of FREE_MODELS) {
+      try {
+        return await makeRequest(modelId);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(msg);
+        const status = (e as { status?: number })?.status;
+        if (status === 429) await _sleep(500);
+        continue;
+      }
+    }
   }
+
+  // --- Google Gemini fallback ---
+  try {
+    const result = await geminiCompletion(params);
+    return result;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes('not set')) errors.push(msg);
+  }
+
+  // --- Groq fallback ---
+  try {
+    const result = await groqCompletion(params);
+    return result;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes('not set')) errors.push(msg);
+  }
+
+  throw new Error(`All providers failed: ${errors.join(' | ')}`);
 }
 
 // ============================================================================
@@ -596,7 +700,6 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, { status: 405 });
 
-  // Start request timer for overall timeout
   const requestStart = Date.now();
 
   try {
@@ -696,6 +799,7 @@ serve(async (req: Request) => {
     // ========================================================================
     // PERFORMANCE: Check remaining time before expensive operations
     // ========================================================================
+
     const elapsed = Date.now() - requestStart;
     const remainingTime = REQUEST_TIMEOUT_MS - elapsed;
     if (remainingTime < 10000) {
@@ -750,9 +854,7 @@ ${intentPrompt}`;
     supabase
       .from('chat_messages')
       .insert({ conversation_id: conversationId, role: 'assistant', content: answer || '' })
-      .then(({ error }) => {
-        if (error) console.error('Failed to save assistant message:', error.message);
-      });
+      .then(() => { /* fire and forget */ });
 
     return jsonResponse({ conversation_id: conversationId, answer });
   } catch (e: unknown) {
@@ -778,7 +880,6 @@ ${intentPrompt}`;
       status = 404;
     }
 
-    console.error(`Chat error: ${msg}`);
     return jsonResponse({ error: userMessage }, { status });
   }
 });

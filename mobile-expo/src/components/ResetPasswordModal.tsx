@@ -20,7 +20,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Input, LockIcon } from '../components';
+import Input from './Input';
+import { LockIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {

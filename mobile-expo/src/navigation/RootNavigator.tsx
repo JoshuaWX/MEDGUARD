@@ -17,12 +17,13 @@ import AlertsScreen from '../screens/AlertsScreen';
 import ChatbotScreen from '../screens/ChatbotScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import { useAuth } from '../hooks/useAuth';
+import { ResetPasswordModal } from '../components';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function RootNavigator() {
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
-  const { user, initialized, loading } = useAuth();
+  const { user, initialized, loading, pendingRecovery, updatePassword, clearRecovery } = useAuth();
   const lastRoutedRef = React.useRef<string>('');
   const hasShownWelcomeThisRunRef = React.useRef(false);
   const navReadyRef = React.useRef(false);
@@ -81,8 +82,10 @@ function RootNavigator() {
     // Custom subscribe to also handle auth/callback → SignIn with resetPassword mode
     getPathFromState: undefined,
     getStateFromPath: (path: string, options: any) => {
+      // Strip hash fragments and query params for route matching
+      const cleanPath = path.split('?')[0].split('#')[0];
       // Map auth/callback to SignIn with mode param
-      if (path.startsWith('auth/callback')) {
+      if (cleanPath === 'auth/callback' || cleanPath.startsWith('auth/callback/')) {
         return {
           routes: [{ name: 'SignIn', params: { mode: 'resetPassword' } }],
         };
@@ -118,6 +121,13 @@ function RootNavigator() {
         <Stack.Screen name="Chatbot" component={ChatbotScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
+
+      {/* Reset Password Modal — overlays any screen when recovery deep link fires */}
+      <ResetPasswordModal
+        visible={pendingRecovery}
+        onSubmit={updatePassword}
+        onDismiss={clearRecovery}
+      />
     </NavigationContainer>
   );
 }

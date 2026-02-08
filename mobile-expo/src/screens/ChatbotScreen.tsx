@@ -438,6 +438,7 @@ const ChatbotScreen: React.FC = () => {
       // ========================================================================
       // PERFORMANCE: Pass AbortController signal for cancellation support
       // ========================================================================
+      const sendStart = Date.now();
       const { data, error: invokeErr } = await invokeEdgeFunction<{
         conversation_id: string;
         answer: string;
@@ -449,6 +450,7 @@ const ChatbotScreen: React.FC = () => {
         timeout: 60000, // 60 second timeout
         retries: 1, // Retry once on transient errors
       });
+      console.log(`[Chatbot] Edge function round-trip: ${Date.now() - sendStart}ms`);
 
       // Check if request was cancelled (user left screen or sent new message)
       if (signal.aborted) {

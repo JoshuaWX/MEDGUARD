@@ -243,31 +243,81 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     initializeAuth();
 
-    // ── Deep link handler: email confirmation callback ──────────────────
-    // When a user taps the confirmation link in their email,
-    // the link opens the app via medguard://signin?token_hash=...&type=signup.
-    // We extract the token and verify the OTP to establish a session.
+    // ── Deep link handler: email confirmation / recovery callback ───────
+    // Supabase sends users to:
+    //   1) medguard://auth/callback?code=<CODE>             (PKCE flow)
+    //   2) medguard://auth/callback#access_token=...&type=  (Implicit flow)
+    //   3) medguard://signin?token_hash=...&type=           (Direct token)
+    // We handle all three and establish a session.
     const handleDeepLink = async (event: { url: string }) => {
       try {
         const url = event.url;
         if (!url) return;
+
         const parsed = Linking.parse(url);
         const tokenHash = parsed.queryParams?.token_hash as string | undefined;
         const type = parsed.queryParams?.type as string | undefined;
+        const code = parsed.queryParams?.code as string | undefined;
 
+        // ── PKCE flow: exchange authorisation code for session ──
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.warn('[MedGuard] Code exchange failed:', error.message);
+          } else {
+            // If the original redirect was for recovery, flag the modal
+            if (type === 'recovery') {
+              setPendingRecovery(true);
+            }
+          }
+          return;
+        }
+
+        // ── Token-hash flow: verify OTP directly ──
         if (tokenHash && type) {
           const { error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
             type: type as any,
           });
           if (error) {
-            console.warn('Deep link OTP verification failed:', error.message);
+            console.warn('[MedGuard] OTP verification failed:', error.message);
           } else if (type === 'recovery') {
-            // Recovery verified — flag so the UI can show "Set New Password"
             setPendingRecovery(true);
           }
-          // On success, onAuthStateChange will fire SIGNED_IN and update state.
+          return;
         }
+
+        // ── Implicit flow: tokens arrive as hash fragment ──
+        if (url.includes('#')) {
+          const hashPart = url.split('#')[1];
+          if (hashPart) {
+            // Parse hash fragment manually (URLSearchParams may not exist in RN)
+            const hashParams: Record<string, string> = {};
+            hashPart.split('&').forEach((pair) => {
+              const [key, ...rest] = pair.split('=');
+              if (key) hashParams[key] = decodeURIComponent(rest.join('='));
+            });
+
+            const accessToken = hashParams['access_token'];
+            const refreshToken = hashParams['refresh_token'];
+            const hashType = hashParams['type'];
+
+            if (accessToken) {
+              const { error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || '',
+              });
+              if (error) {
+                console.warn('[MedGuard] setSession failed:', error.message);
+              } else if (hashType === 'recovery') {
+                setPendingRecovery(true);
+              }
+              return;
+            }
+          }
+        }
+
+        // Deep link did not match any auth pattern
       } catch (e) {
         console.warn('Deep link handler error:', e);
       }
@@ -285,6 +335,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // If user signs in, clear guest mode
       if (event === 'SIGNED_IN' && session?.user) {
         await AsyncStorage.removeItem('mg_guest_mode');
+      }
+
+      // Supabase fires PASSWORD_RECOVERY when a recovery session is established
+      if (event === 'PASSWORD_RECOVERY') {
+        setPendingRecovery(true);
       }
 
       setState((prev) => ({
