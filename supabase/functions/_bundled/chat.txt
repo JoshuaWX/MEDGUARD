@@ -834,7 +834,7 @@ serve(async (req: Request) => {
           .insert({ user_id: userId, title: '' })
           .select('id')
           .single();
-        if (createErr) throw createErr;
+        if (createErr) throw createErr
         return created.id;
       }
     })();
