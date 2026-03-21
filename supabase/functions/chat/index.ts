@@ -2,11 +2,16 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabase.ts';
 import { optionalEnv, requiredEnv } from '../_shared/env.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 // ============================================================================
 // PERFORMANCE: Request timeout to prevent hanging connections
 // ============================================================================
 const REQUEST_TIMEOUT_MS = 55000; // 55 seconds (Supabase Edge Function limit is 60s)
+const CHAT_RATE_LIMIT = {
+  windowSeconds: 60,
+  maxRequests: 12,
+};
 
 type ChatRequest = {
   conversation_id?: string;
@@ -716,6 +721,26 @@ serve(async (req: Request) => {
     }
 
     const userId = userData.user.id;
+
+    const rate = await enforceRateLimit(req, {
+      bucket: 'chat',
+      windowSeconds: CHAT_RATE_LIMIT.windowSeconds,
+      maxRequests: CHAT_RATE_LIMIT.maxRequests,
+      userId,
+    });
+    if (rate && !rate.allowed) {
+      return jsonResponse(
+        {
+          error: 'Too many chat requests. Please wait before sending another message.',
+          retryAfterSeconds: rate.retryAfterSeconds,
+          resetAt: rate.resetAt,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rate.retryAfterSeconds) },
+        }
+      );
+    }
 
     // ========================================================================
     // PERFORMANCE: Run independent operations in parallel

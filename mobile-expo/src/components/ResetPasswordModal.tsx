@@ -133,6 +133,7 @@ const ResetPasswordModal: React.FC<Props> = ({ visible, onSubmit, onDismiss }) =
               <Input
                 placeholder="New password"
                 secureTextEntry
+                enablePasswordToggle
                 value={newPassword}
                 onChangeText={setNewPassword}
                 icon={<LockIcon size={24} color={colors.primary} />}
@@ -140,6 +141,7 @@ const ResetPasswordModal: React.FC<Props> = ({ visible, onSubmit, onDismiss }) =
               <Input
                 placeholder="Confirm password"
                 secureTextEntry
+                enablePasswordToggle
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 icon={<LockIcon size={24} color={colors.primary} />}

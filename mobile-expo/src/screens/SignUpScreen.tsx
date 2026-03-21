@@ -423,6 +423,7 @@ const SignUpScreen: React.FC = () => {
                 <Input
                   placeholder={t('create_password')}
                   secureTextEntry
+                  enablePasswordToggle
                   value={password}
                   onChangeText={setPassword}
                   icon={<LockIcon size={20} color={colors.primary} />}
@@ -438,6 +439,7 @@ const SignUpScreen: React.FC = () => {
                 <Input
                   placeholder={t('confirm_password')}
                   secureTextEntry
+                  enablePasswordToggle
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   icon={<LockIcon size={20} color={colors.primary} />}

@@ -452,7 +452,7 @@ const WelcomeScreen: React.FC = () => {
         
         {/* Gradient Overlay */}
         <LinearGradient
-          colors={['rgba(15, 23, 42, 0.4)', 'rgba(17, 180, 212, 0.55)', 'rgba(16, 185, 129, 0.8)']}
+          colors={['rgba(15, 23, 42, 0.46)', 'rgba(13, 143, 169, 0.58)', 'rgba(10, 111, 132, 0.84)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.25)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontFamily: FontFamily.medium,
@@ -804,6 +804,7 @@ const styles = StyleSheet.create({
     color: Colors.whiteAlpha90,
     marginTop: Spacing.sm,
     textAlign: 'center',
+    letterSpacing: 0.2,
     textShadowColor: 'rgba(0, 0, 0, 0.15)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -811,10 +812,10 @@ const styles = StyleSheet.create({
   description: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: 'rgba(255, 255, 255, 0.84)',
     marginTop: Spacing.md,
     textAlign: 'center',
-    maxWidth: 300,
+    maxWidth: 320,
     lineHeight: 22,
   },
 
@@ -831,8 +832,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   langText: {
     fontFamily: FontFamily.medium,
@@ -892,7 +893,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
   },
   featureRow: {
@@ -928,6 +930,8 @@ const styles = StyleSheet.create({
   getStartedBtn: {
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
     ...Shadows.xl,
   },
   getStartedGradient: {
@@ -942,6 +946,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
     color: Colors.primary,
+    letterSpacing: 0.25,
   },
   arrowContainer: {
     width: 28,
@@ -957,15 +962,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     height: 56,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.38)',
+    ...Shadows.md,
   },
   signInText: {
     fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
     color: Colors.textLight,
+    letterSpacing: 0.2,
   },
   guestBtn: {
     flexDirection: 'row',
@@ -978,7 +985,7 @@ const styles = StyleSheet.create({
   guestBtnText: {
     fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   guestArrow: {
     fontFamily: FontFamily.medium,

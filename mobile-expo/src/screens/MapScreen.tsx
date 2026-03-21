@@ -1,213 +1,270 @@
 /**
  * MapScreen
- * UI scaffold matching the original map.html layout (static - no map logic).
- * 
- * FEATURE BLOCKED: This screen is under development.
- * GUEST GATED: Guests see "Sign-in required" message.
- * To enable: Set FEATURE_ENABLED to true or remove the FeatureBlockedScreen wrapper.
+ * Interactive map with nearby clinics/pharmacies and live location.
  */
 
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text as RNText,
-  StyleSheet,
+  ActivityIndicator,
   Pressable,
-  TextInput,
-  ImageBackground,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import MapView, { Marker, Region } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 
-import { ArrowBackIcon, ChevronDownIcon, LocationIcon, FeatureBlockedScreen } from '../components';
-import { useTheme } from '../hooks/useTheme';
+import { FeatureBlockedScreen } from '../components';
 import { useAuthGate } from '../hooks/useAuthGate';
-import { useI18n } from '../i18n';
-import {
-  Colors,
-  Spacing,
-  BorderRadius,
-  FontFamily,
-  FontSize,
-  Shadows,
-  useThemedColors,
-} from '../../theme';
+import { useLocationContext } from '../hooks/LocationContext';
+import { useTheme } from '../hooks/useTheme';
+import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
+import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
 
-// ============================================================================
-// FEATURE FLAG
-// Set to true when the feature is ready for release
-// ============================================================================
-const FEATURE_ENABLED = false;
+const DEFAULT_REGION: Region = {
+  latitude: 9.082,
+  longitude: 8.6753,
+  latitudeDelta: 1.2,
+  longitudeDelta: 1.2,
+};
 
-const MAP_BG_URI =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuCAPWSL2asbAADrThVKxzPYcMB4a-6zl1XNwhgJdxonOA2o4C9Bj2f49_JhxInHe3oU2NKBP8HRpclw16zK8_vA2u0_jww07JBBxJpz6kMbmtmRO3KySBflylhnqFB7plOgvDrJySDB02rguGsOwnpj7ya9Y36he3QUerbM3mSoqhBdDnTF0kxEaKMCQlS6rNxrLHh6qan4JehYfB1CWlc-UJGCTFbbR1rR45eEk5P8BpGObP-y2DkmiVXbD27pRXEMu7iZkUydYI0';
-
-const SearchIcon: React.FC<{ size?: number; color?: string }> = ({
-  size = 20,
-  color = Colors.textMuted,
-}) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M21 21l-4.35-4.35" />
-    <Path d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
-  </Svg>
-);
+type FacilityFilter = 'all' | 'clinic' | 'pharmacy';
 
 const MapScreen: React.FC = () => {
-  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
   const { isGuest } = useAuthGate();
+  const { isDark, colors } = useTheme();
+  const {
+    location,
+    geocoded,
+    permissionStatus,
+    requestPermission,
+    refreshLocation,
+  } = useLocationContext();
 
-  // Guest users see sign-in required message
+  const mapRef = useRef<MapView | null>(null);
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [facilityFilter, setFacilityFilter] = useState<FacilityFilter>('all');
+  const [facilities, setFacilities] = useState<NearbyFacility[]>([]);
+  const [selectedFacility, setSelectedFacility] = useState<NearbyFacility | null>(null);
+  const [loadingFacilities, setLoadingFacilities] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const centerFromDevice = useMemo(() => {
+    if (!location) return null;
+    return {
+      latitude: location.latitude,
+      longitude: location.longitude,
+    };
+  }, [location]);
+
+  useEffect(() => {
+    if (!centerFromDevice) return;
+    setRegion((prev) => ({
+      ...prev,
+      latitude: centerFromDevice.latitude,
+      longitude: centerFromDevice.longitude,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    }));
+  }, [centerFromDevice]);
+
+  const loadNearby = useCallback(async (targetRegion: Region, targetFilter: FacilityFilter) => {
+    setLoadingFacilities(true);
+    setError(null);
+
+    const { facilities: data, error: facilitiesErr } = await fetchNearbyFacilities({
+      latitude: targetRegion.latitude,
+      longitude: targetRegion.longitude,
+      radiusMeters: 5000,
+      type: targetFilter,
+    });
+
+    if (facilitiesErr) {
+      setError(facilitiesErr.message || 'Unable to load nearby facilities.');
+      setFacilities([]);
+      setLoadingFacilities(false);
+      return;
+    }
+
+    setFacilities(data);
+    setLoadingFacilities(false);
+  }, []);
+
+  useEffect(() => {
+    loadNearby(region, facilityFilter);
+  }, [facilityFilter, loadNearby]);
+
   if (isGuest) {
     return (
       <FeatureBlockedScreen
-        title={t('disease_map')}
-        description="Sign in to access interactive disease mapping and real-time outbreak tracking for your location."
+        title="Disease Map"
+        description="Sign in to access interactive map intelligence and nearby clinics/pharmacies."
         icon="map"
         buttonText="Go Back"
-        showHomeButton={true}
+        showHomeButton
       />
     );
   }
 
-  // Show feature blocked screen if feature is not enabled (for authenticated users)
-  if (!FEATURE_ENABLED) {
-    return (
-      <FeatureBlockedScreen
-        title={t('disease_map')}
-        description="Interactive disease mapping and real-time outbreak tracking is coming soon. Stay tuned for location-based health insights."
-        icon="map"
-        buttonText="Go Back"
-        showHomeButton={true}
-      />
-    );
-  }
-
-  // Original screen content (rendered when FEATURE_ENABLED = true)
-  return <MapScreenContent />;
-};
-
-// ============================================================================
-// ORIGINAL SCREEN CONTENT
-// Separated for clean feature flag pattern
-// ============================================================================
-const MapScreenContent: React.FC = () => {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const { t } = useI18n();
-  const { isDark } = useTheme();
-  const colors = useThemedColors(isDark);
-
-  const Text: React.FC<React.ComponentProps<typeof RNText>> = ({ style, ...props }) => (
-    <RNText {...props} style={[{ color: colors.text }, style]} />
-  );
-
-  const headerBg = isDark ? 'rgba(16, 31, 34, 0.85)' : 'rgba(246, 248, 248, 0.8)';
-
-  const handleBack = () => {
-    // Keep behavior safe for tab usage.
-    // If there's no back stack, do nothing.
-    // (UI parity requires the back button to exist.)
-    const nav = navigation as any;
-    if (typeof nav?.canGoBack === 'function' && nav.canGoBack()) {
-      nav.goBack();
+  const handleRecenter = async () => {
+    const granted = permissionStatus === 'granted' ? true : await requestPermission();
+    if (!granted) {
+      setError('Location permission is required to find nearby facilities.');
+      return;
     }
+
+    const latest = await refreshLocation();
+    if (!latest) {
+      setError('Unable to determine current location.');
+      return;
+    }
+
+    const next: Region = {
+      latitude: latest.latitude,
+      longitude: latest.longitude,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+
+    setRegion(next);
+    mapRef.current?.animateToRegion(next, 500);
+    loadNearby(next, facilityFilter);
   };
 
+  const handleSearchThisArea = () => {
+    loadNearby(region, facilityFilter);
+  };
+
+  const facilityColor = (kind: NearbyFacility['kind']) => (kind === 'pharmacy' ? '#8b5cf6' : Colors.primary);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Sticky header */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.base, backgroundColor: headerBg }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm, borderBottomColor: colors.border, backgroundColor: colors.surface }]}> 
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Nearby Health Map</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+            {geocoded?.city || geocoded?.state || 'Using current map center'}
+          </Text>
+        </View>
         <Pressable
-          onPress={handleBack}
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
+          onPress={handleRecenter}
+          style={[styles.headerAction, { backgroundColor: colors.background }]}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Recenter map"
         >
-          <ArrowBackIcon size={24} color={colors.text} />
+          <Ionicons name="locate" size={20} color={colors.primary} />
         </Pressable>
-        <Text style={styles.headerTitle}>{t('disease_map')}</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
-      {/* Map area */}
-      <View style={[styles.mapArea, { backgroundColor: colors.background }]}>
-        <ImageBackground
-          source={{ uri: MAP_BG_URI }}
-          resizeMode="cover"
-          style={styles.mapBg}
+      <View style={styles.filterRow}>
+        {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => {
+          const active = f === facilityFilter;
+          return (
+            <Pressable
+              key={f}
+              onPress={() => setFacilityFilter(f)}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: active ? Colors.primary : colors.surface,
+                  borderColor: active ? Colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.filterChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
+                {f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
+              </Text>
+            </Pressable>
+          );
+        })}
+
+        <Pressable
+          onPress={handleSearchThisArea}
+          style={[styles.searchAreaBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
-          <View style={styles.mapOverlay}>
-            {/* Search */}
-            <View style={[styles.searchBar, { backgroundColor: colors.surface }]}>
-              <View style={styles.searchIcon}>
-                <SearchIcon color={colors.textMuted} />
-              </View>
-              <TextInput
-                placeholder={t('search_location')}
-                placeholderTextColor={colors.textMuted}
-                style={[styles.searchInput, { color: colors.text }]}
-              />
-            </View>
-
-            {/* Controls */}
-            <View style={styles.controlsColumn}>
-              <View style={styles.zoomCard}>
-                <Pressable style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Zoom in">
-                  <Text style={styles.zoomText}>+</Text>
-                </Pressable>
-                <View style={styles.zoomDivider} />
-                <Pressable style={({ pressed }) => [styles.zoomBtn, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Zoom out">
-                  <Text style={styles.zoomText}>−</Text>
-                </Pressable>
-              </View>
-
-              <Pressable
-                style={({ pressed }) => [styles.locateBtn, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Locate me"
-              >
-                <LocationIcon size={22} color={colors.text} />
-              </Pressable>
-            </View>
-          </View>
-        </ImageBackground>
+          <Ionicons name="search" size={16} color={colors.textSecondary} />
+          <Text style={[styles.searchAreaText, { color: colors.textSecondary }]}>Search this area</Text>
+        </Pressable>
       </View>
 
-      {/* Bottom panel */}
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + Spacing.base }]}>
-        <View style={styles.chipsRow}>
-          <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
-            <Text style={styles.chipText}>{t('map_month')}: {t('month_june')}</Text>
-            <ChevronDownIcon size={18} color={colors.textMuted} />
-          </Pressable>
-          <Pressable style={({ pressed }) => [styles.chip, pressed && styles.pressed]} accessibilityRole="button">
-            <Text style={styles.chipText}>{t('map_season')}: {t('season_rainy')}</Text>
-            <ChevronDownIcon size={18} color={colors.textMuted} />
-          </Pressable>
-        </View>
+      <MapView
+        ref={(r) => {
+          mapRef.current = r;
+        }}
+        style={styles.map}
+        region={region}
+        onRegionChangeComplete={setRegion}
+        showsUserLocation
+        showsMyLocationButton={false}
+      >
+        {facilities.map((facility) => (
+          <Marker
+            key={facility.id}
+            coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
+            title={facility.name}
+            description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
+            pinColor={facilityColor(facility.kind)}
+            onPress={() => setSelectedFacility(facility)}
+          />
+        ))}
+      </MapView>
 
-        <View style={[styles.legendCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={styles.legendTitle}>{t('legend')}</Text>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
-            <Text style={styles.legendLabel}>{t('legend_malaria')}</Text>
+      <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}> 
+        {loadingFacilities ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading nearby facilities...</Text>
           </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.danger }]} />
-            <Text style={styles.legendLabel}>{t('legend_cholera')}</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
-            <Text style={styles.legendLabel}>{t('legend_lassa')}</Text>
-          </View>
+        ) : error ? (
+          <Text style={[styles.errorText, { color: Colors.danger }]}>{error}</Text>
+        ) : (
+          <>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Nearby Clinics and Pharmacies</Text>
+            {selectedFacility ? (
+              <View style={[styles.selectedCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[styles.selectedName, { color: colors.text }]} numberOfLines={1}>{selectedFacility.name}</Text>
+                <Text style={[styles.selectedMeta, { color: colors.textSecondary }]}>
+                  {selectedFacility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(selectedFacility.distanceMeters)}m away
+                </Text>
+                {!!selectedFacility.address && (
+                  <Text style={[styles.selectedMeta, { color: colors.textMuted }]} numberOfLines={2}>{selectedFacility.address}</Text>
+                )}
+              </View>
+            ) : null}
 
-          <Text style={[styles.legendTitle, { marginTop: Spacing.base }]}>{t('map_weather')}</Text>
-          <View style={styles.weatherRow}>
-            <Text style={styles.weatherIcon}>💧</Text>
-            <Text style={styles.weatherLabel}>{t('weather_rainy_conditions')}</Text>
-          </View>
-        </View>
+            <View style={styles.list}>
+              {facilities.slice(0, 5).map((facility) => (
+                <Pressable
+                  key={facility.id}
+                  onPress={() => {
+                    setSelectedFacility(facility);
+                    mapRef.current?.animateToRegion(
+                      {
+                        latitude: facility.latitude,
+                        longitude: facility.longitude,
+                        latitudeDelta: 0.03,
+                        longitudeDelta: 0.03,
+                      },
+                      450
+                    );
+                  }}
+                  style={[styles.listItem, { borderColor: colors.border }]}
+                >
+                  <View style={[styles.dot, { backgroundColor: facilityColor(facility.kind) }]} />
+                  <View style={styles.listMain}>
+                    <Text style={[styles.listName, { color: colors.text }]} numberOfLines={1}>{facility.name}</Text>
+                    <Text style={[styles.listMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(facility.distanceMeters)}m
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
       </View>
     </View>
   );
@@ -216,165 +273,136 @@ const MapScreenContent: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
   },
   header: {
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(246, 248, 248, 0.8)',
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -Spacing.sm,
   },
   headerTitle: {
     fontFamily: FontFamily.bold,
     fontSize: FontSize.lg,
-    color: Colors.textPrimary,
   },
-  headerSpacer: {
+  headerSubtitle: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    marginTop: 2,
+    maxWidth: 250,
+  },
+  headerAction: {
     width: 40,
     height: 40,
-  },
-  mapArea: {
-    flex: 1,
-    backgroundColor: Colors.backgroundLight,
-  },
-  mapBg: {
-    flex: 1,
-  },
-  mapOverlay: {
-    flex: 1,
-    padding: Spacing.base,
-    justifyContent: 'space-between',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.lg,
-  },
-  searchIcon: {
-    marginRight: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: Spacing.base,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
-  },
-  controlsColumn: {
-    alignSelf: 'flex-end',
-    gap: Spacing.base,
-  },
-  zoomCard: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.lg,
-  },
-  zoomBtn: {
-    width: 44,
-    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  zoomDivider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-  },
-  zoomText: {
-    fontFamily: FontFamily.semibold,
-    fontSize: 20,
-    color: Colors.textPrimary,
-    lineHeight: 22,
-  },
-  locateBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.lg,
-  },
-  bottomPanel: {
-    paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.base,
-    backgroundColor: Colors.backgroundLight,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.surfaceLight,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
     ...Shadows.sm,
   },
-  chipText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.textPrimary,
-  },
-  legendCard: {
-    marginTop: Spacing.base,
-    padding: Spacing.base,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.md,
-  },
-  legendTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.base,
-    marginBottom: Spacing.sm,
-  },
-  legendDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  legendLabel: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  weatherRow: {
+  filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
   },
-  weatherIcon: {
-    fontSize: 16,
+  filterChip: {
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.xs,
   },
-  weatherLabel: {
+  filterChipText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  searchAreaBtn: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  searchAreaText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  map: {
+    flex: 1,
+  },
+  bottomSheet: {
+    borderTopWidth: 1,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    maxHeight: 260,
+    ...Shadows.md,
+  },
+  sheetTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    marginBottom: Spacing.sm,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: Spacing.base,
+  },
+  loadingText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
   },
-  pressed: {
-    opacity: 0.75,
+  errorText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    paddingVertical: Spacing.sm,
+  },
+  selectedCard: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  selectedName: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  selectedMeta: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    marginTop: 2,
+  },
+  list: {
+    gap: 6,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  listMain: {
+    flex: 1,
+  },
+  listName: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+  },
+  listMeta: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
   },
 });
 

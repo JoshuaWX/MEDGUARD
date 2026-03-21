@@ -65,10 +65,10 @@ const SignInScreen: React.FC = () => {
   const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotVisible, setForgotVisible] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const isRecoveryRoute = route.params?.mode === 'resetPassword';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -207,6 +207,14 @@ const SignInScreen: React.FC = () => {
           </View>
         )}
 
+        {isRecoveryRoute && (
+          <View style={[styles.recoveryInfo, { backgroundColor: isDark ? colors.glass : Colors.infoLight }]}>
+            <Text style={[styles.recoveryInfoText, { color: isDark ? colors.text : Colors.info }]}>
+              Recovery link verified. Set your new password in the reset modal.
+            </Text>
+          </View>
+        )}
+
         {/* Form Section */}
         <ScrollView
           style={[styles.formContainer, { backgroundColor: colors.surface }]}
@@ -229,6 +237,7 @@ const SignInScreen: React.FC = () => {
             <Input
               placeholder={t('password_label')}
               secureTextEntry
+              enablePasswordToggle
               value={password}
               onChangeText={setPassword}
               icon={<LockIcon size={24} color={colors.primary} />}
@@ -296,7 +305,7 @@ const SignInScreen: React.FC = () => {
           <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base, backgroundColor: colors.surface, borderTopColor: isDark ? colors.border : Colors.borderLight }]}>
             {forgotSent && (
               <Text style={[styles.forgotSentText, { color: colors.primary }]}>
-                Password reset email sent. Check your inbox.
+                Password reset email sent. Open the link on this device to continue.
               </Text>
             )}
             {forgotError && (
@@ -400,6 +409,18 @@ const styles = StyleSheet.create({
   errorContainer: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.base,
+  },
+  recoveryInfo: {
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.base,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+  },
+  recoveryInfoText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
   },
   errorText: {
     fontFamily: FontFamily.regular,

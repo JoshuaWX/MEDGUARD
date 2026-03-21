@@ -11,6 +11,7 @@ import {
   getNigeriaSeason,
   HEALTH_DISCLAIMER,
 } from '../_shared/risk-engine.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 // OpenWeather API key from environment
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
@@ -288,6 +289,10 @@ async function fetchWHOAlerts() {
 }
 
 const _INTEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const INTEL_RATE_LIMIT = {
+  windowSeconds: 60,
+  maxRequests: 30,
+};
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -315,10 +320,12 @@ serve(async (req: Request) => {
     state = state.trim();
 
     // If no state provided but user is authenticated, try to read from profile
+    let authUserId: string | null = null;
     if (!state && req.headers.get('Authorization')) {
       const userClient = createUserClient(req);
       const { data: userData } = await userClient.auth.getUser();
       const userId = userData?.user?.id;
+      authUserId = userId || null;
       if (userId) {
         const { data: profile } = await userClient
           .from('profiles')
@@ -327,6 +334,30 @@ serve(async (req: Request) => {
           .maybeSingle();
         if (profile?.state) state = profile.state;
       }
+    } else if (req.headers.get('Authorization')) {
+      const userClient = createUserClient(req);
+      const { data: userData } = await userClient.auth.getUser();
+      authUserId = userData?.user?.id || null;
+    }
+
+    const rate = await enforceRateLimit(req, {
+      bucket: 'intel',
+      windowSeconds: INTEL_RATE_LIMIT.windowSeconds,
+      maxRequests: INTEL_RATE_LIMIT.maxRequests,
+      userId: authUserId,
+    });
+    if (rate && !rate.allowed) {
+      return jsonResponse(
+        {
+          error: 'Too many intel requests. Please wait and try again.',
+          retryAfterSeconds: rate.retryAfterSeconds,
+          resetAt: rate.resetAt,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rate.retryAfterSeconds) },
+        }
+      );
     }
 
     const stateNormalized = state.toLowerCase().trim();

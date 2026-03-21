@@ -56,17 +56,13 @@ const Button: React.FC<ButtonProps> = ({
   const translateY = useSharedValue(0);
 
   const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.98, { damping: 15 });
-    translateY.value = withSpring(2, { damping: 15 });
+    scale.value = withSpring(0.97, { damping: 16, stiffness: 260 });
+    translateY.value = withSpring(1, { damping: 16, stiffness: 260 });
   }, []);
 
   const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, { damping: 15 });
-    translateY.value = withSpring(-2, { damping: 15 }); // Lift on hover equivalent
-    // Return to normal after short delay
-    setTimeout(() => {
-      translateY.value = withSpring(0, { damping: 15 });
-    }, 150);
+    scale.value = withSpring(1, { damping: 16, stiffness: 260 });
+    translateY.value = withSpring(0, { damping: 16, stiffness: 260 });
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -110,9 +106,9 @@ const Button: React.FC<ButtonProps> = ({
         ]}
       >
         <LinearGradient
-          colors={[Colors.primary, '#06b6d4']}
+          colors={[themed.primary, themed.primaryDark]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={[styles.gradient, styles.contentRow]}
         >
           {content}
@@ -218,6 +214,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: FontFamily.bold,
     fontSize: 16,
+    letterSpacing: 0.2,
   },
   disabled: {
     opacity: 0.5,

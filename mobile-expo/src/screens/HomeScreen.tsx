@@ -468,6 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
+    paddingBottom: 6,
   },
   userSection: {
     flexDirection: 'row',
@@ -498,6 +499,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     maxWidth: 120,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.15)',
   },
   locationText: {
     fontFamily: FontFamily.medium,
@@ -509,6 +512,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.12)',
   },
   badge: {
     position: 'absolute',
@@ -534,6 +539,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 20,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    ...Shadows.md,
   },
   alertIconContainer: {
     width: 36,
@@ -574,6 +582,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.12)',
+    ...Shadows.base,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -634,6 +645,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.1)',
     ...Shadows.sm,
   },
   envCardHeader: {
@@ -650,6 +663,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.xl,
     marginBottom: 4,
+    letterSpacing: -0.1,
   },
   envCardHint: {
     fontFamily: FontFamily.regular,
@@ -667,6 +681,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.1)',
     ...Shadows.sm,
   },
   riskIndicator: {
@@ -724,6 +740,8 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.12)',
     ...Shadows.sm,
   },
   locationPromptIcon: {
@@ -749,9 +767,9 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: 11,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 10,
     paddingHorizontal: 20,
-    lineHeight: 16,
+    lineHeight: 17,
   },
 });
 

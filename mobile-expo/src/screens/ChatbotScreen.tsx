@@ -72,10 +72,10 @@ const DarkTheme = {
   textSecondary: '#b4b4b4',
   textMuted: '#8e8e8e',
   borderColor: '#424242',
-  accent: '#10a37f',
+  accent: Colors.primary,
   accentHover: '#1a7f64',
-  userGradientFrom: '#6366f1',
-  userGradientTo: '#8b5cf6',
+  userGradientFrom: '#11b4d4',
+  userGradientTo: '#0d8fa9',
 };
 
 const LightTheme = {
@@ -87,10 +87,10 @@ const LightTheme = {
   textSecondary: '#4a4a4a',
   textMuted: '#6e6e6e',
   borderColor: '#e5e5e5',
-  accent: '#10a37f',
+  accent: Colors.primary,
   accentHover: '#1a7f64',
-  userGradientFrom: '#6366f1',
-  userGradientTo: '#8b5cf6',
+  userGradientFrom: '#11b4d4',
+  userGradientTo: '#0d8fa9',
 };
 
 interface Conversation {
@@ -536,7 +536,7 @@ const ChatbotScreen: React.FC = () => {
         <View style={[styles.sidebarHeader, { borderBottomColor: theme.borderColor }]}>
           <Pressable
             onPress={startNewChat}
-            style={[styles.newChatBtn, { borderColor: theme.borderColor }]}
+            style={[styles.newChatBtn, { borderColor: theme.borderColor, backgroundColor: theme.bgPrimary }]}
           >
             <PlusIcon size={18} color={theme.textPrimary} />
             <Text style={[styles.newChatBtnText, { color: theme.textPrimary }]}>New chat</Text>
@@ -694,7 +694,7 @@ const ChatbotScreen: React.FC = () => {
             </Pressable>
             <View style={styles.headerLogo}>
               <LinearGradient
-                colors={[theme.accent, '#059669']}
+                colors={[theme.accent, Colors.primaryDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.logoIcon}
@@ -759,7 +759,7 @@ const ChatbotScreen: React.FC = () => {
               {messages.length === 0 ? (
                 <View style={styles.welcomeScreen}>
                   <LinearGradient
-                    colors={[theme.accent, '#059669']}
+                    colors={[theme.accent, Colors.primaryDark]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.welcomeLogo}
@@ -919,9 +919,9 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 420,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 16,
+    padding: 18,
   },
   modalTitle: {
     fontSize: 16,
@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   newChatBtnText: {
     fontSize: 14,
@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     marginBottom: 2,
   },
   chatTitle: {
@@ -1035,7 +1035,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   userAvatar: {
     width: 32,
@@ -1066,6 +1066,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -1075,7 +1080,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1094,6 +1099,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 16,
     fontFamily: FontFamily.bold,
+    letterSpacing: 0.2,
   },
   headerActions: {
     flexDirection: 'row',
@@ -1154,6 +1160,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
   welcomeSubtitle: {
     fontSize: 16,
@@ -1173,7 +1180,7 @@ const styles = StyleSheet.create({
   suggestionChip: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
   },
   suggestionChipText: {
@@ -1191,8 +1198,13 @@ const styles = StyleSheet.create({
   userBubble: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 18,
-    borderBottomRightRadius: 6,
+    borderRadius: 20,
+    borderBottomRightRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   userMessageText: {
     fontFamily: FontFamily.regular,
@@ -1209,8 +1221,10 @@ const styles = StyleSheet.create({
   assistantBubble: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 18,
-    borderBottomLeftRadius: 6,
+    borderRadius: 20,
+    borderBottomLeftRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.12)',
   },
   assistantMessageText: {
     fontFamily: FontFamily.regular,
@@ -1243,7 +1257,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 12,
     borderWidth: 1,
-    borderRadius: 24,
+    borderRadius: 26,
     paddingHorizontal: 20,
     paddingVertical: 8,
     maxWidth: 768,
@@ -1265,6 +1279,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   inputFooter: {
     textAlign: 'center',

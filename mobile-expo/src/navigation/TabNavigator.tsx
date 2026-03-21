@@ -29,7 +29,7 @@ import MapScreen from '../screens/MapScreen';
 import MyHealthScreen from '../screens/MyHealthScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useTheme } from '../hooks/useTheme';
-import { Colors, Spacing, BorderRadius, FontSize, FontFamily } from '../../theme';
+import { Colors, BorderRadius, FontSize, FontFamily, Shadows } from '../../theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -175,13 +175,16 @@ function TabNavigator() {
             // Position tab bar above system navigation with proper margin
             bottom: tabBarBottomMargin,
             // ANDROID FIX: Ensure minimum height but allow flexbox to handle content
-            minHeight: 64,
+            minHeight: 72,
+            paddingTop: 8,
+            paddingBottom: 8,
           },
         ],
         tabBarBackground: () => <TabBarBackground isDark={isDark} />,
         tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: isDark ? '#9ca3af' : Colors.textSecondary,
+        tabBarItemStyle: styles.tabItem,
       }}
     >
       <Tab.Screen
@@ -245,35 +248,42 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     elevation: 0,
     backgroundColor: 'transparent',
+    ...Shadows.md,
   },
   tabBarBg: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.whiteAlpha90,
     borderRadius: BorderRadius.xl,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: Colors.borderLight,
+  },
+  tabItem: {
+    paddingVertical: 2,
   },
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconWrapperActive: {
-    width: 40,
-    height: 28,
-    borderRadius: 14,
+    width: 44,
+    height: 30,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   iconWrapperInactive: {
-    width: 40,
-    height: 28,
+    width: 44,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabLabel: {
     fontFamily: FontFamily.medium,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: FontSize.xs,
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
 });
 

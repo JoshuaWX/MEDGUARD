@@ -1,11 +1,17 @@
 import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createAdminClient, createUserClient } from '../_shared/supabase.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 interface SignRequest {
   path?: string;
   expiresIn?: number;
 }
+
+const AVATAR_SIGN_RATE_LIMIT = {
+  windowSeconds: 60,
+  maxRequests: 30,
+};
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -42,6 +48,27 @@ serve(async (req: Request) => {
     }
 
     const userId = userData.user.id;
+
+    const rate = await enforceRateLimit(req, {
+      bucket: 'avatar-sign',
+      windowSeconds: AVATAR_SIGN_RATE_LIMIT.windowSeconds,
+      maxRequests: AVATAR_SIGN_RATE_LIMIT.maxRequests,
+      userId,
+    });
+    if (rate && !rate.allowed) {
+      return jsonResponse(
+        {
+          error: 'Too many avatar URL requests. Please wait before trying again.',
+          retryAfterSeconds: rate.retryAfterSeconds,
+          resetAt: rate.resetAt,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rate.retryAfterSeconds) },
+        }
+      );
+    }
+
     if (!path.startsWith(`${userId}/`)) {
       return jsonResponse({ error: 'Forbidden' }, { status: 403 });
     }

@@ -555,7 +555,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const resetPassword = useCallback(async (email: string) => {
     try {
-      const redirectUrl = Linking.createURL('auth/callback');
+      const redirectUrl = Linking.createURL('auth/callback', {
+        queryParams: { type: 'recovery' },
+      });
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });

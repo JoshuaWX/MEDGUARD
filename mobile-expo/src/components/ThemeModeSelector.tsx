@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, ThemeMode } from '../hooks/useTheme';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize } from '../../theme';
@@ -58,7 +59,15 @@ const ThemeModeSelector: React.FC = () => {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha50 }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha50,
+          borderColor: isDark ? Colors.whiteAlpha10 : Colors.blackAlpha10,
+        },
+      ]}
+    >
       {options.map((option) => {
         const isActive = mode === option.mode;
         return (
@@ -73,15 +82,22 @@ const ThemeModeSelector: React.FC = () => {
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={`${option.label} theme`}
           >
-            {option.icon}
-            <Text
-              style={[
-                styles.optionText,
-                { color: isActive ? Colors.textLight : colors.textSecondary },
-              ]}
-            >
-              {option.label}
-            </Text>
+            {isActive ? (
+              <LinearGradient
+                colors={[Colors.primary, Colors.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.activeFill}
+              >
+                {option.icon}
+                <Text style={[styles.optionText, { color: Colors.textLight }]}>{option.label}</Text>
+              </LinearGradient>
+            ) : (
+              <>
+                {option.icon}
+                <Text style={[styles.optionText, { color: colors.textSecondary }]}>{option.label}</Text>
+              </>
+            )}
           </Pressable>
         );
       })}
@@ -95,6 +111,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.xs,
     gap: Spacing.xs,
+    borderWidth: 1,
   },
   option: {
     flex: 1,
@@ -105,13 +122,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.base,
     borderRadius: BorderRadius.base,
+    overflow: 'hidden',
+  },
+  activeFill: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    borderRadius: BorderRadius.base,
   },
   optionActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'transparent',
   },
   optionText: {
     fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
+    letterSpacing: 0.2,
   },
 });
 

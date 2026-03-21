@@ -12,22 +12,22 @@ export { Duration, Delay, CustomEasing } from './animations';
 // Gradient definitions for LinearGradient component
 export const Gradients = {
   primary: {
-    colors: ['#11b4d4', '#10b981'],
+    colors: ['#11b4d4', '#0d8fa9'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   primaryVertical: {
-    colors: ['#11b4d4', '#10b981'],
+    colors: ['#11b4d4', '#0d8fa9'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
   welcomeHero: {
-    colors: ['rgba(17, 180, 212, 0.85)', 'rgba(16, 185, 129, 0.75)', 'rgba(246, 248, 248, 0.95)'],
+    colors: ['rgba(17, 180, 212, 0.9)', 'rgba(13, 143, 169, 0.78)', 'rgba(246, 248, 248, 0.96)'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
   signinHero: {
-    colors: ['rgba(17, 180, 212, 0.9)', 'rgba(16, 185, 129, 0.8)'],
+    colors: ['rgba(17, 180, 212, 0.92)', 'rgba(13, 143, 169, 0.82)'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
@@ -37,12 +37,12 @@ export const Gradients = {
     end: { x: 1, y: 1 },
   },
   healthHeader: {
-    colors: ['#11b4d4', '#10b981', '#059669'],
+    colors: ['#11b4d4', '#0d8fa9', '#0a6f84'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   fab: {
-    colors: ['#11b4d4', '#10b981'],
+    colors: ['#11b4d4', '#0d8fa9'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
@@ -62,7 +62,7 @@ export const Gradients = {
     end: { x: 1, y: 1 },
   },
   backgroundDark: {
-    colors: ['#111827', '#111827', '#1f2937'],
+    colors: ['#0f1419', '#152028', '#1a2632'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
