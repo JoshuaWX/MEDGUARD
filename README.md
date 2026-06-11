@@ -34,7 +34,7 @@ MedGuard is not a replacement for a doctor. The chatbot provides general guidanc
 	- `mobile-expo/src/screens/` — UI screens (Welcome, Sign In, Sign Up, Home, Chatbot, Profile, etc.)
 	- `mobile-expo/src/hooks/` — Auth + location state management
 	- `mobile-expo/src/services/` — Supabase client + Edge Function invoker
-	- `mobile-expo/app.json` — Expo config (scheme, permissions, plugins)
+	- `mobile-expo/app.json` / `mobile-expo/app.config.js` — Expo config; tracked config is secret-free and dynamic values come from Expo public env vars
 
 ### Supabase backend (production)
 
@@ -183,7 +183,10 @@ npm install
 ```ini
 EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=
 ```
+
+Do not put service-role keys, AI provider keys, Pinecone keys, or local backend IP URLs in `mobile-expo/.env`.
 
 3. Run on device/simulator:
 
@@ -226,7 +229,10 @@ supabase functions deploy chat
 supabase functions deploy intel
 supabase functions deploy verify-location
 supabase functions deploy avatar-sign
+supabase functions deploy nearby-facilities
 ```
+
+Function settings are source-controlled in `supabase/config.toml`; production functions should keep JWT verification enabled.
 
 #### Required Edge secrets
 
@@ -235,16 +241,20 @@ Set secrets (names may vary depending on function code; check `supabase/function
 - `OPENROUTER_API_KEY`
 - `OPENROUTER_BASE_URL` (optional)
 - `OPENROUTER_MODEL` (optional)
+- `GOOGLE_GEMINI_KEY` (optional fallback)
+- `GEMINI_MODEL` (currently `gemini-2.5-flash`)
+- `GROQ_API_KEY` (optional fallback)
 - `PINECONE_API_KEY`
 - `PINECONE_INDEX_NAME`
 - `PINECONE_HOST` (host only, not `https://...`)
-- `HF_API_KEY` (optional but recommended for embeddings stability)
+- `HF_API_KEY` (required for MiniLM-compatible RAG query embeddings)
 - `SUPABASE_SERVICE_ROLE_KEY` (required for admin-only actions in some functions)
 
 Example:
 
 ```bash
 supabase secrets set OPENROUTER_API_KEY=...
+supabase secrets set HF_API_KEY=...
 supabase secrets set PINECONE_API_KEY=...
 supabase secrets set PINECONE_HOST=... # no https://
 ```
@@ -288,6 +298,7 @@ MedGuard is device-first. If something relies on localhost / browser-only APIs, 
 ## Security notes
 
 - Never commit secrets (service role keys, API keys).
+- Rotate any secret that has been copied into a mobile env, terminal output, screenshot, or chat transcript.
 - Keep avatar objects private and only expose via signed URLs.
 - Keep RLS enabled for all user-owned tables.
 - Prefer Edge Functions for anything requiring sensitive keys.

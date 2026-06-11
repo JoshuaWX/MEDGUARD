@@ -7,16 +7,22 @@ import { enforceRateLimit } from '../_shared/rate-limit.ts';
 // ============================================================================
 // PERFORMANCE: Request timeout to prevent hanging connections
 // ============================================================================
-const REQUEST_TIMEOUT_MS = 55000; // 55 seconds (Supabase Edge Function limit is 60s)
+const REQUEST_TIMEOUT_MS = 52000; // Keep buffer under the Supabase Edge Function limit.
+const MAX_MESSAGE_CHARS = 1200;
 const CHAT_RATE_LIMIT = {
   windowSeconds: 60,
   maxRequests: 12,
+};
+const GUEST_CHAT_RATE_LIMIT = {
+  windowSeconds: 24 * 60 * 60,
+  maxRequests: 10,
 };
 
 type ChatRequest = {
   conversation_id?: string;
   message: string;
   k?: number;
+  guest_session_id?: string;
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -228,6 +234,19 @@ function classifyIntent(query: string, hasHistory: boolean): { intent: string; c
   return { intent: INTENT_PATTERNS[bestIntent]?.template || 'general', confidence };
 }
 
+function shouldUseRag(intent: string, message: string): boolean {
+  if (intent === 'greeting' || intent === 'gratitude') return false;
+  const wordCount = message.split(/\s+/).filter(Boolean).length;
+  if (wordCount <= 3 && !/[?]/.test(message)) return false;
+  return true;
+}
+
+function sanitizeGuestSessionId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.trim();
+  return /^[a-zA-Z0-9_-]{16,80}$/.test(cleaned) ? cleaned : null;
+}
+
 // ============================================================================
 // EMBEDDINGS - Use HuggingFace Inference API (same model as Flask app)
 // Model: sentence-transformers/all-MiniLM-L6-v2 → 384 dimensions
@@ -326,91 +345,30 @@ function _normalizeEmbedding(raw: unknown): number[] | null {
 }
 
 // ============================================================================
-// EMBEDDINGS - OPTIMIZED: Race providers in parallel for fastest response
+// EMBEDDINGS - query with the same MiniLM vector space used for ingestion.
 // ============================================================================
 async function getEmbedding(text: string): Promise<number[]> {
   const hfToken = optionalEnv('HUGGINGFACE_API_KEY') || optionalEnv('HF_API_KEY');
   const hfModel = optionalEnv('HF_EMBEDDINGS_MODEL') || optionalEnv('EMBEDDINGS_MODEL') || 'sentence-transformers/all-MiniLM-L6-v2';
-  const dimensions = clampInt(optionalEnv('EMBEDDINGS_DIMENSIONS') ?? '384', 1, 4096, 384);
-  const openrouterKey = optionalEnv('OPENROUTER_API_KEY');
-  const openaiKey = optionalEnv('OPENAI_API_KEY');
 
-  // Build list of embedding provider attempts
-  const providers: Array<() => Promise<number[]>> = [];
-
-  // HuggingFace provider (single attempt, no retry delays)
-  if (hfToken) {
-    providers.push(async () => {
-      const endpoint = `https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModel}`;
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${hfToken}`,
-        },
-        body: JSON.stringify({ inputs: text, options: { wait_for_model: false } }),
-      });
-      if (!r.ok) throw new Error(`HF ${r.status}`);
-      const raw = await r.json();
-      const emb = _normalizeEmbedding(raw);
-      if (!emb || emb.length === 0) throw new Error('HF invalid shape');
-      return emb;
-    });
+  if (!hfToken) {
+    throw new Error('HF_API_KEY is required for MiniLM RAG query embeddings.');
   }
 
-  // OpenRouter embeddings provider
-  if (openrouterKey) {
-    const model = optionalEnv('OPENROUTER_EMBEDDINGS_MODEL') || 'openai/text-embedding-3-small';
-    providers.push(async () => {
-      const r = await fetch('https://openrouter.ai/api/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openrouterKey}`,
-        },
-        body: JSON.stringify({ model, input: text, dimensions }),
-      });
-      if (!r.ok) throw new Error(`OpenRouter ${r.status}`);
-      const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
-      const emb = j?.data?.[0]?.embedding;
-      if (!Array.isArray(emb) || emb.length === 0) throw new Error('OpenRouter invalid shape');
-      return emb;
-    });
-  }
-
-  // OpenAI direct provider
-  if (openaiKey) {
-    providers.push(async () => {
-      const r = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions }),
-      });
-      if (!r.ok) throw new Error(`OpenAI ${r.status}`);
-      const j = await r.json() as { data?: Array<{ embedding?: number[] }> };
-      const emb = j?.data?.[0]?.embedding;
-      if (!Array.isArray(emb) || emb.length === 0) throw new Error('OpenAI invalid shape');
-      return emb;
-    });
-  }
-
-  if (providers.length === 0) {
-    throw new Error('No embedding providers configured. Set HF_API_KEY or OPENROUTER_API_KEY.');
-  }
-
-  // PERFORMANCE: True race - first successful response wins immediately
-  // Promise.any resolves as soon as the FIRST provider succeeds (unlike allSettled which waits for ALL)
-  try {
-    return await Promise.any(providers.map(p => p()));
-  } catch (aggregateError: unknown) {
-    // All failed - AggregateError contains all individual errors
-    const ae = aggregateError as { errors?: Error[] };
-    const errors = ae?.errors?.map((e) => e?.message || String(e)) || ['Unknown error'];
-    throw new Error(`All embedding providers failed: ${errors.join(' | ')}`);
-  }
+  const endpoint = `https://api-inference.huggingface.co/pipeline/feature-extraction/${hfModel}`;
+  const r = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${hfToken}`,
+    },
+    body: JSON.stringify({ inputs: text, options: { wait_for_model: false } }),
+  });
+  if (!r.ok) throw new Error(`HF ${r.status}`);
+  const raw = await r.json();
+  const emb = _normalizeEmbedding(raw);
+  if (!emb || emb.length !== 384) throw new Error(`HF invalid embedding shape: ${emb?.length || 0}`);
+  return emb;
 }
 
 // ============================================================================
@@ -473,7 +431,7 @@ async function geminiCompletion(params: {
   const key = optionalEnv('GOOGLE_GEMINI_KEY');
   if (!key) throw new Error('GOOGLE_GEMINI_KEY not set');
 
-  const model = optionalEnv('GEMINI_MODEL') || 'gemini-2.0-flash';
+  const model = optionalEnv('GEMINI_MODEL') || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
 
   const contents = params.messages.map((m) => ({
@@ -710,28 +668,36 @@ serve(async (req: Request) => {
   try {
     const body: ChatRequest = await req.json();
     const message = typeof body?.message === 'string' ? body.message.trim() : '';
-    const topK = clampInt(body?.k, 1, 8, 3);
+    const topK = clampInt(body?.k, 1, 5, 3);
 
     if (!message) return jsonResponse({ error: 'message is required' }, { status: 400 });
+    if (message.length > MAX_MESSAGE_CHARS) {
+      return jsonResponse({ error: `Message is too long. Please keep it under ${MAX_MESSAGE_CHARS} characters.` }, { status: 400 });
+    }
 
     const supabase = createUserClient(req);
     const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user?.id) {
-      return jsonResponse({ error: 'Unauthorized' }, { status: 401 });
+    const userId = userErr ? null : userData?.user?.id || null;
+    const isGuest = !userId;
+    const guestSessionId = isGuest ? sanitizeGuestSessionId(body?.guest_session_id) : null;
+
+    if (isGuest && !guestSessionId) {
+      return jsonResponse({ error: 'Guest session is required.' }, { status: 400 });
     }
 
-    const userId = userData.user.id;
-
     const rate = await enforceRateLimit(req, {
-      bucket: 'chat',
-      windowSeconds: CHAT_RATE_LIMIT.windowSeconds,
-      maxRequests: CHAT_RATE_LIMIT.maxRequests,
+      bucket: isGuest ? 'chat_guest' : 'chat',
+      windowSeconds: isGuest ? GUEST_CHAT_RATE_LIMIT.windowSeconds : CHAT_RATE_LIMIT.windowSeconds,
+      maxRequests: isGuest ? GUEST_CHAT_RATE_LIMIT.maxRequests : CHAT_RATE_LIMIT.maxRequests,
       userId,
+      subjectId: isGuest ? `guest:${guestSessionId}` : null,
     });
     if (rate && !rate.allowed) {
       return jsonResponse(
         {
           error: 'Too many chat requests. Please wait before sending another message.',
+          guest: isGuest,
+          guest_remaining: isGuest ? 0 : undefined,
           retryAfterSeconds: rate.retryAfterSeconds,
           resetAt: rate.resetAt,
         },
@@ -742,29 +708,13 @@ serve(async (req: Request) => {
       );
     }
 
-    // ========================================================================
-    // PERFORMANCE: Run independent operations in parallel
-    // - Profile fetch, conversation setup, and embedding generation are independent
-    // ========================================================================
-    
-    // Start embedding generation immediately (most time-consuming operation)
-    const embeddingPromise = withTimeout(
-      getEmbedding(message),
-      20000,
-      'Embedding generation'
-    );
-
-    // Fetch profile in parallel
-    const profilePromise = supabase
-      .from('profiles')
-      .select('full_name, state, age, gender')
-      .eq('id', userId)
-      .maybeSingle();
-
-    // Handle conversation creation/validation
+    type HistoryMessage = { role?: string; content?: string };
+    let profile: UserProfile | null = null;
     let conversationId = body?.conversation_id || null;
+    let previousMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
-    const conversationPromise = (async () => {
+    if (!isGuest && userId) {
+      const conversationPromise = (async () => {
       if (conversationId) {
         const { data: conv, error: convErr } = await supabase
           .from('chat_conversations')
@@ -785,41 +735,35 @@ serve(async (req: Request) => {
         if (createErr) throw createErr;
         return created.id;
       }
-    })();
+      })();
 
-    // Wait for conversation to be ready (needed for message insert)
-    const [resolvedConversationId, { data: profile }] = await Promise.all([
-      conversationPromise,
-      profilePromise,
-    ]);
-    conversationId = resolvedConversationId;
+      const [resolvedConversationId, profileResult] = await Promise.all([
+        conversationPromise,
+        supabase
+          .from('profiles')
+          .select('full_name, state, age, gender')
+          .eq('id', userId)
+          .maybeSingle(),
+      ]);
+      conversationId = resolvedConversationId;
+      profile = (profileResult.data as UserProfile | null) || null;
 
-    // Insert user message (non-blocking, we don't need to wait for confirmation)
-    // But we do need it to complete before fetching history
-    await supabase
-      .from('chat_messages')
-      .insert({ conversation_id: conversationId, role: 'user', content: message });
-
-    // ========================================================================
-    // PERFORMANCE: Parallel fetch of history + wait for embedding
-    // ========================================================================
-    const [embedding, historyResult] = await Promise.all([
-      embeddingPromise,
-      supabase
+      const historyResult = await supabase
         .from('chat_messages')
-        .select('role, content')
+        .select('role, content, created_at')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-        .limit(20),
-    ]);
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (historyResult.error) throw historyResult.error;
+      if (historyResult.error) throw historyResult.error;
+      previousMessages = ((historyResult.data as HistoryMessage[] || [])
+        .filter((m: HistoryMessage) => m?.role === 'user' || m?.role === 'assistant')
+        .map((m: HistoryMessage) => ({ role: m.role as 'user' | 'assistant', content: String(m.content || '') }))
+        .filter((m: { role: 'user' | 'assistant'; content: string }) => m.content.trim().length > 0))
+        .reverse();
+    }
 
-    type HistoryMessage = { role?: string; content?: string };
-    const historyMessages = (historyResult.data as HistoryMessage[] || [])
-      .filter((m: HistoryMessage) => m?.role === 'user' || m?.role === 'assistant')
-      .map((m: HistoryMessage) => ({ role: m.role as 'user' | 'assistant', content: String(m.content || '') }))
-      .filter((m: { role: 'user' | 'assistant'; content: string }) => m.content.trim().length > 0);
+    const historyMessages = [...previousMessages, { role: 'user' as const, content: message }];
 
     // ========================================================================
     // PERFORMANCE: Check remaining time before expensive operations
@@ -835,20 +779,31 @@ serve(async (req: Request) => {
     }
 
     // Classify intent (fast, synchronous operation)
-    const { intent } = classifyIntent(message, historyMessages.length > 1);
+    const { intent } = classifyIntent(message, previousMessages.length > 0);
     const intentPrompt = INTENT_PROMPTS[intent] || INTENT_PROMPTS['general'];
 
-    // Query Pinecone with timeout
-    const contextChunks = await withTimeout(
-      queryPinecone(embedding, topK),
-      15000,
-      'Vector search'
-    );
+    let contextChunks: string[] = [];
+    let ragStatus: 'skipped' | 'ok' | 'degraded' = 'skipped';
+    if (shouldUseRag(intent, message)) {
+      try {
+        const embedding = await withTimeout(getEmbedding(message), 10000, 'Embedding generation');
+        contextChunks = await withTimeout(queryPinecone(embedding, topK), 8000, 'Vector search');
+        ragStatus = 'ok';
+      } catch (ragError: unknown) {
+        ragStatus = 'degraded';
+        console.warn(JSON.stringify({
+          event: 'chat_rag_degraded',
+          reason: ragError instanceof Error ? ragError.message : String(ragError),
+          intent,
+          isGuest,
+        }));
+      }
+    }
     const retrievedContext = contextChunks.join('\n\n---\n\n');
 
     // Build context (fast operations)
     const userContext = buildUserContext(profile);
-    const historyText = formatHistoryForLLM(historyMessages.slice(0, -1));
+    const historyText = formatHistoryForLLM(previousMessages);
 
     const contextParts: string[] = [];
     if (userContext) contextParts.push(`User context:\n${userContext}`);
@@ -867,21 +822,51 @@ ${intentPrompt}`;
     // ========================================================================
     // PERFORMANCE: LLM call with dynamic timeout based on remaining time
     // ========================================================================
-    const llmTimeout = Math.min(remainingTime - 2000, 30000); // Leave 2s buffer for response
+    const llmRemainingTime = REQUEST_TIMEOUT_MS - (Date.now() - requestStart);
+    if (llmRemainingTime < 5000) {
+      return jsonResponse({
+        error: 'Request timeout - please try again',
+        conversation_id: isGuest ? null : conversationId,
+      }, { status: 504 });
+    }
+    const llmTimeout = Math.min(llmRemainingTime - 1500, 24000);
     const answer = await withTimeout(
       chatCompletion({ system: systemPrompt, messages: historyMessages }),
       llmTimeout,
       'AI response generation'
     );
 
-    // Insert assistant message (fire and forget - don't block response)
-    // Using .then() to handle errors without blocking
-    supabase
-      .from('chat_messages')
-      .insert({ conversation_id: conversationId, role: 'assistant', content: answer || '' })
-      .then(() => { /* fire and forget */ });
+    if (!isGuest && conversationId) {
+      const { error: persistErr } = await supabase
+        .from('chat_messages')
+        .insert([
+          { conversation_id: conversationId, role: 'user', content: message },
+          { conversation_id: conversationId, role: 'assistant', content: answer || '' },
+        ]);
 
-    return jsonResponse({ conversation_id: conversationId, answer });
+      if (persistErr) {
+        console.warn(JSON.stringify({
+          event: 'chat_persist_failed',
+          conversation_id: conversationId,
+          reason: persistErr.message,
+        }));
+      }
+    }
+
+    console.log(JSON.stringify({
+      event: 'chat_completed',
+      ms: Date.now() - requestStart,
+      intent,
+      ragStatus,
+      isGuest,
+    }));
+
+    return jsonResponse({
+      conversation_id: isGuest ? null : conversationId,
+      answer,
+      guest: isGuest || undefined,
+      guest_remaining: isGuest && rate ? rate.remaining : undefined,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     

@@ -15,15 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "config": {
-        "googleMapsApiKey": "REDACTED_PUBLIC_CLIENT_KEY"
-      },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "MedGuard uses your location to personalize health alerts and verify your state.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "MedGuard uses your location to personalize health alerts and verify your state.",
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
+        "NSLocationWhenInUseUsageDescription": "MedGuard uses your location to personalize health alerts and verify your state."
       }
     },
     "android": {
@@ -32,19 +25,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.medguard",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_FINE_LOCATION"
       ],
-      "config": {
-        "googleMaps": {
-          "apiKey": "REDACTED_PUBLIC_CLIENT_KEY"
-        }
-      },
       "intentFilters": [
         {
           "action": "VIEW",
@@ -62,9 +48,6 @@
       "expo-location",
       "@react-native-community/datetimepicker"
     ],
-    "extra": {
-      "apiBaseUrl": "http://10.253.154.55:3000",
-      "chatbotUrl": "http://10.253.154.55:8080/"
-    }
+    "extra": {}
   }
 }

@@ -1,554 +1,245 @@
 /**
- * SplashScreen - MedGuard Animated Loading Screen
- * 
- * PERFORMANCE OPTIMIZATIONS (Feb 2026):
- * - All animations use native-driven Reanimated worklets
- * - Reduced animation complexity for low-end Android devices
- * - Memoized SVG components to prevent re-renders
- * - Uses ReducedMotionConfig for accessibility
- * 
- * Animation Timeline (~5.5 seconds total):
- * ─────────────────────────────────────────────────────────────
- * 0ms        - Screen starts pure white
- * 0-200ms    - Logo + circle fade in on the RIGHT side
- * 200-2000ms - Logo + circle spin VERY FAST in place (5+ rotations)
- * 2000-2500ms - ECG "road" fades/eases in beneath
- * 2500-4000ms - Logo rolls LEFT over the road, rotation gradually slows
- * 4000-4500ms - "MedGuard" text appears
- * 4500-5300ms - Checkmark draws slowly
- * 5300-5500ms - Brief hold, then transition to app
- * ─────────────────────────────────────────────────────────────
+ * SplashScreen - fast branded MedGuard loader.
+ *
+ * A short health-tech intro for mobile startup: shield, pulse, ECG line,
+ * wordmark, then a smooth handoff to the app.
  */
 
-import React, { useEffect, useMemo, memo } from 'react';
-import { View, StyleSheet, Dimensions, Text, Platform } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, Circle as SvgCircle } from 'react-native-svg';
+import React, { memo, useEffect } from 'react';
+import { Dimensions, Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedProps,
-  withTiming,
-  withDelay,
-  withSpring,
-  withSequence,
-  withRepeat,
   Easing,
   interpolate,
-  runOnJS,
-  SharedValue,
-  // PERF: Use reduceMotion for accessibility
-  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
-import { FontFamily, Colors } from '../../theme';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { ShieldIcon } from '../components';
+import { Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
-// Animation duration constants
-export const SPLASH_DURATION = 5500;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const LOGO_SIZE = 72;
-const CIRCLE_SIZE = LOGO_SIZE + 24; // Circle is larger than logo
+export const SPLASH_DURATION = 2100;
 
-// Logo starts on the RIGHT, rolls to final position on the LEFT
-const LOGO_START_X = SCREEN_WIDTH * 0.28;  // Start position (right of center)
-const LOGO_END_X = -65;                     // End position (left of center)
-
-// ECG line configuration
-const ECG_WIDTH = SCREEN_WIDTH * 2.5;
-const ECG_HEIGHT = 40;
+const LOGO_SIZE = 76;
+const ECG_WIDTH = Math.min(SCREEN_WIDTH - 72, 360);
+const ECG_HEIGHT = 42;
+const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
 
 interface SplashScreenProps {
   onAnimationComplete: () => void;
 }
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedSvgCircle = Animated.createAnimatedComponent(SvgCircle);
-
-// PERF: Detect low-end Android devices
-const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
-// PERF: Reduce animation complexity on low-end devices
-const FAST_SPIN_ROTATIONS = isLowEndDevice ? 4 : 8;
-const ROLL_ROTATIONS = isLowEndDevice ? 3 : 5;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SHIELD LOGO WITH CIRCLE (without checkmark)
-// PERF: Memoized to prevent unnecessary re-renders
-// ═══════════════════════════════════════════════════════════════════════════════
-interface ShieldLogoProps {
-  size: number;
-  circleOpacity: SharedValue<number>;
-}
-
-const ShieldLogoWithCircle: React.FC<ShieldLogoProps> = memo(({ size, circleOpacity }) => {
-  const circleRadius = (size + 20) / 2;
-  const circumference = 2 * Math.PI * circleRadius;
-  // Dashed pattern: 85% solid, 15% gap - creates a visible "notch" so rotation is visible
-  const dashLength = circumference * 0.85;
-  const gapLength = circumference * 0.15;
-  
-  const animatedCircleProps = useAnimatedProps(() => ({
-    strokeOpacity: circleOpacity.value,
-  }));
+const ECGLine = memo(() => {
+  const segment = ECG_WIDTH / 4;
+  const y = ECG_HEIGHT / 2;
+  const path = [
+    `M0 ${y}`,
+    `L${segment * 0.45} ${y}`,
+    `L${segment * 0.55} ${y - 8}`,
+    `L${segment * 0.64} ${y + 9}`,
+    `L${segment * 0.74} ${y - 14}`,
+    `L${segment * 0.88} ${y}`,
+    `L${segment * 1.55} ${y}`,
+    `L${segment * 1.66} ${y + 8}`,
+    `L${segment * 1.78} ${y - 10}`,
+    `L${segment * 1.9} ${y}`,
+    `L${ECG_WIDTH} ${y}`,
+  ].join(' ');
 
   return (
-    <View style={{ width: size + 24, height: size + 24, alignItems: 'center', justifyContent: 'center' }}>
-      {/* Outer circle with dash pattern so rotation is visible */}
-      <Svg 
-        width={size + 24} 
-        height={size + 24} 
-        viewBox={`0 0 ${size + 24} ${size + 24}`}
-        style={StyleSheet.absoluteFill}
-      >
-        <AnimatedSvgCircle
-          cx={(size + 24) / 2}
-          cy={(size + 24) / 2}
-          r={circleRadius}
-          stroke={Colors.primary}
-          strokeWidth={2.5}
-          fill="none"
-          strokeDasharray={`${dashLength} ${gapLength}`}
-          strokeLinecap="round"
-          animatedProps={animatedCircleProps}
-        />
-      </Svg>
-      
-      {/* Shield logo centered inside */}
-      <Svg width={size} height={size} viewBox="0 0 256 256">
-        <Defs>
-          <LinearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor={Colors.primary} />
-            <Stop offset="100%" stopColor={Colors.emerald} />
-          </LinearGradient>
-        </Defs>
-        <Path
-          d="M208,40H48A16,16,0,0,0,32,56v58.78c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Zm0,74.79c0,78.42-66.35,104.62-80,109.18-13.53-4.52-80-30.69-80-109.18V56H208Z"
-          fill="url(#shieldGrad)"
-        />
-      </Svg>
-    </View>
+    <Svg width={ECG_WIDTH} height={ECG_HEIGHT} viewBox={`0 0 ${ECG_WIDTH} ${ECG_HEIGHT}`}>
+      <Path
+        d={path}
+        stroke="rgba(255,255,255,0.78)"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
   );
 });
 
-// PERF: Add display name for debugging
-ShieldLogoWithCircle.displayName = 'ShieldLogoWithCircle';
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ANIMATED CHECKMARK (draws slowly like handwriting)
-// PERF: Memoized to prevent unnecessary re-renders
-// ═══════════════════════════════════════════════════════════════════════════════
-interface AnimatedCheckmarkProps {
-  size: number;
-  progress: SharedValue<number>;
-}
-
-const AnimatedCheckmark: React.FC<AnimatedCheckmarkProps> = memo(({ size, progress }) => {
-  const STROKE_LENGTH = 50;
-  const checkSize = size * 0.45;
-  
-  const animatedProps = useAnimatedProps(() => ({
-    strokeDashoffset: STROKE_LENGTH * (1 - progress.value),
-  }));
-
-  // Centered absolutely within the logoContainer
-  return (
-    <View style={{
-      position: 'absolute',
-      width: checkSize,
-      height: checkSize,
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <Svg 
-        width={checkSize} 
-        height={checkSize} 
-        viewBox="0 0 24 24"
-      >
-        <AnimatedPath
-          d="M5 12 L10 17 L19 7"
-          stroke={Colors.emerald}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-          strokeDasharray={STROKE_LENGTH}
-          animatedProps={animatedProps}
-        />
-      </Svg>
-    </View>
-  );
-});
-
-// PERF: Add display name for debugging
-AnimatedCheckmark.displayName = 'AnimatedCheckmark';
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ECG LINE (animated heartbeat "road") - LIVE continuous scrolling
-// PERF: Memoized ECG path generation, reduced segments on low-end devices
-// ═══════════════════════════════════════════════════════════════════════════════
-interface ECGLineProps {
-  scrollProgress: SharedValue<number>;
-  drawProgress: SharedValue<number>;
-  isLive: SharedValue<number>;  // Controls continuous animation
-}
-
-const ECGLine: React.FC<ECGLineProps> = memo(({ scrollProgress, drawProgress, isLive }) => {
-  // PERF: Memoize ECG path to prevent regeneration on each render
-  const SEGMENT_WIDTH = 80;
-  const ecgPath = useMemo(() => {
-    // PERF: Reduce segments on low-end devices
-    const segments = isLowEndDevice 
-      ? Math.ceil(ECG_WIDTH / SEGMENT_WIDTH) 
-      : Math.ceil(ECG_WIDTH / SEGMENT_WIDTH) + 2;
-    let path = 'M0,20 ';
-    
-    for (let i = 0; i < segments; i++) {
-      const x = i * SEGMENT_WIDTH;
-      // Flat line → small bump → big spike → recovery → flat
-      path += `L${x + 15},20 `;
-      path += `L${x + 20},16 `;
-      path += `L${x + 25},20 `;
-      path += `L${x + 35},20 `;
-      path += `L${x + 40},8 `;   // Peak up
-      path += `L${x + 45},32 `;  // Deep down
-      path += `L${x + 50},14 `;  // Recovery up
-      path += `L${x + 55},20 `;
-      path += `L${x + 80},20 `;
-    }
-    
-    return path;
-  }, []);
-
-  const ecgStyle = useAnimatedStyle(() => {
-    'worklet';
-    // Base scroll from logo rolling
-    const baseScroll = interpolate(scrollProgress.value, [0, 1], [0, -ECG_WIDTH * 0.2]);
-    
-    // Continuous "live" scroll - loops one segment width
-    const liveScroll = interpolate(isLive.value, [0, 1], [0, -SEGMENT_WIDTH]);
-    
-    return {
-      opacity: drawProgress.value,
-      transform: [
-        { translateX: baseScroll + liveScroll },
-      ],
-    };
-  });
-
-  return (
-    <Animated.View style={[styles.ecgContainer, ecgStyle]}>
-      <Svg width={ECG_WIDTH} height={ECG_HEIGHT} viewBox={`0 0 ${ECG_WIDTH} ${ECG_HEIGHT}`}>
-        <Path
-          d={ecgPath}
-          stroke={Colors.primary}
-          strokeWidth={2}
-          strokeOpacity={0.5}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
-    </Animated.View>
-  );
-});
-
-// PERF: Add display name for debugging
 ECGLine.displayName = 'ECGLine';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN SPLASH SCREEN COMPONENT
-// PERF: Added worklet annotations and reduced animation complexity for low-end devices
-// ═══════════════════════════════════════════════════════════════════════════════
 const SplashScreen: React.FC<SplashScreenProps> = ({ onAnimationComplete }) => {
-  // Animation values
-  const logoOpacity = useSharedValue(0);
-  const circleOpacity = useSharedValue(0);         // Circle around logo
-  const logoRotation = useSharedValue(0);          // Spinning rotation (degrees)
-  const logoTranslateX = useSharedValue(LOGO_START_X);  // Starts on RIGHT
-  const logoShadow = useSharedValue(0);            // Shadow intensity for logo
-  const ecgDrawProgress = useSharedValue(0);       // ECG line fade in
-  const ecgScrollProgress = useSharedValue(0);     // ECG line scroll
-  const ecgLiveProgress = useSharedValue(0);       // Continuous live animation
+  const screenOpacity = useSharedValue(1);
+  const markOpacity = useSharedValue(0);
+  const markScale = useSharedValue(0.92);
+  const ringScale = useSharedValue(0.82);
+  const ringOpacity = useSharedValue(0.55);
+  const ecgProgress = useSharedValue(0);
   const textOpacity = useSharedValue(0);
-  const textTranslateX = useSharedValue(30);       // Text slides in from right
-  const textTranslateY = useSharedValue(-15);      // Text bounces down
-  const textScale = useSharedValue(0.8);           // Text scales up
-  const textShadow = useSharedValue(0);            // Shadow intensity for text
-  const checkmarkProgress = useSharedValue(0);     // Checkmark draw progress
-
-  const triggerComplete = () => {
-    onAnimationComplete();
-  };
+  const textTranslate = useSharedValue(10);
 
   useEffect(() => {
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 1: Logo + Circle fade in on the RIGHT (0-200ms)
-    // ═══════════════════════════════════════════════════════════════
-    logoOpacity.value = withTiming(1, { 
-      duration: 200, 
-      easing: Easing.out(Easing.cubic) 
-    });
-    
-    circleOpacity.value = withTiming(1, { 
-      duration: 200, 
-      easing: Easing.out(Easing.cubic) 
-    });
+    markOpacity.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    markScale.value = withTiming(1, { duration: 520, easing: Easing.out(Easing.cubic) });
 
-    // ═══════════════════════════════════════════════════════════════
-    // FULL ROTATION SEQUENCE - Combined into one withSequence
-    // Phase 2: Fast spin in place (0-2000ms) ~8 rotations (FASTER!)
-    // Phase 4: Continue spinning while rolling left (2000-4000ms)
-    // PERF: Uses module-level constants that adapt to device capability
-    // ═══════════════════════════════════════════════════════════════
-    const TOTAL_ROTATIONS = FAST_SPIN_ROTATIONS + ROLL_ROTATIONS;
-    const nearestUpright = Math.round(-TOTAL_ROTATIONS) * 360;
-    
-    // Single combined rotation animation - NO PAUSE between phases
-    logoRotation.value = withSequence(
-      // Phase 2: Fast spin in place (0-2000ms)
-      withTiming(-360 * FAST_SPIN_ROTATIONS, { 
-        duration: 2000, 
-        easing: Easing.linear // Constant high speed
-      }),
-      // Phase 4: Continue spinning while rolling left - decelerating (2000-4000ms)
-      // This runs in parallel with the ECG fade and movement
-      withTiming(-360 * TOTAL_ROTATIONS, { 
-        duration: 2000, 
-        easing: Easing.out(Easing.cubic) // Gradually slows down
-      }),
-      // Settle to upright with spring
-      withSpring(nearestUpright, {
-        damping: 20,
-        stiffness: 180,
-        mass: 0.6,
-      })
+    ringScale.value = withRepeat(
+      withSequence(
+        withTiming(1.18, { duration: isLowEndDevice ? 1200 : 950, easing: Easing.out(Easing.cubic) }),
+        withTiming(0.92, { duration: 0 })
+      ),
+      -1,
+      false
+    );
+    ringOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.08, { duration: isLowEndDevice ? 1200 : 950, easing: Easing.out(Easing.cubic) }),
+        withTiming(0.52, { duration: 0 })
+      ),
+      -1,
+      false
     );
 
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 3: ECG "road" fades/eases in (2000-2500ms)
-    // Road appears while logo is still spinning, then becomes LIVE
-    // ═══════════════════════════════════════════════════════════════
-    ecgDrawProgress.value = withDelay(2000, withTiming(1, { 
-      duration: 500, 
-      easing: Easing.out(Easing.cubic) 
-    }));
+    ecgProgress.value = withDelay(360, withTiming(1, { duration: 620, easing: Easing.out(Easing.cubic) }));
+    textOpacity.value = withDelay(680, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
+    textTranslate.value = withDelay(680, withTiming(0, { duration: 420, easing: Easing.out(Easing.cubic) }));
+    screenOpacity.value = withDelay(1780, withTiming(0, { duration: 260, easing: Easing.inOut(Easing.cubic) }));
 
-    // Start continuous live ECG animation - loops forever
-    // Each loop takes 800ms (matches ~75 BPM heartbeat)
-    ecgLiveProgress.value = withDelay(2000, withRepeat(
-      withTiming(1, { 
-        duration: 800, 
-        easing: Easing.linear 
-      }),
-      -1,  // Infinite repeats
-      false // Don't reverse
-    ));
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 4: Move LEFT over the road (2000-4000ms)
-    // Starts immediately after fast spin - no delay
-    // ═══════════════════════════════════════════════════════════════
-    logoTranslateX.value = withDelay(2000, withTiming(LOGO_END_X, { 
-      duration: 2000, 
-      easing: Easing.out(Easing.cubic)
-    }));
-
-    // ECG scrolls as logo rolls across
-    ecgScrollProgress.value = withDelay(2000, withTiming(1, { 
-      duration: 2000, 
-      easing: Easing.out(Easing.cubic)
-    }));
-
-    // Logo shadow fades in as it settles
-    logoShadow.value = withDelay(3500, withTiming(1, {
-      duration: 500,
-      easing: Easing.out(Easing.cubic)
-    }));
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 5: Text appears with BOUNCY animation (4000-4500ms)
-    // "MedGuard" bounces in with scale and shadow
-    // ═══════════════════════════════════════════════════════════════
-    textOpacity.value = withDelay(4000, withTiming(1, { 
-      duration: 400, 
-      easing: Easing.out(Easing.cubic) 
-    }));
-    
-    // Bouncy horizontal slide
-    textTranslateX.value = withDelay(4000, withSpring(0, {
-      damping: 12,      // Lower damping = more bounce
-      stiffness: 150,
-      mass: 0.8,
-    }));
-    
-    // Bouncy vertical drop
-    textTranslateY.value = withDelay(4000, withSpring(0, {
-      damping: 10,      // Even lower = more vertical bounce
-      stiffness: 200,
-      mass: 0.6,
-    }));
-    
-    // Scale bounce
-    textScale.value = withDelay(4000, withSpring(1, {
-      damping: 8,       // Very bouncy scale
-      stiffness: 180,
-      mass: 0.5,
-    }));
-    
-    // Text shadow fades in after bounce settles
-    textShadow.value = withDelay(4300, withTiming(1, {
-      duration: 400,
-      easing: Easing.out(Easing.cubic)
-    }));
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 6: Checkmark draws slowly (4500-5300ms)
-    // Slow, deliberate stroke like handwriting
-    // ═══════════════════════════════════════════════════════════════
-    checkmarkProgress.value = withDelay(4500, withTiming(1, { 
-      duration: 800, 
-      easing: Easing.bezier(0.4, 0, 0.2, 1)
-    }));
-
-    // ═══════════════════════════════════════════════════════════════
-    // PHASE 7: Complete and transition
-    // ═══════════════════════════════════════════════════════════════
-    const timer = setTimeout(() => {
-      runOnJS(triggerComplete)();
-    }, SPLASH_DURATION);
-
+    const timer = setTimeout(onAnimationComplete, SPLASH_DURATION);
     return () => clearTimeout(timer);
-  }, []);
+  }, [ecgProgress, markOpacity, markScale, onAnimationComplete, ringOpacity, ringScale, screenOpacity, textOpacity, textTranslate]);
 
-  // PERF: Animated styles with worklet annotation for native thread execution
-  const logoContainerStyle = useAnimatedStyle(() => {
-    'worklet';
-    // Calculate shadow based on animation progress
-    // PERF: Shadows are expensive on Android - reduce on low-end devices
-    const shadowOpacity = isLowEndDevice ? logoShadow.value * 0.15 : logoShadow.value * 0.25;
-    const shadowRadius = isLowEndDevice ? logoShadow.value * 6 : logoShadow.value * 12;
-    const elevation = isLowEndDevice ? logoShadow.value * 4 : logoShadow.value * 8;
-    
-    return {
-      opacity: logoOpacity.value,
-      transform: [
-        { translateX: logoTranslateX.value },
-        { rotate: `${logoRotation.value}deg` },
-      ],
-      // Shadow properties
-      shadowColor: Colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: shadowOpacity,
-      shadowRadius: shadowRadius,
-      elevation: elevation,
-    };
-  });
+  const screenStyle = useAnimatedStyle(() => ({
+    opacity: screenOpacity.value,
+  }));
 
-  const textStyle = useAnimatedStyle(() => {
-    'worklet';
-    // PERF: Reduced shadow intensity on low-end devices
-    const shadowOpacity = isLowEndDevice ? textShadow.value * 0.1 : textShadow.value * 0.2;
-    const shadowRadius = isLowEndDevice ? textShadow.value * 4 : textShadow.value * 8;
-    const elevation = isLowEndDevice ? textShadow.value * 3 : textShadow.value * 6;
-    
-    return {
-      opacity: textOpacity.value,
-      transform: [
-        { translateX: textTranslateX.value },
-        { translateY: textTranslateY.value },
-        { scale: textScale.value },
-      ],
-      // Shadow properties
-      shadowColor: Colors.primary,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: shadowOpacity,
-      shadowRadius: shadowRadius,
-      elevation: elevation,
-    };
-  });
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: markOpacity.value,
+    transform: [{ scale: markScale.value }],
+  }));
+
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ringOpacity.value,
+    transform: [{ scale: ringScale.value }],
+  }));
+
+  const ecgMaskStyle = useAnimatedStyle(() => ({
+    width: interpolate(ecgProgress.value, [0, 1], [0, ECG_WIDTH]),
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+    transform: [{ translateY: textTranslate.value }],
+  }));
 
   return (
-    <View style={styles.container}>
-      {/* Pure white background */}
-      <View style={styles.background} />
+    <Animated.View style={[styles.container, screenStyle]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <LinearGradient
+        colors={[Colors.backgroundDark, '#102d38', '#073f4d']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
 
-      {/* ECG "road" line - positioned below center, LIVE animation */}
-      <View style={styles.ecgWrapper}>
-        <ECGLine 
-          scrollProgress={ecgScrollProgress} 
-          drawProgress={ecgDrawProgress} 
-          isLive={ecgLiveProgress}
-        />
-      </View>
+      <View style={styles.center}>
+        <View style={styles.markWrap}>
+          <Animated.View style={[styles.pulseRing, ringStyle]} />
+          <Animated.View style={[styles.logoPlate, logoStyle]}>
+            <LinearGradient
+              colors={[Colors.primary, Colors.emerald]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoGradient}
+            >
+              <ShieldIcon size={42} color={Colors.textLight} />
+            </LinearGradient>
+          </Animated.View>
+        </View>
 
-      {/* Main content - absolutely positioned for precise control */}
-      <View style={styles.contentWrapper}>
-        {/* Logo container - starts at center, animates left */}
-        <Animated.View style={[styles.logoContainer, logoContainerStyle]}>
-          <ShieldLogoWithCircle size={LOGO_SIZE} circleOpacity={circleOpacity} />
-          {/* Checkmark overlaid on logo, draws in slowly at the end */}
-          <AnimatedCheckmark size={LOGO_SIZE} progress={checkmarkProgress} />
+        <View style={styles.ecgTrack}>
+          <Animated.View style={[styles.ecgMask, ecgMaskStyle]}>
+            <ECGLine />
+          </Animated.View>
+        </View>
+
+        <Animated.View style={[styles.copy, textStyle]}>
+          <Text style={styles.brand}>MedGuard</Text>
+          <Text style={styles.tagline}>Health awareness, closer to home</Text>
         </Animated.View>
-
-        {/* Text appears to the right of logo's final position */}
-        <Animated.View style={[styles.textContainer, textStyle]}>
-          <Text style={styles.brandText}>MedGuard</Text>
-          <Text style={styles.taglineText}>Your Health Guardian</Text>
-        </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.backgroundDark,
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#ffffff',
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
   },
-  contentWrapper: {
-    ...StyleSheet.absoluteFillObject,
+  markWrap: {
+    width: 132,
+    height: 132,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoContainer: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
+  pulseRing: {
+    position: 'absolute',
+    width: 124,
+    height: 124,
+    borderRadius: 62,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.42)',
+    backgroundColor: 'rgba(17,180,212,0.08)',
+  },
+  logoPlate: {
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.32,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  logoGradient: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  textContainer: {
-    position: 'absolute',
-    // Position text just to the right of logo's final position
-    left: SCREEN_WIDTH / 2 + LOGO_END_X + CIRCLE_SIZE / 2 + 10,
-    alignItems: 'flex-start',
+  ecgTrack: {
+    width: ECG_WIDTH,
+    height: ECG_HEIGHT,
+    marginTop: Spacing.lg,
+    overflow: 'hidden',
   },
-  brandText: {
-    fontFamily: FontFamily.bold,
-    fontSize: 30,
-    color: Colors.primary,
-    letterSpacing: 0.5,
-  },
-  taglineText: {
-    fontFamily: FontFamily.regular,
-    fontSize: 13,
-    color: Colors.textSecondary || '#6b7280',
-    marginTop: 2,
-    letterSpacing: 0.3,
-  },
-  ecgWrapper: {
-    position: 'absolute',
-    top: SCREEN_HEIGHT * 0.53,
-    left: 0,
-    right: 0,
+  ecgMask: {
     height: ECG_HEIGHT,
     overflow: 'hidden',
   },
-  ecgContainer: {
-    position: 'absolute',
-    left: 0,
+  copy: {
+    alignItems: 'center',
+    marginTop: Spacing.base,
+  },
+  brand: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize['3xl'],
+    color: Colors.textLight,
+    letterSpacing: 0,
+  },
+  tagline: {
+    marginTop: Spacing.xs,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.74)',
+    letterSpacing: 0,
   },
 });
 

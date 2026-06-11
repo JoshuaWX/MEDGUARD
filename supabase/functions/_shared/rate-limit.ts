@@ -13,6 +13,7 @@ interface EnforceRateLimitOptions {
   windowSeconds: number;
   maxRequests: number;
   userId?: string | null;
+  subjectId?: string | null;
 }
 
 function nowEpochSeconds() {
@@ -38,7 +39,7 @@ export async function enforceRateLimit(
     return null;
   }
 
-  const id = options.userId ? `user:${options.userId}` : `ip:${parseClientIp(req)}`;
+  const id = options.subjectId || (options.userId ? `user:${options.userId}` : `ip:${parseClientIp(req)}`);
   const key = `${options.bucket}:${id}`;
 
   const { data, error } = await admin.rpc('check_rate_limit', {

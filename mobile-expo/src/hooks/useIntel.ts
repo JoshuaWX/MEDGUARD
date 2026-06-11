@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../services/supabase';
 import { useUser } from './useUser';
 import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
@@ -94,28 +93,6 @@ export const useIntel = (): UseIntelReturn => {
     try {
       setLoading(true);
       setError(null);
-
-      // Build cache key - include coords if available for precision
-      const cacheKey = hasPreciseCoords 
-        ? `${state.toLowerCase().trim()}_${lat!.toFixed(2)}_${lon!.toFixed(2)}`
-        : state.toLowerCase().trim();
-
-      // Check cache first (using 'intel_cache' table)
-      const { data: cached } = await supabase
-        .from('intel_cache')
-        .select('*')
-        .eq('region_key', cacheKey)
-        .eq('scope', 'v2')
-        .maybeSingle();
-
-      if (cached) {
-        const expiresAt = new Date(cached.expires_at).getTime();
-        if (Date.now() < expiresAt && cached.payload) {
-          setIntel(cached.payload as IntelV2);
-          setLoading(false);
-          return;
-        }
-      }
 
       // Fetch fresh data from Edge Function (v2) with coordinates
       const requestBody: { state: string; lat?: number; lon?: number } = { state };

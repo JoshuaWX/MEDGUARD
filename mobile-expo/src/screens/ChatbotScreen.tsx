@@ -31,6 +31,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -61,6 +62,7 @@ const SIDEBAR_WIDTH = 280;
 
 // Guest mode limits
 const GUEST_MAX_REQUESTS_PER_SESSION = 10;
+const GUEST_SESSION_STORAGE_KEY = 'mg_guest_chat_session_id';
 
 // Theme colors matching Flask chatbot
 const DarkTheme = {
@@ -112,6 +114,11 @@ function deriveConversationTitle(text: string) {
   return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}…` : cleaned;
 }
 
+function createGuestSessionId() {
+  const randomPart = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return `guest_${Date.now().toString(36)}_${randomPart}`.slice(0, 72);
+}
+
 const ChatbotScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -128,10 +135,7 @@ const ChatbotScreen: React.FC = () => {
   // ============================================================================
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ============================================================================
-  // GUEST MODE: Track request count for rate limiting
-  // ============================================================================
-  const guestRequestCountRef = useRef(0);
+  const [guestRemaining, setGuestRemaining] = useState(GUEST_MAX_REQUESTS_PER_SESSION);
 
   // Theme state - synced with global app theme
   const { isDark: isDarkMode, toggleTheme } = useTheme();
@@ -396,23 +400,30 @@ const ChatbotScreen: React.FC = () => {
     }
   }, [renameConversationId, renameTitle, updateConversationTitle]);
 
+  const getGuestSessionId = useCallback(async () => {
+    let existing = await AsyncStorage.getItem(GUEST_SESSION_STORAGE_KEY);
+    if (!existing) {
+      existing = createGuestSessionId();
+      await AsyncStorage.setItem(GUEST_SESSION_STORAGE_KEY, existing);
+    }
+    return existing;
+  }, []);
+
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || sending) return;
 
-      // ========================================================================
-      // GUEST MODE: Rate limiting - show auth gate when limit reached
-      // ========================================================================
+      let guestSessionId: string | null = null;
       if (isGuest) {
-        guestRequestCountRef.current += 1;
-        if (guestRequestCountRef.current > GUEST_MAX_REQUESTS_PER_SESSION) {
+        if (guestRemaining <= 0) {
           showAuthGate({
             title: 'Chat limit reached',
             message: 'Sign in to continue chatting and unlock unlimited conversations with history.',
           });
           return;
         }
+        guestSessionId = await getGuestSessionId();
       }
 
       // ========================================================================
@@ -440,11 +451,14 @@ const ChatbotScreen: React.FC = () => {
       // ========================================================================
       const sendStart = Date.now();
       const { data, error: invokeErr } = await invokeEdgeFunction<{
-        conversation_id: string;
+        conversation_id: string | null;
         answer: string;
+        guest?: boolean;
+        guest_remaining?: number;
       }>('chat', {
         conversation_id: conversationId || undefined,
         message: trimmed,
+        guest_session_id: guestSessionId || undefined,
       }, {
         signal,
         timeout: 60000, // 60 second timeout
@@ -472,6 +486,9 @@ const ChatbotScreen: React.FC = () => {
       }
 
       const resolvedConversationId = data.conversation_id || conversationId;
+      if (typeof data.guest_remaining === 'number') {
+        setGuestRemaining(Math.max(0, data.guest_remaining));
+      }
       
       // Skip conversation tracking for guests (no history persistence)
       if (!isGuest && resolvedConversationId && !conversationId) {
@@ -498,7 +515,7 @@ const ChatbotScreen: React.FC = () => {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     },
-    [conversationId, conversations, isGuest, loadConversations, messages.length, sending, showAuthGate, updateConversationTitle]
+    [conversationId, conversations, getGuestSessionId, guestRemaining, isGuest, loadConversations, messages.length, sending, showAuthGate, updateConversationTitle]
   );
 
   const userInitial = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || (isGuest ? 'G' : 'U');
@@ -871,7 +888,7 @@ const ChatbotScreen: React.FC = () => {
             </View>
             <Text style={[styles.inputFooter, { color: theme.textMuted }]}>
               {isGuest 
-                ? `Guest mode · ${Math.max(0, GUEST_MAX_REQUESTS_PER_SESSION - guestRequestCountRef.current)} messages remaining`
+                ? `Guest mode · ${guestRemaining} messages remaining`
                 : 'AI answers are informational only. Consult a doctor for medical advice.'
               }
             </Text>

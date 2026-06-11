@@ -1,0 +1,16 @@
+project_id = "cddfhyxlhtmrrtduwlqd"
+
+[functions.chat]
+verify_jwt = true
+
+[functions.intel]
+verify_jwt = true
+
+[functions.avatar-sign]
+verify_jwt = true
+
+[functions.verify-location]
+verify_jwt = true
+
+[functions.nearby-facilities]
+verify_jwt = true

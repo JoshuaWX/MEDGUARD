@@ -29,6 +29,8 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 1.2,
 };
 
+const TAB_BAR_OVERLAY_GUARD = 96;
+
 type FacilityFilter = 'all' | 'clinic' | 'pharmacy';
 
 const MapScreen: React.FC = () => {
@@ -59,17 +61,6 @@ const MapScreen: React.FC = () => {
     };
   }, [location]);
 
-  useEffect(() => {
-    if (!centerFromDevice) return;
-    setRegion((prev) => ({
-      ...prev,
-      latitude: centerFromDevice.latitude,
-      longitude: centerFromDevice.longitude,
-      latitudeDelta: 0.08,
-      longitudeDelta: 0.08,
-    }));
-  }, [centerFromDevice]);
-
   const loadNearby = useCallback(async (targetRegion: Region, targetFilter: FacilityFilter) => {
     setLoadingFacilities(true);
     setError(null);
@@ -91,6 +82,19 @@ const MapScreen: React.FC = () => {
     setFacilities(data);
     setLoadingFacilities(false);
   }, []);
+
+  useEffect(() => {
+    if (!centerFromDevice) return;
+    const nextRegion: Region = {
+      latitude: centerFromDevice.latitude,
+      longitude: centerFromDevice.longitude,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+
+    setRegion(nextRegion);
+    loadNearby(nextRegion, facilityFilter);
+  }, [centerFromDevice, facilityFilter, loadNearby]);
 
   useEffect(() => {
     loadNearby(region, facilityFilter);
@@ -211,7 +215,7 @@ const MapScreen: React.FC = () => {
         ))}
       </MapView>
 
-      <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}> 
+      <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}> 
         {loadingFacilities ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.primary} />
@@ -235,6 +239,9 @@ const MapScreen: React.FC = () => {
             ) : null}
 
             <View style={styles.list}>
+              {facilities.length === 0 ? (
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No facilities found here. Tap Search this area or Recenter.</Text>
+              ) : null}
               {facilities.slice(0, 5).map((facility) => (
                 <Pressable
                   key={facility.id}
@@ -357,6 +364,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   errorText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    paddingVertical: Spacing.sm,
+  },
+  emptyText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     paddingVertical: Spacing.sm,

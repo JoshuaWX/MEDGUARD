@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+mobile-expo/.env
+mobile-expo/.env.local
+mobile-expo/.env.*.local
 node_modules
 
 # Windows reserved device filename (breaks `git add` on Windows)
