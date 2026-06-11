@@ -29,6 +29,8 @@ const isValidUrl = (value: string) => {
 const isSupabaseConfigured =
   Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY) && isValidUrl(SUPABASE_URL);
 
+export const supabaseConfigured = isSupabaseConfigured;
+
 const createUnconfiguredSupabase = () => {
   const makeError = () =>
     new Error(
@@ -62,6 +64,9 @@ const createUnconfiguredSupabase = () => {
         upload: async () => ({ data: null, error: makeError() }),
         getPublicUrl: () => ({ data: { publicUrl: '' } }),
       }),
+    },
+    functions: {
+      invoke: async () => ({ data: null, error: makeError() }),
     },
   };
 };

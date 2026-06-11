@@ -25,6 +25,7 @@ import {
   sendTestNotification,
   formatTimeDisplay,
 } from '../services/notifications';
+import { toUserMessage } from '../services/errorMessages';
 
 // ============================================================================
 // TYPES
@@ -102,7 +103,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
     } catch (err) {
       console.error('Error fetching notification preferences:', err);
-      setError('Failed to load notification settings');
+      setError(toUserMessage(err, 'notifications'));
     } finally {
       setLoading(false);
     }
@@ -151,7 +152,7 @@ export function useNotifications(): UseNotificationsReturn {
       if (enabled && !permissionGranted) {
         const granted = await requestPermission();
         if (!granted) {
-          setError('Please enable notifications in your device settings');
+          setError('Notifications are off. Enable them in device settings to receive reminders.');
           return;
         }
       }
@@ -170,7 +171,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
     } catch (err) {
       console.error('Error updating reminder setting:', err);
-      setError('Failed to update reminder setting');
+      setError(toUserMessage(err, 'notifications'));
     } finally {
       setSaving(false);
     }
@@ -197,7 +198,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
     } catch (err) {
       console.error('Error updating reminder time:', err);
-      setError('Failed to update reminder time');
+      setError(toUserMessage(err, 'notifications'));
     } finally {
       setSaving(false);
     }
@@ -211,7 +212,7 @@ export function useNotifications(): UseNotificationsReturn {
       await sendTestNotification();
     } catch (err) {
       console.error('Error sending test notification:', err);
-      setError('Failed to send test notification');
+      setError(toUserMessage(err, 'notifications'));
     }
   }, []);
 

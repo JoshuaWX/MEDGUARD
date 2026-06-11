@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, AuthGateModal } from '../components';
+import { ErrorBanner, GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, AuthGateModal } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -47,6 +47,7 @@ const SettingsScreen: React.FC = () => {
   const {
     loading: notifLoading,
     saving: notifSaving,
+    error: notificationError,
     permissionGranted,
     reminderEnabled,
     reminderTime,
@@ -138,6 +139,10 @@ const SettingsScreen: React.FC = () => {
           // ANDROID FIX: Improve scroll performance
           removeClippedSubviews={Platform.OS === 'android'}
         >
+          {notificationError ? (
+            <ErrorBanner message={notificationError} title="Settings need attention" />
+          ) : null}
+
           {/* Appearance / Theme Section */}
           <GlassCard padding={Spacing.cardPadding} style={styles.card}>
             <View style={styles.cardRowCenter}>
@@ -374,7 +379,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.base,
+    paddingBottom: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -394,11 +399,12 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.base,
-    gap: Spacing.sectionGap,
+    paddingTop: Spacing.lg,
+    gap: Spacing.lg,
   },
   card: {
     width: '100%',
+    borderRadius: 24,
   },
   cardRowTop: {
     flexDirection: 'row',
@@ -448,7 +454,9 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.base,
-    borderRadius: 999,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.14)',
   },
   chipActive: {
     backgroundColor: Colors.primary,
@@ -524,8 +532,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.base,
     backgroundColor: Colors.whiteAlpha10,
-    borderRadius: BorderRadius.md,
+    borderRadius: 16,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(17,180,212,0.14)',
   },
   timeButtonText: {
     fontFamily: FontFamily.semibold,

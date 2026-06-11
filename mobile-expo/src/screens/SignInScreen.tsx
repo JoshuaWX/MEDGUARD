@@ -33,8 +33,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
-import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon } from '../components';
+import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon, ErrorBanner } from '../components';
 import { useAuth } from '../hooks/useAuth';
+import { toUserMessage } from '../services/errorMessages';
 // continueAsGuest is destructured from useAuth below
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
@@ -109,7 +110,7 @@ const SignInScreen: React.FC = () => {
     setError(null);
     const result = await signIn(email, password);
     if (result.error) {
-      const msg = (result.error as any)?.hint || result.error.message;
+      const msg = toUserMessage(result.error, 'signin');
       setError(msg);
     }
   };
@@ -203,7 +204,7 @@ const SignInScreen: React.FC = () => {
         {/* Error message */}
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+            <ErrorBanner message={error} title="Sign in failed" />
           </View>
         )}
 
@@ -339,13 +340,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 448,
     alignSelf: 'center',
-    backgroundColor: Colors.whiteAlpha50,
+    backgroundColor: Colors.transparent,
   },
   flex: {
     flex: 1,
   },
   hero: {
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing['2xl'],
     position: 'relative',
     overflow: 'hidden',
   },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.whiteAlpha10,
+    backgroundColor: 'rgba(17,180,212,0.12)',
   },
   floatingCircle2: {
     position: 'absolute',
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.whiteAlpha10,
+    backgroundColor: 'rgba(16,185,129,0.12)',
   },
   backButton: {
     flexDirection: 'row',
@@ -389,8 +390,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 64,
     height: 64,
-    borderRadius: 16,
-    backgroundColor: Colors.whiteAlpha20,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.base,
@@ -429,7 +432,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    marginTop: -Spacing.base,
+    marginTop: -Spacing.lg,
     backgroundColor: Colors.surfaceLight,
     borderTopLeftRadius: BorderRadius['3xl'],
     borderTopRightRadius: BorderRadius['3xl'],
@@ -532,6 +535,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
     backgroundColor: Colors.surfaceLight,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
   },
   guestButton: {
     backgroundColor: Colors.backgroundLight,

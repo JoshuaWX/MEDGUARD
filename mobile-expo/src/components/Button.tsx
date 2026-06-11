@@ -106,7 +106,7 @@ const Button: React.FC<ButtonProps> = ({
         ]}
       >
         <LinearGradient
-          colors={[themed.primary, themed.primaryDark]}
+          colors={[themed.emerald, themed.primary, themed.primaryDark]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.gradient, styles.contentRow]}
@@ -193,7 +193,7 @@ function getButtonStyles(
 const styles = StyleSheet.create({
   base: {
     height: Spacing.inputHeight,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
   },
   fullWidth: {
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.lg,
   },
   contentRow: {
     flex: 1,
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: FontFamily.bold,
     fontSize: 16,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
   disabled: {
     opacity: 0.5,

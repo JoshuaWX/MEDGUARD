@@ -56,6 +56,7 @@ import {
   FontSize,
   Duration,
   Gradients,
+  Shadows,
 } from '../../theme';
 
 interface Alert {
@@ -398,9 +399,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
   },
   hero: {
-    borderBottomLeftRadius: BorderRadius['3xl'],
-    borderBottomRightRadius: BorderRadius['3xl'],
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
     overflow: 'hidden',
+    ...Shadows.lg,
   },
   heroImage: {
     resizeMode: 'cover',
@@ -408,7 +410,7 @@ const styles = StyleSheet.create({
   heroHeader: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -443,8 +445,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
   },
   activeDot: {
     width: 8,
@@ -458,7 +462,7 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
   },
   contentWrap: {
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing['2xl'],
     paddingBottom: Spacing.base,
     marginTop: -Spacing.base,
   },
@@ -467,6 +471,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+    paddingHorizontal: 2,
   },
   sectionHeading: {
     fontFamily: FontFamily.bold,
@@ -476,8 +481,8 @@ const styles = StyleSheet.create({
   },
   overallRiskBadge: {
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   overallRiskText: {
     fontFamily: FontFamily.semibold,
@@ -526,13 +531,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   cardStack: {
-    gap: Spacing.base,
+    gap: Spacing.md,
     marginBottom: Spacing.xl,
   },
   reminderCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.base,
+    borderRadius: 24,
   },
   reminderIcon: {
     width: 56,

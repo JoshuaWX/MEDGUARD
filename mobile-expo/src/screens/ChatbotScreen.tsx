@@ -54,6 +54,7 @@ import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
 import { supabase } from '../services/supabase';
 import { invokeEdgeFunction } from '../services/edge';
+import { toUserMessage } from '../services/errorMessages';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
 // ANDROID FIX: Removed Dimensions.get('window') for SIDEBAR_WIDTH
@@ -472,13 +473,9 @@ const ChatbotScreen: React.FC = () => {
       }
 
       if (invokeErr || !data?.answer) {
-        // User-friendly error messages
-        let userMessage = invokeErr?.message || 'Chat request failed';
-        if (userMessage.includes('cancelled')) {
+        let userMessage = toUserMessage(invokeErr || 'Chat request failed', 'chat');
+        if (!userMessage || userMessage.includes('cancelled')) {
           return; // Don't show error for cancelled requests
-        }
-        if (userMessage.includes('timed out')) {
-          userMessage = 'Response took too long. Please try again.';
         }
         setError(userMessage);
         setSending(false);

@@ -15,6 +15,7 @@ import { ThemeProvider } from './src/hooks/useTheme';
 import { I18nProvider } from './src/i18n';
 import SplashScreen from './src/screens/SplashScreen';
 import { configureNotifications } from './src/services/notifications';
+import VersionGate from './src/components/VersionGate';
 
 // Prevent native splash from auto-hiding
 ExpoSplashScreen.preventAutoHideAsync();
@@ -63,7 +64,9 @@ export default function App() {
           <I18nProvider>
             <AuthProvider>
               <LocationProvider>
-                <RootNavigator />
+                <VersionGate>
+                  <RootNavigator />
+                </VersionGate>
               </LocationProvider>
             </AuthProvider>
           </I18nProvider>

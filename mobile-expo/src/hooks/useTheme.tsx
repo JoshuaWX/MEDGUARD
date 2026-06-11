@@ -45,6 +45,7 @@ export interface ThemeColors {
   // Theme-specific colors
   background: string;
   surface: string;
+  surfaceElevated: string;
   gradientFrom: string;
   gradientVia: string;
   gradientTo: string;
@@ -53,11 +54,15 @@ export interface ThemeColors {
   textMuted: string;
   textInverse: string;
   border: string;
+  borderLight: string;
   glass: string;
   glassOverlay: string;
   shadow: string;
   shadowPrimary: string;
   overlay: string;
+  cardBackground: string;
+  inputBackground: string;
+  divider: string;
 }
 
 interface ThemeContextValue {

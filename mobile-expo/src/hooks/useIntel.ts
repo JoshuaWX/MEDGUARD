@@ -9,6 +9,7 @@ import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
 import { AQIInsight } from '../components/AQICard';
 import { DiseaseRisk } from '../components/RiskCard';
+import { toUserMessage } from '../services/errorMessages';
 
 // v2 Response Types
 export interface IntelV2 {
@@ -112,7 +113,7 @@ export const useIntel = (): UseIntelReturn => {
       
     } catch (err) {
       console.error('Error fetching intel:', err);
-      setError(err as Error);
+      setError(new Error(toUserMessage(err, 'general')));
     } finally {
       setLoading(false);
     }

@@ -47,6 +47,7 @@ import {
   LocationIcon,
   ShieldIcon,
   PasswordStrengthIndicator,
+  ErrorBanner,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -61,6 +62,7 @@ import {
   Gradients,
 } from '../../theme';
 import { invokeEdgeFunction } from '../services/edge';
+import { toUserMessage } from '../services/errorMessages';
 
 // ANDROID FIX: Removed Dimensions.get('window') which can cause layout issues
 // Using percentage-based height instead for hero section
@@ -187,7 +189,7 @@ const SignUpScreen: React.FC = () => {
       }>('verify-location', { latitude, longitude });
 
       if (verifyErr || !verified) {
-        throw new Error(verifyErr?.message || 'Could not determine your location');
+        throw new Error(toUserMessage(verifyErr || 'Could not determine your location', 'location'));
       }
 
       const detectedState = verified.detectedState || '';
@@ -210,7 +212,7 @@ const SignUpScreen: React.FC = () => {
 
     } catch (err) {
       console.error('Location verification failed:', err);
-      setLocationError('Failed to verify your location. Please check your GPS settings and try again.');
+      setLocationError(toUserMessage(err, 'location'));
     } finally {
       setLocationVerifying(false);
     }
@@ -306,7 +308,7 @@ const SignUpScreen: React.FC = () => {
     });
 
     if (result.error) {
-      const msg = (result.error as any)?.hint || result.error.message || 'Sign up failed';
+      const msg = toUserMessage(result.error, 'signup');
       if (result.needsEmailConfirmation || (result.error as any)?.code === 'email_not_confirmed') {
         Alert.alert('Confirm your email', msg);
         navigation.navigate('SignIn');
@@ -571,7 +573,7 @@ const SignUpScreen: React.FC = () => {
             {/* Error display */}
             {error && (
               <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+                <ErrorBanner message={error} title="Check your details" />
               </View>
             )}
 
@@ -672,8 +674,8 @@ const styles = StyleSheet.create({
   heroBg: {
     // ANDROID FIX: Use minHeight instead of fixed percentage-based height
     // This allows the hero to adapt to content while maintaining visual consistency
-    minHeight: 200,
-    maxHeight: 280,
+    minHeight: 210,
+    maxHeight: 270,
     justifyContent: 'space-between',
   },
   header: {
@@ -728,9 +730,11 @@ const styles = StyleSheet.create({
   logoGradient: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
   },
   heroTitle: {
     fontFamily: FontFamily.bold,
@@ -756,8 +760,9 @@ const styles = StyleSheet.create({
   },
   formCard: {
     flex: 1,
-    borderTopLeftRadius: BorderRadius['2xl'],
-    borderTopRightRadius: BorderRadius['2xl'],
+    marginTop: -Spacing.base,
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
     ...Shadows.lg,
   },
   formContent: {
@@ -824,9 +829,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.base,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: 'rgba(17,180,212,0.14)',
     gap: Spacing.sm,
     minHeight: 64,
   },
@@ -879,9 +884,6 @@ const styles = StyleSheet.create({
 
   /* ─── Error ─── */
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.sm,
   },
   errorText: {
@@ -912,6 +914,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.base,
     borderTopWidth: 1,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
   },
 
   /* ─── Modal ─── */

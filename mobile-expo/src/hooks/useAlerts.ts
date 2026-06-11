@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useUser } from './useUser';
 import { invokeEdgeFunction } from '../services/edge';
 import { DiseaseRisk, AQIInsight } from '../components';
+import { toUserMessage } from '../services/errorMessages';
 
 interface Alert {
   id: string;
@@ -111,7 +112,7 @@ export const useAlerts = (): UseAlertsReturn => {
 
       const { data: raw, error: invokeErr } = await invokeEdgeFunction<IntelResponse>('intel', { state });
       if (invokeErr || !raw) {
-        throw new Error(invokeErr?.message || 'Failed to fetch alerts');
+        throw new Error(toUserMessage(invokeErr || 'Failed to fetch alerts', 'general'));
       }
 
       // Store v2 data

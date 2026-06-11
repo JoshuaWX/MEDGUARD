@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { toUserMessage } from './errorMessages';
 
 // ============================================================================
 // PERFORMANCE CONFIGURATION
@@ -126,7 +127,7 @@ export async function invokeEdgeFunction<T>(
         if (status) msgParts.push(`status=${status}`);
         if (details && details.trim()) msgParts.push(details.trim());
 
-        return { data: null, error: new Error(msgParts.join(' | ')) };
+        return { data: null, error: new Error(toUserMessage(msgParts.join(' | '), 'general')) };
       }
 
       return { data: (data as any) ?? null, error: null };
@@ -136,7 +137,7 @@ export async function invokeEdgeFunction<T>(
         return { data: null, error: new Error('Request cancelled') };
       }
       if (e.message?.includes('timed out')) {
-        return { data: null, error: new Error('Request timed out. Please try again.') };
+        return { data: null, error: new Error(toUserMessage(e, 'general')) };
       }
 
       // Retry on network errors
@@ -146,13 +147,13 @@ export async function invokeEdgeFunction<T>(
         continue;
       }
 
-      return { data: null, error: e as Error };
+      return { data: null, error: new Error(toUserMessage(e, 'general')) };
     }
   }
 
   // If we exhausted retries
   return { 
     data: null, 
-    error: lastError || new Error('Request failed after retries') 
+    error: new Error(toUserMessage(lastError || 'Request failed after retries', 'general'))
   };
 }

@@ -140,16 +140,16 @@ const TabBarBackground = memo(({ isDark }: { isDark: boolean }) => {
     // Use solid background on low-end devices to avoid expensive blur effect
     return (
       <View style={[StyleSheet.absoluteFill, styles.tabBarBg, { 
-        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-        borderColor: isDark ? '#374151' : Colors.borderLight,
+        backgroundColor: isDark ? 'rgba(13, 32, 41, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+        borderColor: isDark ? '#1f4652' : '#dbe8ea',
       }]} />
     );
   }
   return (
     <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
       <View style={[styles.tabBarBg, { 
-        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : Colors.whiteAlpha90,
-        borderColor: isDark ? '#374151' : Colors.borderLight,
+        backgroundColor: isDark ? 'rgba(13, 32, 41, 0.92)' : 'rgba(255,255,255,0.92)',
+        borderColor: isDark ? '#1f4652' : '#dbe8ea',
       }]} />
     </BlurView>
   );
@@ -240,11 +240,11 @@ const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
     // ANDROID FIX: bottom is now set dynamically via screenOptions based on safe area insets
-    left: 12,
-    right: 12,
+    left: 14,
+    right: 14,
     // ANDROID FIX: Use minHeight instead of fixed height for flexibility on different screen sizes
     minHeight: 64,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 24,
     borderTopWidth: 0,
     elevation: 0,
     backgroundColor: 'transparent',
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   tabBarBg: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.whiteAlpha90,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -265,17 +265,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapperActive: {
-    width: 44,
-    height: 30,
-    borderRadius: 16,
+    width: 46,
+    height: 34,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
   iconWrapperInactive: {
-    width: 44,
-    height: 30,
+    width: 46,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.medium,
     fontSize: FontSize.xs,
     marginTop: 3,
-    letterSpacing: 0.2,
+    letterSpacing: 0,
   },
 });
 

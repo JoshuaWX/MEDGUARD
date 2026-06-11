@@ -15,11 +15,12 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FeatureBlockedScreen } from '../components';
+import { ErrorBanner, FeatureBlockedScreen } from '../components';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
+import { toUserMessage } from '../services/errorMessages';
 import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
 
 const DEFAULT_REGION: Region = {
@@ -73,7 +74,7 @@ const MapScreen: React.FC = () => {
     });
 
     if (facilitiesErr) {
-      setError(facilitiesErr.message || 'Unable to load nearby facilities.');
+      setError(toUserMessage(facilitiesErr, 'facilities'));
       setFacilities([]);
       setLoadingFacilities(false);
       return;
@@ -115,13 +116,13 @@ const MapScreen: React.FC = () => {
   const handleRecenter = async () => {
     const granted = permissionStatus === 'granted' ? true : await requestPermission();
     if (!granted) {
-      setError('Location permission is required to find nearby facilities.');
+      setError(toUserMessage('Location permission is required to find nearby facilities.', 'location'));
       return;
     }
 
     const latest = await refreshLocation();
     if (!latest) {
-      setError('Unable to determine current location.');
+      setError(toUserMessage('Unable to determine current location.', 'location'));
       return;
     }
 
@@ -222,7 +223,7 @@ const MapScreen: React.FC = () => {
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading nearby facilities...</Text>
           </View>
         ) : error ? (
-          <Text style={[styles.errorText, { color: Colors.danger }]}>{error}</Text>
+          <ErrorBanner message={error} title="Map needs attention" onRetry={handleSearchThisArea} />
         ) : (
           <>
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Nearby Clinics and Pharmacies</Text>
@@ -283,11 +284,14 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.base,
     borderBottomWidth: 1,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    ...Shadows.sm,
   },
   headerTitle: {
     fontFamily: FontFamily.bold,
@@ -315,10 +319,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   filterChip: {
-    borderRadius: BorderRadius.full,
+    borderRadius: 18,
     borderWidth: 1,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.xs,
+    ...Shadows.sm,
   },
   filterChipText: {
     fontFamily: FontFamily.medium,
@@ -330,9 +335,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderRadius: BorderRadius.full,
+    borderRadius: 18,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
+    ...Shadows.sm,
   },
   searchAreaText: {
     fontFamily: FontFamily.medium,
@@ -343,10 +349,12 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     borderTopWidth: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.base,
-    maxHeight: 260,
-    ...Shadows.md,
+    paddingTop: Spacing.lg,
+    maxHeight: 300,
+    ...Shadows.lg,
   },
   sheetTitle: {
     fontFamily: FontFamily.bold,
@@ -399,6 +407,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
+    minHeight: 54,
   },
   dot: {
     width: 8,

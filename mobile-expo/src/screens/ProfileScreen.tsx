@@ -66,6 +66,7 @@ import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
+import { toUserMessage } from '../services/errorMessages';
 import {
   BorderRadius,
   Colors,
@@ -241,8 +242,8 @@ const ProfileScreen: React.FC = () => {
               index: 0,
               routes: [{ name: 'SignIn' }],
             });
-          } catch {
-            Alert.alert('Error', 'Failed to sign out. Please try again.');
+          } catch (e) {
+            Alert.alert('Sign out failed', toUserMessage(e, 'auth'));
           }
         },
       },
@@ -259,8 +260,8 @@ const ProfileScreen: React.FC = () => {
       });
       setEditMode(false);
       Alert.alert('Success', 'Profile updated successfully!');
-    } catch {
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+    } catch (e) {
+      Alert.alert('Profile update failed', toUserMessage(e, 'profile'));
     }
   };
 
@@ -310,14 +311,14 @@ const ProfileScreen: React.FC = () => {
             Alert.alert('Success', 'Profile picture updated!');
           } catch (err) {
             console.error('Avatar upload failed:', err);
-            Alert.alert('Error', 'Failed to upload profile picture. Please try again.');
+            Alert.alert('Upload failed', toUserMessage(err, 'upload'));
           } finally {
             setAvatarUploading(false);
           }
         }
       } catch (err) {
         console.error('Image picker error:', err);
-        Alert.alert('Error', 'Failed to open image picker.');
+        Alert.alert('Photo picker unavailable', toUserMessage(err, 'upload'));
       }
     };
 
@@ -676,10 +677,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   hero: {
-    borderBottomLeftRadius: BorderRadius.xl,
-    borderBottomRightRadius: BorderRadius.xl,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
     overflow: 'hidden',
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
   },
   heroImage: {
     resizeMode: 'cover',
@@ -755,11 +756,13 @@ const styles = StyleSheet.create({
   avatarRing: {
     width: 104,
     height: 104,
-    borderRadius: 52,
-    backgroundColor: Colors.whiteAlpha20,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     padding: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.whiteAlpha30,
   },
   avatarEditBtn: {
     position: 'absolute',
@@ -833,7 +836,7 @@ const styles = StyleSheet.create({
     gap: Spacing.base,
   },
   card: {
-    borderRadius: BorderRadius.xl,
+    borderRadius: 24,
     overflow: 'hidden',
   },
   cardInner: {
@@ -963,6 +966,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderRadius: 22,
   },
   quickLinkLeft: {
     flexDirection: 'row',
@@ -992,9 +996,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.base,
   },
   editProfileBtn: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 18,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1005,9 +1009,9 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   logoutBtn: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.danger,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 18,
     paddingVertical: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',

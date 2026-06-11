@@ -73,14 +73,14 @@ const Input: React.FC<InputProps> = ({
     backgroundColor: interpolateColor(
       focusAnim.value,
       [0, 1],
-      [isDark ? Colors.glassDark : Colors.whiteAlpha90, isDark ? Colors.surfaceDark : Colors.surfaceLight]
+      [isDark ? themed.inputBackground : themed.inputBackground, isDark ? themed.surfaceElevated : themed.surface]
     ),
-    borderColor: interpolateColor(focusAnim.value, [0, 1], ['rgba(0,0,0,0)', Colors.primary]),
+    borderColor: interpolateColor(focusAnim.value, [0, 1], [themed.border, Colors.primary]),
     borderWidth: 1,
     shadowColor: Colors.primary,
-    shadowOpacity: focusAnim.value * 0.24,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: focusAnim.value * 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
     elevation: focusAnim.value > 0.5 ? 4 : 0,
   }));
 
@@ -138,13 +138,13 @@ const Input: React.FC<InputProps> = ({
 const styles = StyleSheet.create({
   container: {
     height: Spacing.inputHeight,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.whiteAlpha90,
+    backgroundColor: Colors.surfaceLight,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: Colors.borderLight,
   },
   iconContainer: {
     position: 'absolute',

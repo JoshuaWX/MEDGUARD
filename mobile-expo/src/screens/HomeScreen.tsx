@@ -23,6 +23,7 @@ import {
   Platform,
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -31,6 +32,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../navigation/types';
 import {
   Avatar,
+  PremiumCard,
   SkeletonLoader,
   FloatingActionButton,
 } from '../components';
@@ -152,7 +154,10 @@ const HomeScreen: React.FC = () => {
   const bottomPadding = Math.max(insets.bottom, 12) + 100; // 100 accounts for tab bar + spacing
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <LinearGradient
+      colors={[colors.gradientFrom, colors.gradientVia, colors.gradientTo] as [string, string, string]}
+      style={styles.container}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
       <ScrollView
@@ -243,10 +248,7 @@ const HomeScreen: React.FC = () => {
             )}
 
             {/* Status Summary Card */}
-            <View style={[
-              styles.statusCard, 
-              { backgroundColor: riskConfig.bg }
-            ]}>
+            <PremiumCard accent style={styles.statusCard}>
               <View style={styles.statusHeader}>
                 <View style={[styles.statusIcon, { backgroundColor: `${riskConfig.text}15` }]}>
                   <Ionicons 
@@ -275,7 +277,7 @@ const HomeScreen: React.FC = () => {
                   </Text>
                 </View>
               )}
-            </View>
+            </PremiumCard>
 
             {/* Environment Row - AQI & Weather side by side */}
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -286,7 +288,7 @@ const HomeScreen: React.FC = () => {
               {/* AQI Card */}
               {intel?.airQuality && (
                 <Pressable 
-                  style={[styles.envCard, { backgroundColor: colors.surface }]}
+                  style={[styles.envCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   onPress={() => openModal('aqi')}
                 >
                   {(() => {
@@ -320,7 +322,7 @@ const HomeScreen: React.FC = () => {
               {/* Weather Card */}
               {intel?.weather && (
                 <Pressable 
-                  style={[styles.envCard, { backgroundColor: colors.surface }]}
+                  style={[styles.envCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   onPress={() => openModal('weather')}
                 >
                   <View style={styles.envCardHeader}>
@@ -360,7 +362,7 @@ const HomeScreen: React.FC = () => {
                       >
                         <View style={[
                           styles.riskItem, 
-                          { backgroundColor: colors.surface }
+                          { backgroundColor: colors.surface, borderColor: colors.border }
                         ]}>
                           <View style={[styles.riskIndicator, { backgroundColor: cfg.text }]} />
                           <View style={styles.riskContent}>
@@ -409,7 +411,7 @@ const HomeScreen: React.FC = () => {
             {/* Location Permission Prompt */}
             {showLocationPrompt && (
               <Pressable 
-                style={[styles.locationPrompt, { backgroundColor: colors.surface }]}
+                style={[styles.locationPrompt, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={handleEnableLocation}
               >
                 <View style={styles.locationPromptIcon}>
@@ -447,7 +449,7 @@ const HomeScreen: React.FC = () => {
         data={intel}
         initialTab={modalTab}
       />
-    </View>
+    </LinearGradient>
   );
 };
 
@@ -459,7 +461,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
   },
   
   // Header
@@ -467,7 +469,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 22,
     paddingBottom: 6,
   },
   userSection: {
@@ -495,12 +497,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
     maxWidth: 120,
     borderWidth: 1,
     borderColor: 'rgba(17,180,212,0.15)',
+    ...Shadows.sm,
   },
   locationText: {
     fontFamily: FontFamily.medium,
@@ -509,11 +512,12 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(17,180,212,0.12)',
+    ...Shadows.sm,
   },
   badge: {
     position: 'absolute',
@@ -579,12 +583,7 @@ const styles = StyleSheet.create({
   
   // Status Card
   statusCard: {
-    borderRadius: 16,
-    padding: 16,
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(17,180,212,0.12)',
-    ...Shadows.base,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -643,11 +642,11 @@ const styles = StyleSheet.create({
   },
   envCard: {
     flex: 1,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(17,180,212,0.1)',
-    ...Shadows.sm,
+    ...Shadows.base,
   },
   envCardHeader: {
     flexDirection: 'row',
@@ -678,7 +677,7 @@ const styles = StyleSheet.create({
   riskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 14,
     gap: 12,
     borderWidth: 1,
@@ -735,8 +734,8 @@ const styles = StyleSheet.create({
   locationPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
     gap: 12,
     marginTop: 8,
     marginBottom: 16,

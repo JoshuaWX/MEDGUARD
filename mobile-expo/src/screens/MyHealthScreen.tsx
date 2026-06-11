@@ -64,6 +64,7 @@ import {
   StreakBadge,
   CommunityTrendCard,
 } from '../components';
+import { toUserMessage } from '../services/errorMessages';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
@@ -233,7 +234,7 @@ const MyHealthScreenContent: React.FC = () => {
       setFreeTextSymptoms('');
       Alert.alert(t('checkin_success'), t('checkin_recorded'));
     } catch (error) {
-      Alert.alert(t('error'), t('checkin_failed'));
+      Alert.alert(t('error'), toUserMessage(error, 'checkin'));
     }
   };
 
@@ -623,16 +624,16 @@ const styles = StyleSheet.create({
     marginTop: -Spacing.base,
   },
   header: {
-    borderBottomLeftRadius: BorderRadius['3xl'],
-    borderBottomRightRadius: BorderRadius['3xl'],
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
     overflow: 'hidden',
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
     ...Shadows.lg,
   },
   headerImage: {
     resizeMode: 'cover',
-    opacity: 0.2,
+    opacity: 0.14,
   },
   headerOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -675,14 +676,14 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: Colors.whiteAlpha50,
+    backgroundColor: 'rgba(17,180,212,0.16)',
   },
   scoreCard: {
     width: '100%',
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: 28,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.whiteAlpha20,
+    borderColor: Colors.whiteAlpha30,
   },
   scoreMeta: {
     fontFamily: FontFamily.medium,
@@ -704,6 +705,7 @@ const styles = StyleSheet.create({
   // Check-in styles
   checkinCard: {
     marginBottom: Spacing.xl,
+    borderRadius: 24,
   },
   checkinHeader: {
     marginBottom: Spacing.base,
@@ -780,6 +782,7 @@ const styles = StyleSheet.create({
   // Tip card styles
   tipCard: {
     marginBottom: Spacing.xl,
+    borderRadius: 24,
   },
   tipHeaderRow: {
     flexDirection: 'row',
@@ -868,6 +871,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.base,
     marginBottom: Spacing.md,
+    borderRadius: 22,
   },
   clinicImage: {
     width: 56,
