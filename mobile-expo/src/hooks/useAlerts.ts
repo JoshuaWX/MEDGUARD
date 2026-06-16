@@ -8,6 +8,7 @@ import { useUser } from './useUser';
 import { invokeEdgeFunction } from '../services/edge';
 import { DiseaseRisk, AQIInsight } from '../components';
 import { toUserMessage } from '../services/errorMessages';
+import { BrainResult } from '../services/brain';
 
 interface Alert {
   id: string;
@@ -66,6 +67,8 @@ interface IntelResponse {
   } | null;
   airQuality: AirQualityData | null;
   riskAssessment: RiskAssessmentData | null;
+  brain?: BrainResult | null;
+  personalBrain?: BrainResult | null;
   advisories: any[];
   outbreaks: any[];
   whoAlerts: any[];
@@ -82,6 +85,7 @@ interface UseAlertsReturn {
   refresh: () => Promise<void>;
   // New v2 data
   riskAssessment: RiskAssessmentData | null;
+  brain: BrainResult | null;
   airQuality: AirQualityData | null;
   weather: WeatherData | null;
   season: SeasonData | null;
@@ -97,6 +101,7 @@ export const useAlerts = (): UseAlertsReturn => {
   
   // New v2 state
   const [riskAssessment, setRiskAssessment] = useState<RiskAssessmentData | null>(null);
+  const [brain, setBrain] = useState<BrainResult | null>(null);
   const [airQuality, setAirQuality] = useState<AirQualityData | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [season, setSeason] = useState<SeasonData | null>(null);
@@ -122,6 +127,7 @@ export const useAlerts = (): UseAlertsReturn => {
       setWeather(raw.weather?.current || null);
       setAirQuality(raw.airQuality || null);
       setRiskAssessment(raw.riskAssessment || null);
+      setBrain(raw.brain || null);
 
       // Process alerts (backward compatible)
       const advisories: any[] = Array.isArray(raw?.advisories) ? raw.advisories : [];
@@ -173,6 +179,7 @@ export const useAlerts = (): UseAlertsReturn => {
       // Set default alerts on error
       setAlerts(getDefaultAlerts());
       setRiskAssessment(null);
+      setBrain(null);
       setAirQuality(null);
       setWeather(null);
       setSeason(null);
@@ -192,6 +199,7 @@ export const useAlerts = (): UseAlertsReturn => {
     error,
     refresh: fetchAlerts,
     riskAssessment,
+    brain,
     airQuality,
     weather,
     season,

@@ -1,82 +1,56 @@
 # Bundled Edge Functions
 
-These are standalone versions of the Edge Functions that can be deployed directly via the **Supabase Dashboard** without requiring the Supabase CLI.
+These files are dashboard fallback artifacts for Supabase Edge Functions. Prefer deploying the modular source with the Supabase CLI because the source files in `supabase/functions/*/index.ts` are the canonical implementation.
 
-## Why Bundled Versions?
+## Preferred Deploy Path
 
-The Supabase Dashboard's Edge Function editor **does not support relative imports** to shared modules (like `../_shared/cors.ts`). These bundled versions have all shared code inlined, making them self-contained and deployable via copy-paste.
+From the repo root:
 
-## Deployment Steps
+```powershell
+npx supabase db push
+npx supabase functions deploy chat --project-ref cddfhyxlhtmrrtduwlqd
+npx supabase functions deploy intel --project-ref cddfhyxlhtmrrtduwlqd
+npx supabase functions deploy avatar-sign --project-ref cddfhyxlhtmrrtduwlqd
+npx supabase functions deploy verify-location --project-ref cddfhyxlhtmrrtduwlqd
+npx supabase functions deploy nearby-facilities --project-ref cddfhyxlhtmrrtduwlqd
+npx supabase functions deploy app-version --project-ref cddfhyxlhtmrrtduwlqd
+```
 
-### 1. Go to Supabase Dashboard
-Navigate to: https://supabase.com/dashboard/project/cddfhyxlhtmrrtduwlqd/functions
+JWT verification is source-controlled in `supabase/config.toml`.
 
-### 2. Deploy Each Function
+## Dashboard Fallback
 
-For each function (`avatar-sign`, `chat`, `intel`, `verify-location`):
+Use these files only if CLI deploy is unavailable. The Supabase Dashboard editor cannot resolve this repo's relative imports such as `../_shared/cors.ts`, so fallback files inline or bundle shared dependencies.
 
-1. Click **"Create a new function"** or edit the existing one
-2. Set the function name (must match exactly):
-   - `avatar-sign`
-   - `chat`
-   - `intel`
-   - `verify-location`
-3. Copy the entire contents of the corresponding `.ts` file from this folder
-4. Paste into the Dashboard editor
-5. Click **Deploy**
+Before copying `intel.txt` to the dashboard, regenerate it:
 
-### 3. Verify JWT Settings
+```powershell
+npm run supabase:bundle:intel
+```
 
-Make sure each function has the correct JWT verification setting:
-- `avatar-sign`: **JWT verification ON** (requires authentication)
-- `chat`: **JWT verification ON** (requires authentication)
-- `intel`: **JWT verification OFF** (allows anonymous access)
-- `verify-location`: **JWT verification OFF** (allows anonymous access)
+Then paste the full file contents into the Dashboard function editor for `intel`.
 
-### 4. Environment Variables
+## Function JWT Settings
 
-Ensure these environment variables are set in your Supabase project:
+Match `supabase/config.toml`:
 
-**Required:**
-- `SUPABASE_URL` - Auto-set by Supabase
-- `SUPABASE_ANON_KEY` - Auto-set by Supabase
-- `SUPABASE_SERVICE_ROLE_KEY` - Auto-set by Supabase
-- `OPENROUTER_API_KEY` - For chat LLM
-- `PINECONE_API_KEY` - For RAG vector search
-- `PINECONE_HOST` - Pinecone index host
+- `chat`: JWT verification ON
+- `intel`: JWT verification ON
+- `avatar-sign`: JWT verification ON
+- `verify-location`: JWT verification ON
+- `nearby-facilities`: JWT verification ON
+- `app-version`: JWT verification OFF
 
-**Optional:**
-- `OPENWEATHER_API_KEY` - For weather/AQI data
-- `HF_API_KEY` or `HUGGINGFACE_API_KEY` - For embeddings
-- `OPENAI_API_KEY` - Fallback for embeddings
+## Brain v1 Notes
 
-## File Descriptions
+`intel.txt` must include Brain v1 code before deployment:
 
-### avatar-sign.ts (~100 lines)
-Creates signed URLs for avatar storage. Requires authentication.
+- structured `logIntel(...)` logs
+- `enforceRateLimit(...)`
+- area `brain`
+- authenticated-only `personalBrain`
+- trend baseline loader
+- verified reports loader
+- `BRAIN_LLM_SUMMARY`, which should remain off unless explicitly testing LLM summaries
 
-### chat.ts (~550 lines)
-AI chatbot with RAG (Pinecone), intent classification, and LLM fallback chain:
-- Primary: Gemma 3 27B
-- Fallback 1: LLaMA 3.3 70B
-- Fallback 2: Mistral 7B
-
-### intel.ts (~1150 lines)
-Weather, AQI, and disease risk assessment. Includes full risk-engine with:
-- Health-first AQI calculation (PM2.5 > PM10 > CO > NO₂)
-- Disease risk assessment for malaria, cholera, typhoid, meningitis, Lassa fever
-- Nigeria state coordinates and regional classification
-
-### verify-location.ts (~130 lines)
-Reverse geocoding using Nominatim. Updates user context with location.
-
-## Original Source Files
-
-The source files with proper modular structure are still available in:
-- `supabase/functions/avatar-sign/index.ts`
-- `supabase/functions/chat/index.ts`
-- `supabase/functions/intel/index.ts`
-- `supabase/functions/verify-location/index.ts`
-- `supabase/functions/_shared/*`
-
-Use the CLI (`supabase functions deploy`) when network issues are resolved for a better development workflow.
+If any of those markers are missing, regenerate the bundle and do not deploy the stale file.

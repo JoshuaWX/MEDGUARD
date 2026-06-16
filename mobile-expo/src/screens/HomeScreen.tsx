@@ -35,6 +35,7 @@ import {
   PremiumCard,
   SkeletonLoader,
   FloatingActionButton,
+  BrainCard,
 } from '../components';
 import { EnvironmentModal } from '../components/EnvironmentModal';
 
@@ -344,6 +345,13 @@ const HomeScreen: React.FC = () => {
                 </Pressable>
               )}
             </View>
+
+            {/* MedGuard Brain v1: area health signal summary */}
+            {intel?.brain && (
+              <View style={{ marginBottom: 12 }}>
+                <BrainCard brain={intel.brain} />
+              </View>
+            )}
 
             {/* Disease Risks Section */}
             {activeRisks.length > 0 && (

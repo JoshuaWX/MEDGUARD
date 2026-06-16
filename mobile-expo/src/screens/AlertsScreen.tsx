@@ -39,6 +39,7 @@ import {
   GlassCard,
   RiskCard,
   AQICard,
+  BrainCard,
   BellIcon,
   InfoCircleIcon,
   ArrowBackIcon,
@@ -76,6 +77,7 @@ const AlertsScreen: React.FC = () => {
     loading, 
     refresh, 
     riskAssessment, 
+    brain,
     airQuality, 
     weather, 
     season, 
@@ -213,7 +215,14 @@ const AlertsScreen: React.FC = () => {
 
           {/* Community Alerts */}
           <View style={styles.contentWrap}>
-            {/* Risk Assessment Section */}
+            {/* MedGuard Brain v1: area health signal summary */}
+          {brain && (
+            <View style={{ marginBottom: Spacing.md }}>
+              <BrainCard brain={brain} />
+            </View>
+          )}
+
+          {/* Risk Assessment Section */}
             {riskAssessment && riskAssessment.diseases.length > 0 && (
               <>
                 <View style={styles.sectionHeaderRow}>

@@ -12,9 +12,49 @@ import {
   HEALTH_DISCLAIMER,
 } from '../_shared/risk-engine.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
+import { buildBrainAsync } from '../_shared/brain/buildBrain.ts';
+import { toBrainInput } from '../_shared/brain/intelAdapter.ts';
+import { loadTrendBaseline } from '../_shared/brain/trendBaseline.ts';
+import { loadVerifiedReports } from '../_shared/brain/verifiedReportsLoader.ts';
+import type { BrainCheckinInput } from '../_shared/brain/types.ts';
 
 // OpenWeather API key from environment
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
+const BRAIN_LLM_SUMMARY = (Deno.env.get('BRAIN_LLM_SUMMARY') || '').toLowerCase() === 'true';
+
+// ============================================================================
+// PHASE 1: LIGHTWEIGHT STRUCTURED LOGGING
+// ----------------------------------------------------------------------------
+// Emits single-line JSON logs for observability of the intel function.
+// SAFETY: Never log JWTs, API keys, service-role keys, user emails, raw
+// personal health records, or raw user/LLM prompts. Only non-sensitive
+// operational metadata (event name, source, status, durations, coarse flags)
+// is logged here. Coordinates are intentionally NOT logged to avoid leaking
+// precise user location; only a coarse "preciseLocation" boolean is recorded.
+// This logging does not alter any response behavior.
+// ============================================================================
+type IntelLogFields = Record<string, string | number | boolean | null | undefined>;
+
+function logIntel(event: string, fields: IntelLogFields = {}): void {
+  try {
+    const entry: Record<string, unknown> = {
+      fn: 'intel',
+      event,
+      at: new Date().toISOString(),
+    };
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) entry[key] = value;
+    }
+    console.log(JSON.stringify(entry));
+  } catch {
+    // Logging must never throw or affect the request lifecycle.
+  }
+}
+
+function elapsedMs(start: number): number {
+  return Math.round(performance.now() - start);
+}
+
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -82,6 +122,7 @@ async function fetchWeather(lat: number, lon: number): Promise<{
   forecast: ForecastData | null;
   source: string;
 } | null> {
+  const t0 = performance.now();
   // Try OpenWeather first, fallback to Open-Meteo
   if (OPENWEATHER_API_KEY) {
     try {
@@ -132,6 +173,7 @@ async function fetchWeather(lat: number, lon: number): Promise<{
           forecast = { dates, maxTemps, minTemps, precipitation };
         }
 
+        logIntel('fetch_weather_ok', { source: 'OpenWeather', hasForecast: forecast !== null, durationMs: elapsedMs(t0) });
         return {
           current: {
             temp: currentData.main?.temp ?? 0,
@@ -145,6 +187,7 @@ async function fetchWeather(lat: number, lon: number): Promise<{
         };
       }
     } catch (err) {
+      logIntel('fetch_weather_error', { source: 'OpenWeather', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
       console.error('OpenWeather fetch error:', err);
     }
   }
@@ -153,9 +196,10 @@ async function fetchWeather(lat: number, lon: number): Promise<{
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Africa%2FLagos&forecast_days=3`;
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) { logIntel('fetch_weather_unavailable', { source: 'Open-Meteo', status: res.status, durationMs: elapsedMs(t0) }); return null; }
     type OpenMeteoResponse = { current?: { temperature_2m?: number; relative_humidity_2m?: number; precipitation?: number; weather_code?: number }; daily?: { time: string[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_sum: number[] } };
     const data = await res.json() as OpenMeteoResponse;
+    logIntel('fetch_weather_ok', { source: 'Open-Meteo', hasForecast: data.daily != null, durationMs: elapsedMs(t0) });
     return {
       current: {
         temp: data.current?.temperature_2m ?? 0,
@@ -171,28 +215,31 @@ async function fetchWeather(lat: number, lon: number): Promise<{
       } : null,
       source: 'Open-Meteo',
     };
-  } catch {
+  } catch (err) {
+    logIntel('fetch_weather_error', { source: 'Open-Meteo', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
 
 // Fetch Air Quality Index from OpenWeather
 async function fetchAQI(lat: number, lon: number): Promise<AQIData | null> {
-  if (!OPENWEATHER_API_KEY) return null;
+  const t0 = performance.now();
+  if (!OPENWEATHER_API_KEY) { logIntel('fetch_aqi_skipped', { reason: 'no_api_key' }); return null; }
   
   try {
     const res = await fetch(
       `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
     );
     
-    if (!res.ok) return null;
+    if (!res.ok) { logIntel('fetch_aqi_unavailable', { source: 'OpenWeather', status: res.status, durationMs: elapsedMs(t0) }); return null; }
     
     type AQIResponse = { list?: Array<{ main?: { aqi?: number }; components?: { pm2_5?: number; pm10?: number; o3?: number; no2?: number; so2?: number; co?: number } }> };
     const data = await res.json() as AQIResponse;
     const list = data.list?.[0];
     
-    if (!list) return null;
+    if (!list) { logIntel('fetch_aqi_empty', { source: 'OpenWeather', durationMs: elapsedMs(t0) }); return null; }
     
+    logIntel('fetch_aqi_ok', { source: 'OpenWeather', durationMs: elapsedMs(t0) });
     return {
       aqi: list.main?.aqi ?? 1,
       pm2_5: list.components?.pm2_5,
@@ -203,12 +250,14 @@ async function fetchAQI(lat: number, lon: number): Promise<AQIData | null> {
       co: list.components?.co,
     };
   } catch (err) {
+    logIntel('fetch_aqi_error', { source: 'OpenWeather', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
     console.error('AQI fetch error:', err);
     return null;
   }
 }
 
 async function fetchOutbreakData() {
+  const t0 = performance.now();
   try {
     const [nigeriaRes, globalRes] = await Promise.all([
       fetch('https://disease.sh/v3/covid-19/countries/nigeria'),
@@ -249,18 +298,21 @@ async function fetchOutbreakData() {
       }
     }
 
+    logIntel('fetch_outbreaks_ok', { source: 'Disease.sh', count: outbreaks.length, durationMs: elapsedMs(t0) });
     return outbreaks;
-  } catch {
+  } catch (err) {
+    logIntel('fetch_outbreaks_error', { source: 'Disease.sh', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
     return [];
   }
 }
 
 async function fetchWHOAlerts() {
+  const t0 = performance.now();
   try {
     const res = await fetch('https://www.who.int/feeds/entity/csr/don/en/rss.xml', {
       headers: { 'User-Agent': 'MedGuard/1.0' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) { logIntel('fetch_who_unavailable', { source: 'WHO', status: res.status, durationMs: elapsedMs(t0) }); return []; }
 
     const text = await res.text();
     type WHOAlert = { title: string; url: string; source: string };
@@ -282,8 +334,11 @@ async function fetchWHOAlerts() {
       }
     }
 
-    return alerts.slice(0, 2);
-  } catch {
+    const out = alerts.slice(0, 2);
+    logIntel('fetch_who_ok', { source: 'WHO', count: out.length, durationMs: elapsedMs(t0) });
+    return out;
+  } catch (err) {
+    logIntel('fetch_who_error', { source: 'WHO', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
     return [];
   }
 }
@@ -294,8 +349,58 @@ const INTEL_RATE_LIMIT = {
   maxRequests: 30,
 };
 
+// ============================================================================
+// PHASE 3: PERSONAL BRAIN (JWT-GATED, NEVER CACHED)
+// ----------------------------------------------------------------------------
+// Reads the authenticated user's recent check-ins via the RLS-protected user
+// client and returns a shallow clone of the payload with `personalBrain`
+// attached. SAFETY: only called when a verified user id is present, and the
+// result is attached to the RESPONSE ONLY (never written to intel_cache).
+// ============================================================================
+async function attachPersonalBrain(
+  payload: Record<string, unknown>,
+  req: Request,
+  authUserId: string | null,
+  area: string,
+): Promise<Record<string, unknown>> {
+  if (!authUserId) return payload;
+  try {
+    const userClient = createUserClient(req);
+    const { data: rows, error } = await userClient
+      .from('health_checkins')
+      .select('checkin_date, risk_level, has_fever, has_digestive_issues, has_water_exposure, has_sick_contact')
+      .order('checkin_date', { ascending: false })
+      .limit(14);
+    if (error || !Array.isArray(rows) || rows.length === 0) {
+      logIntel('personal_brain_skipped', { reason: error ? 'query_error' : 'no_checkins' });
+      return payload;
+    }
+    const checkins: BrainCheckinInput[] = rows.map((r) => ({
+      checkinDate: String((r as Record<string, unknown>).checkin_date ?? ''),
+      riskLevel: ((r as Record<string, unknown>).risk_level as 'low' | 'moderate' | 'elevated') ?? 'low',
+      hasFever: Boolean((r as Record<string, unknown>).has_fever),
+      hasDigestiveIssues: Boolean((r as Record<string, unknown>).has_digestive_issues),
+      hasWaterExposure: Boolean((r as Record<string, unknown>).has_water_exposure),
+      hasSickContact: Boolean((r as Record<string, unknown>).has_sick_contact),
+    }));
+    const personalBrain = await buildBrainAsync(
+      toBrainInput({ area, scope: 'personal', checkins }),
+      { useLlm: BRAIN_LLM_SUMMARY },
+    );
+    logIntel('personal_brain_built', { riskLevel: personalBrain.riskLevel, confidence: personalBrain.confidence, signals: personalBrain.meta.signalsUsed });
+    // Shallow clone so we never mutate the (already-cached) area payload.
+    return { ...payload, personalBrain };
+  } catch (err) {
+    logIntel('personal_brain_error', { message: err instanceof Error ? err.message : String(err) });
+    return payload;
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const reqStart = performance.now();
+  logIntel('request_received', { method: req.method, authenticated: req.headers.get('Authorization') ? true : false });
 
   try {
     let state = '';
@@ -347,6 +452,7 @@ serve(async (req: Request) => {
       userId: authUserId,
     });
     if (rate && !rate.allowed) {
+      logIntel('rate_limit_blocked', { bucket: 'intel', retryAfterSeconds: rate.retryAfterSeconds });
       return jsonResponse(
         {
           error: 'Too many intel requests. Please wait and try again.',
@@ -359,9 +465,13 @@ serve(async (req: Request) => {
         }
       );
     }
+    if (rate) {
+      logIntel('rate_limit_allowed', { bucket: 'intel', remaining: rate.remaining });
+    }
 
     const stateNormalized = state.toLowerCase().trim();
     if (!stateNormalized) {
+      logIntel('bad_request', { reason: 'missing_state' });
       return jsonResponse({
         error: 'Missing state parameter. Provide state or authenticate with a profile that has state set.',
       }, { status: 400 });
@@ -395,11 +505,17 @@ serve(async (req: Request) => {
       if (cached?.payload && cached?.expires_at) {
         const expiresAt = new Date(cached.expires_at).getTime();
         if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
-          return jsonResponse(cached.payload);
+          logIntel('cache_hit', { scope: 'v2', preciseLocation: usePreciseCoords, durationMs: elapsedMs(reqStart) });
+          const cachedPayload = cached.payload as Record<string, unknown>;
+          const cachedArea = ((cachedPayload.location as Record<string, unknown> | undefined)?.state as string) || state;
+          const withPersonal = await attachPersonalBrain(cachedPayload, req, authUserId, cachedArea);
+          return jsonResponse(withPersonal);
         }
       }
     }
     
+    logIntel('cache_miss', { scope: 'v2', cacheEnabled: admin ? true : false, preciseLocation: usePreciseCoords });
+
     // Fetch all data in parallel: weather, AQI, outbreaks, WHO alerts
     const [weatherResult, aqiResult, outbreaks, whoAlerts] = await Promise.all([
       fetchWeather(coords.lat, coords.lon),
@@ -424,6 +540,40 @@ serve(async (req: Request) => {
     // Get season info
     const now = new Date();
     const season = getNigeriaSeason(now.getMonth(), stateNormalized);
+
+    // MedGuard Brain v1 (Phase 3): area/community signal fusion.
+    // Computed ONLY from values already gathered above (no extra fetch).
+    // The area brain is safe to share and is stored in the shared cache.
+    // Phase 4 + 5: aggregated symptom-trend baseline and verified reports.
+    // Both best-effort; return [] if unavailable so the Brain still builds.
+    const [trendBaseline, verifiedReports] = await Promise.all([
+      loadTrendBaseline(admin, stateNormalized, null),
+      loadVerifiedReports(admin, stateNormalized),
+    ]);
+    let brain = null as Awaited<ReturnType<typeof buildBrainAsync>> | null;
+    try {
+      brain = await buildBrainAsync(
+        toBrainInput({
+          area: state,
+          scope: 'area',
+          weather: weatherData,
+          forecast: forecastData,
+          season,
+          aqiInsight,
+          diseases: riskAssessment?.diseases ?? null,
+          outbreaks,
+          whoAlerts,
+          trendBaseline,
+          verifiedReports,
+          now,
+        }),
+        { useLlm: BRAIN_LLM_SUMMARY },
+      );
+      logIntel('brain_built', { scope: 'area', riskLevel: brain.riskLevel, confidence: brain.confidence, signals: brain.meta.signalsUsed, generatedBy: brain.meta.generatedBy });
+    } catch (err) {
+      logIntel('brain_error', { scope: 'area', message: err instanceof Error ? err.message : String(err) });
+      brain = null;
+    }
 
     // Build comprehensive response
     const response = {
@@ -476,6 +626,9 @@ serve(async (req: Request) => {
         diseases: riskAssessment.diseases,
         disclaimer: riskAssessment.disclaimer,
       } : null,
+
+      // NEW (Brain v1): additive area/community intelligence object.
+      brain,
       
       // Legacy advisories format (for backward compatibility)
       advisories: riskAssessment?.diseases
@@ -527,9 +680,26 @@ serve(async (req: Request) => {
         });
     }
 
-    return jsonResponse(response);
+    logIntel('response_built', {
+      ok: true,
+      cached: admin ? true : false,
+      weather: weatherResult ? 'live' : 'unavailable',
+      aqi: aqiResult ? 'live' : 'unavailable',
+      outbreaks: outbreaks.length,
+      whoAlerts: whoAlerts.length,
+      riskAssessment: riskAssessment ? 'computed' : 'unavailable',
+      durationMs: elapsedMs(reqStart),
+    });
+    const responseWithPersonal = await attachPersonalBrain(
+      response as unknown as Record<string, unknown>,
+      req,
+      authUserId,
+      state,
+    );
+    return jsonResponse(responseWithPersonal);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
+    logIntel('response_failed', { ok: false, message: msg });
     return jsonResponse({ error: msg || 'Intel fetch failed' }, { status: 500 });
   }
 });

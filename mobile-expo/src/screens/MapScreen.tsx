@@ -15,7 +15,8 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ErrorBanner, FeatureBlockedScreen } from '../components';
+import { ErrorBanner, FeatureBlockedScreen, BrainCard } from '../components';
+import { useIntel } from '../hooks/useIntel';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
@@ -47,6 +48,7 @@ const MapScreen: React.FC = () => {
   } = useLocationContext();
 
   const mapRef = useRef<MapView | null>(null);
+  const { intel } = useIntel();
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [facilityFilter, setFacilityFilter] = useState<FacilityFilter>('all');
   const [facilities, setFacilities] = useState<NearbyFacility[]>([]);
@@ -193,6 +195,12 @@ const MapScreen: React.FC = () => {
           <Text style={[styles.searchAreaText, { color: colors.textSecondary }]}>Search this area</Text>
         </Pressable>
       </View>
+
+      {intel?.brain && (
+        <View style={{ paddingHorizontal: Spacing.base, paddingBottom: Spacing.sm }}>
+          <BrainCard brain={intel.brain} compact />
+        </View>
+      )}
 
       <MapView
         ref={(r) => {

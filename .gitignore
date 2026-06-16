@@ -6,6 +6,7 @@ mobile-expo/.env
 mobile-expo/.env.local
 mobile-expo/.env.*.local
 node_modules
+virtualsenv.txt
 
 # Windows reserved device filename (breaks `git add` on Windows)
 NUL
@@ -13,3 +14,6 @@ NUL
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
 command.txt
+# Deno generated lockfiles (edge function type-check/test artifacts)
+deno.lock
+supabase/functions/deno.lock

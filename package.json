@@ -26,6 +26,7 @@
     "mobile:start": "npm --prefix mobile-expo start",
     "mobile:android": "npm --prefix mobile-expo run android",
     "mobile:typecheck": "cd mobile-expo && npx tsc --noEmit",
+    "supabase:bundle:intel": "node scripts/build-intel-bundle.mjs",
     "legacy:dev": "vite",
     "legacy:server": "node server/proxy.js",
     "legacy:rag:ingest": "tsx src/rag/ingest.ts",

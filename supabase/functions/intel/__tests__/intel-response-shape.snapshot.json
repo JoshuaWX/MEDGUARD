@@ -1,0 +1,58 @@
+{
+  "_comment": "PHASE 1 FROZEN CONTRACT (updated in Phase 3 to add additive `brain`). Top-level keys and notable nested keys of the intel Edge Function response (scope 'v2'). This snapshot guards backward compatibility for the mobile app (useIntel/useAlerts). `personalBrain` is added only on authenticated responses and is intentionally NOT cached, so it is not part of the frozen shared-cache top-level set. Update ONLY with an explicit, reviewed contract change.",
+  "topLevel": [
+    "generatedAt",
+    "version",
+    "location",
+    "season",
+    "weather",
+    "airQuality",
+    "riskAssessment",
+    "brain",
+    "advisories",
+    "outbreaks",
+    "whoAlerts",
+    "sources",
+    "meta"
+  ],
+  "location": [
+    "state",
+    "stateNormalized",
+    "isKnownState",
+    "coordinates",
+    "preciseLocation",
+    "region"
+  ],
+  "meta": [
+    "version",
+    "note",
+    "disclaimer",
+    "dataFreshness"
+  ],
+  "metaDataFreshness": [
+    "weather",
+    "aqi",
+    "outbreaks",
+    "whoAlerts",
+    "riskAssessment"
+  ],
+  "riskAssessment": [
+    "overallRiskLevel",
+    "diseases",
+    "disclaimer"
+  ],
+  "version": "v2",
+  "brain": [
+    "scope",
+    "riskLevel",
+    "confidence",
+    "area",
+    "timeWindow",
+    "signals",
+    "summary",
+    "recommendedActions",
+    "diagnosis",
+    "outbreakConfirmed",
+    "meta"
+  ]
+}

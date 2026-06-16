@@ -10,6 +10,7 @@ import { invokeEdgeFunction } from '../services/edge';
 import { AQIInsight } from '../components/AQICard';
 import { DiseaseRisk } from '../components/RiskCard';
 import { toUserMessage } from '../services/errorMessages';
+import { BrainResult } from '../services/brain';
 
 // v2 Response Types
 export interface IntelV2 {
@@ -61,6 +62,10 @@ export interface IntelV2 {
     diseases: DiseaseRisk[];
     disclaimer: string;
   } | null;
+  /** Brain v1: additive area/community intelligence (read-only). */
+  brain?: BrainResult | null;
+  /** Brain v1: personal intelligence, present only when authenticated. */
+  personalBrain?: BrainResult | null;
   outbreaks: any[];
   whoAlerts: any[];
   meta: any;
