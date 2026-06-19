@@ -3,8 +3,10 @@
  * Health alerts, disease risks, and AQI data
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from './useUser';
+import { useAuth } from './useAuth';
+import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
 import { DiseaseRisk, AQIInsight } from '../components';
 import { toUserMessage } from '../services/errorMessages';
@@ -94,7 +96,10 @@ interface UseAlertsReturn {
 }
 
 export const useAlerts = (): UseAlertsReturn => {
-  const { user } = useUser();
+  const { user: authUser, initialized: authInitialized } = useAuth();
+  const { user, loading: userLoading } = useUser();
+  const { geocoded } = useLocationContext();
+  const requestIdRef = useRef(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -109,7 +114,14 @@ export const useAlerts = (): UseAlertsReturn => {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
   const fetchAlerts = useCallback(async () => {
-    const state = user?.state || 'Lagos';
+    if (!authInitialized || (authUser?.id && userLoading)) {
+      setLoading(true);
+      return;
+    }
+
+    const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
+    const state = geocoded?.state || user?.state || metaState || 'Lagos';
+    const requestId = ++requestIdRef.current;
 
     try {
       setLoading(true);
@@ -119,6 +131,7 @@ export const useAlerts = (): UseAlertsReturn => {
       if (invokeErr || !raw) {
         throw new Error(toUserMessage(invokeErr || 'Failed to fetch alerts', 'general'));
       }
+      if (requestId !== requestIdRef.current) return;
 
       // Store v2 data
       setGeneratedAt(raw.generatedAt || null);
@@ -173,6 +186,7 @@ export const useAlerts = (): UseAlertsReturn => {
       setAlerts(freshAlerts.length > 0 ? freshAlerts : getDefaultAlerts());
 
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error fetching alerts:', err);
       setError(err as Error);
       
@@ -185,9 +199,11 @@ export const useAlerts = (): UseAlertsReturn => {
       setSeason(null);
       setLocation(null);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [user?.state]);
+  }, [authInitialized, authUser, geocoded?.state, user?.state, userLoading]);
 
   useEffect(() => {
     fetchAlerts();

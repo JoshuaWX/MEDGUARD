@@ -3,8 +3,9 @@
  * Health intelligence and advisory data (v2)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from './useUser';
+import { useAuth } from './useAuth';
 import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
 import { AQIInsight } from '../components/AQICard';
@@ -81,15 +82,24 @@ interface UseIntelReturn {
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 export const useIntel = (): UseIntelReturn => {
-  const { user } = useUser();
+  const { user: authUser, initialized: authInitialized } = useAuth();
+  const { user, loading: userLoading } = useUser();
   const { location, geocoded } = useLocationContext();
+  const requestIdRef = useRef(0);
   const [intel, setIntel] = useState<IntelV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchIntel = useCallback(async () => {
+    if (!authInitialized || (authUser?.id && userLoading)) {
+      setLoading(true);
+      return;
+    }
+
     // Use geocoded state or user profile state, fallback to 'Lagos'
-    const state = geocoded?.state || user?.state || 'Lagos';
+    const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
+    const state = geocoded?.state || user?.state || metaState || 'Lagos';
+    const requestId = ++requestIdRef.current;
     
     // Get precise coordinates if available
     const lat = location?.latitude ?? null;
@@ -111,18 +121,22 @@ export const useIntel = (): UseIntelReturn => {
       
       if (edgeError) throw edgeError;
       if (!data) throw new Error('No data returned from intel service');
+      if (requestId !== requestIdRef.current) return;
 
       setIntel(data);
 
       // We rely on the Edge Function to upsert the cache server-side.
       
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error fetching intel:', err);
       setError(new Error(toUserMessage(err, 'general')));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [user?.state, geocoded?.state, location?.latitude, location?.longitude]);
+  }, [authInitialized, authUser, user?.state, userLoading, geocoded?.state, location?.latitude, location?.longitude]);
 
   useEffect(() => {
     fetchIntel();

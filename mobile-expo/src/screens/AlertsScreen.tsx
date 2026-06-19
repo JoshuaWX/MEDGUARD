@@ -113,35 +113,7 @@ const AlertsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  // Sample alerts for demo (kept aligned to alerts.html structure/content)
-  const sampleAlerts: Alert[] = alerts.length > 0 ? alerts : [
-    {
-      id: '1',
-      title: 'Cholera cases rising in Ogun',
-      message: 'Recent reports indicate a surge in cholera cases. Stay vigilant and follow health guidelines.',
-      severity: 'urgent',
-      source: 'Community Health',
-      timestamp: '2 hours ago',
-    },
-    {
-      id: '2',
-      title: 'Malaria risk in Lagos',
-      message: 'Lagos is experiencing a moderate risk of malaria transmission. Consider preventive measures.',
-      severity: 'caution',
-      source: 'Community Health',
-      timestamp: '5 hours ago',
-    },
-    {
-      id: '3',
-      title: 'Dengue fever prevention tips',
-      message: 'Learn how to protect yourself and your family from dengue fever. Simple steps can make a big difference.',
-      severity: 'info',
-      source: 'Health Tips',
-      timestamp: '1 day ago',
-    },
-  ];
-
-  const communityAlerts = sampleAlerts;
+  const communityAlerts = alerts;
 
   const gradientColors = isDark
     ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
@@ -206,7 +178,7 @@ const AlertsScreen: React.FC = () => {
                 <View style={styles.heroBadgeRow}>
                   <Animated.View style={[styles.activeBadge, badgePulseStyle]}>
                     <View style={styles.activeDot} />
-                    <Text style={styles.activeBadgeText}>{sampleAlerts.length} {t('active_alerts')}</Text>
+                    <Text style={styles.activeBadgeText}>{communityAlerts.length} {t('active_alerts')}</Text>
                   </Animated.View>
                 </View>
               </View>
@@ -341,25 +313,39 @@ const AlertsScreen: React.FC = () => {
               <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('community_alerts')}</Text>
             </View>
             <View style={styles.cardStack}>
-              {communityAlerts.map((alert, index) => (
-                <Animated.View
-                  key={alert.id}
-                  entering={FadeInUp.delay(100 + index * 80).duration(450)}
-                >
-                  <AlertCard
-                    title={alert.title}
-                    message={alert.message}
-                    severity={alert.severity}
-                    source={alert.source}
-                    timestamp={alert.timestamp}
-                    icon={
-                      alert.severity === 'info'
-                        ? <InfoCircleIcon size={22} color={Colors.textLight} />
-                        : <WarningIcon size={22} color={Colors.textLight} />
-                    }
-                  />
-                </Animated.View>
-              ))}
+              {communityAlerts.length > 0 ? (
+                communityAlerts.map((alert, index) => (
+                  <Animated.View
+                    key={alert.id}
+                    entering={FadeInUp.delay(100 + index * 80).duration(450)}
+                  >
+                    <AlertCard
+                      title={alert.title}
+                      message={alert.message}
+                      severity={alert.severity}
+                      source={alert.source}
+                      timestamp={alert.timestamp}
+                      icon={
+                        alert.severity === 'info'
+                          ? <InfoCircleIcon size={22} color={Colors.textLight} />
+                          : <WarningIcon size={22} color={Colors.textLight} />
+                      }
+                    />
+                  </Animated.View>
+                ))
+              ) : (
+                <GlassCard style={styles.emptyAlertCard}>
+                  <InfoCircleIcon size={22} color={colors.primary} />
+                  <View style={styles.emptyAlertCopy}>
+                    <Text style={[styles.emptyAlertTitle, { color: colors.text }]}>
+                      No active community alerts
+                    </Text>
+                    <Text style={[styles.emptyAlertText, { color: colors.textSecondary }]}>
+                      MedGuard will update this area when verified health signals are available.
+                    </Text>
+                  </View>
+                </GlassCard>
+              )}
             </View>
 
             {/* Personal Reminders */}
@@ -548,6 +534,24 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.base,
     borderRadius: 24,
+  },
+  emptyAlertCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+  },
+  emptyAlertCopy: {
+    flex: 1,
+  },
+  emptyAlertTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+    marginBottom: 4,
+  },
+  emptyAlertText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.45,
   },
   reminderIcon: {
     width: 56,

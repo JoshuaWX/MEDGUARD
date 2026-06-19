@@ -203,3 +203,13 @@ When credentials are available, run:
 4. `npx supabase db push --linked`
 5. `npx supabase functions deploy intel --project-ref cddfhyxlhtmrrtduwlqd --use-api`
 6. Call the deployed `intel` function as guest and signed-in user to verify `brain`, `personalBrain`, rate limiting, and safe wording.
+
+Remote apply/deploy completed after `.env` was updated:
+- `db push --linked --dry-run` is NOT used for this repo because canonical SQL lives in `db/migrations/`, not `supabase/migrations/`; the linked project has remote migration history not represented locally.
+- Applied `db/migrations/021_symptom_trend_baseline.sql` with `npx supabase db query --linked --file ...`.
+- Applied `db/migrations/022_verified_reports.sql` with `npx supabase db query --linked --file ...`.
+- Verified `get_symptom_trend_baseline(text,text)` exists.
+- Verified `public.verified_reports` exists, RLS is enabled, anon/authenticated have SELECT only, service_role has write privileges.
+- Deployed `intel` with `npx supabase functions deploy intel --project-ref cddfhyxlhtmrrtduwlqd --use-api`.
+- Live anon-key smoke test passed: deployed `intel` returned `brain`, preserved `riskAssessment`, forced `diagnosis:false` and `outbreakConfirmed:false`, and did not return `personalBrain` for anon access.
+- Signed-in `personalBrain` live test still needs a real user access token/session from the app.
