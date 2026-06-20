@@ -84,7 +84,7 @@ const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 export const useIntel = (): UseIntelReturn => {
   const { user: authUser, initialized: authInitialized } = useAuth();
   const { user, loading: userLoading } = useUser();
-  const { location, geocoded } = useLocationContext();
+  const { location, geocoded, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [intel, setIntel] = useState<IntelV2 | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,10 +96,20 @@ export const useIntel = (): UseIntelReturn => {
       return;
     }
 
-    // Use geocoded state or user profile state, fallback to 'Lagos'
     const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
-    const state = geocoded?.state || user?.state || metaState || 'Lagos';
     const requestId = ++requestIdRef.current;
+    const state = geocoded?.state || user?.state || metaState || null;
+
+    if (!state) {
+      if (locationLoading) {
+        setLoading(true);
+        return;
+      }
+      setIntel(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     
     // Get precise coordinates if available
     const lat = location?.latitude ?? null;
@@ -136,7 +146,7 @@ export const useIntel = (): UseIntelReturn => {
         setLoading(false);
       }
     }
-  }, [authInitialized, authUser, user?.state, userLoading, geocoded?.state, location?.latitude, location?.longitude]);
+  }, [authInitialized, authUser, user?.state, userLoading, geocoded?.state, location?.latitude, location?.longitude, locationLoading]);
 
   useEffect(() => {
     fetchIntel();

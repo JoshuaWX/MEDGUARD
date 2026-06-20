@@ -88,8 +88,7 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
   const [recentCheckins, setRecentCheckins] = useState<HealthCheckin[]>([]);
   const [communityTrends, setCommunityTrends] = useState<CommunityTrend[]>([]);
   
-  // Track if initial fetch has been done
-  const hasFetchedRef = useRef(false);
+  const requestIdRef = useRef(0);
   
   // Get user's state for community trends
   const userState = profile?.state || null;
@@ -99,10 +98,13 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
    */
   const fetchData = useCallback(async () => {
     if (!authUser?.id) {
+      requestIdRef.current += 1;
       setLoading(false);
       return;
     }
     
+    const requestId = ++requestIdRef.current;
+
     try {
       setLoading(true);
       setError(null);
@@ -120,6 +122,8 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
         getRecentCheckins(authUser.id, 7),
       ]);
       
+      if (requestId !== requestIdRef.current) return;
+
       setHasCheckedIn(checkedIn);
       setTodayCheckin(today);
       setStreak(streakData);
@@ -128,14 +132,20 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
       // Fetch community trends if user has a state
       if (userState) {
         const trends = await getCommunityTrends(userState, 4);
+        if (requestId !== requestIdRef.current) return;
         setCommunityTrends(trends);
+      } else {
+        setCommunityTrends([]);
       }
       
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error fetching health checkin data:', err);
       setError('Failed to load health data');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [authUser?.id, userState]);
   
@@ -143,10 +153,7 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
    * Initial fetch on mount
    */
   useEffect(() => {
-    if (!hasFetchedRef.current && authUser?.id) {
-      hasFetchedRef.current = true;
-      fetchData();
-    }
+    fetchData();
   }, [authUser?.id, fetchData]);
   
   /**

@@ -36,6 +36,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import {
   AlertCard,
+  ErrorBanner,
   GlassCard,
   RiskCard,
   AQICard,
@@ -74,7 +75,8 @@ const AlertsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { 
     alerts, 
-    loading, 
+    loading,
+    error,
     refresh, 
     riskAssessment, 
     brain,
@@ -114,6 +116,9 @@ const AlertsScreen: React.FC = () => {
   };
 
   const communityAlerts = alerts;
+  const visibleRiskAdvisories = (riskAssessment?.diseases || [])
+    .filter((risk) => risk.isActive && risk.riskLevel !== 'low');
+  const activeAlertCount = communityAlerts.length + visibleRiskAdvisories.length;
 
   const gradientColors = isDark
     ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
@@ -178,7 +183,7 @@ const AlertsScreen: React.FC = () => {
                 <View style={styles.heroBadgeRow}>
                   <Animated.View style={[styles.activeBadge, badgePulseStyle]}>
                     <View style={styles.activeDot} />
-                    <Text style={styles.activeBadgeText}>{communityAlerts.length} {t('active_alerts')}</Text>
+                    <Text style={styles.activeBadgeText}>{activeAlertCount} {t('active_alerts')}</Text>
                   </Animated.View>
                 </View>
               </View>
@@ -195,7 +200,7 @@ const AlertsScreen: React.FC = () => {
           )}
 
           {/* Risk Assessment Section */}
-            {riskAssessment && riskAssessment.diseases.length > 0 && (
+            {riskAssessment && visibleRiskAdvisories.length > 0 && (
               <>
                 <View style={styles.sectionHeaderRow}>
                   <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
@@ -262,8 +267,7 @@ const AlertsScreen: React.FC = () => {
 
                 {/* Active Disease Risks */}
                 <View style={styles.cardStack}>
-                  {riskAssessment.diseases
-                    .filter(d => d.isActive)
+                  {visibleRiskAdvisories
                     .slice(0, 5)
                     .map((risk, index) => (
                       <Animated.View
@@ -313,6 +317,13 @@ const AlertsScreen: React.FC = () => {
               <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('community_alerts')}</Text>
             </View>
             <View style={styles.cardStack}>
+              {error && !loading && (
+                <ErrorBanner
+                  title="Alerts unavailable"
+                  message="MedGuard could not refresh community alerts right now. Pull down to try again."
+                  onRetry={handleRefresh}
+                />
+              )}
               {communityAlerts.length > 0 ? (
                 communityAlerts.map((alert, index) => (
                   <Animated.View
@@ -365,9 +376,9 @@ const AlertsScreen: React.FC = () => {
                 </LinearGradient>
               </View>
               <View style={styles.reminderContent}>
-                <Text style={[styles.reminderMeta, { color: colors.textMuted }]}>Today, 8:00 PM</Text>
-                <Text style={[styles.reminderTitle, { color: colors.text }]}>Take malaria meds at 8PM</Text>
-                <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Don't forget your malaria medication tonight.</Text>
+                <Text style={[styles.reminderMeta, { color: colors.textMuted }]}>Reminder preview</Text>
+                <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily check-in reminder</Text>
+                <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Enable reminders in Settings to receive personal health check-in notifications.</Text>
               </View>
             </GlassCard>
           </View>

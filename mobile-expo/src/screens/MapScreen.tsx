@@ -11,7 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+import MapCanvas, { Marker, type MapCanvasHandle, type Region } from '../components/MapCanvas';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -42,12 +42,13 @@ const MapScreen: React.FC = () => {
   const {
     location,
     geocoded,
+    loading: locationLoading,
     permissionStatus,
     requestPermission,
     refreshLocation,
   } = useLocationContext();
 
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<MapCanvasHandle | null>(null);
   const { intel } = useIntel();
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [facilityFilter, setFacilityFilter] = useState<FacilityFilter>('all');
@@ -55,6 +56,8 @@ const MapScreen: React.FC = () => {
   const [selectedFacility, setSelectedFacility] = useState<NearbyFacility | null>(null);
   const [loadingFacilities, setLoadingFacilities] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [facilityRadiusUsed, setFacilityRadiusUsed] = useState<number | null>(null);
+  const facilityRequestIdRef = useRef(0);
 
   const centerFromDevice = useMemo(() => {
     if (!location) return null;
@@ -65,24 +68,53 @@ const MapScreen: React.FC = () => {
   }, [location]);
 
   const loadNearby = useCallback(async (targetRegion: Region, targetFilter: FacilityFilter) => {
+    const requestId = ++facilityRequestIdRef.current;
     setLoadingFacilities(true);
     setError(null);
+    setSelectedFacility(null);
+    setFacilityRadiusUsed(null);
 
-    const { facilities: data, error: facilitiesErr } = await fetchNearbyFacilities({
+    const first = await fetchNearbyFacilities({
       latitude: targetRegion.latitude,
       longitude: targetRegion.longitude,
       radiusMeters: 5000,
       type: targetFilter,
     });
 
-    if (facilitiesErr) {
-      setError(toUserMessage(facilitiesErr, 'facilities'));
+    if (requestId !== facilityRequestIdRef.current) return;
+
+    if (first.error) {
+      setError(toUserMessage(first.error, 'facilities'));
       setFacilities([]);
       setLoadingFacilities(false);
       return;
     }
 
-    setFacilities(data);
+    if (first.facilities.length > 0) {
+      setFacilityRadiusUsed(5000);
+      setFacilities(first.facilities);
+      setLoadingFacilities(false);
+      return;
+    }
+
+    const wider = await fetchNearbyFacilities({
+      latitude: targetRegion.latitude,
+      longitude: targetRegion.longitude,
+      radiusMeters: 15000,
+      type: targetFilter,
+    });
+
+    if (requestId !== facilityRequestIdRef.current) return;
+
+    if (wider.error) {
+      setError(toUserMessage(wider.error, 'facilities'));
+      setFacilities([]);
+      setLoadingFacilities(false);
+      return;
+    }
+
+    setFacilityRadiusUsed(15000);
+    setFacilities(wider.facilities);
     setLoadingFacilities(false);
   }, []);
 
@@ -98,10 +130,6 @@ const MapScreen: React.FC = () => {
     setRegion(nextRegion);
     loadNearby(nextRegion, facilityFilter);
   }, [centerFromDevice, facilityFilter, loadNearby]);
-
-  useEffect(() => {
-    loadNearby(region, facilityFilter);
-  }, [facilityFilter, loadNearby]);
 
   if (isGuest) {
     return (
@@ -152,7 +180,9 @@ const MapScreen: React.FC = () => {
         <View>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Nearby Health Map</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-            {geocoded?.city || geocoded?.state || 'Using current map center'}
+            {locationLoading
+              ? 'Finding your area...'
+              : geocoded?.city || geocoded?.state || (location ? 'Using GPS location' : 'Search or recenter to load facilities')}
           </Text>
         </View>
         <Pressable
@@ -202,7 +232,7 @@ const MapScreen: React.FC = () => {
         </View>
       )}
 
-      <MapView
+      <MapCanvas
         ref={(r) => {
           mapRef.current = r;
         }}
@@ -222,7 +252,7 @@ const MapScreen: React.FC = () => {
             onPress={() => setSelectedFacility(facility)}
           />
         ))}
-      </MapView>
+      </MapCanvas>
 
       <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}> 
         {loadingFacilities ? (
@@ -249,7 +279,11 @@ const MapScreen: React.FC = () => {
 
             <View style={styles.list}>
               {facilities.length === 0 ? (
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No facilities found here. Tap Search this area or Recenter.</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  {facilityRadiusUsed
+                    ? `No facilities found within ${Math.round(facilityRadiusUsed / 1000)} km. Tap Search this area after moving the map, or Recenter to use your current location.`
+                    : 'Use Recenter or Search this area to look for nearby clinics and pharmacies.'}
+                </Text>
               ) : null}
               {facilities.slice(0, 5).map((facility) => (
                 <Pressable

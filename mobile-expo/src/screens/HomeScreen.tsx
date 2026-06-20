@@ -386,7 +386,6 @@ const HomeScreen: React.FC = () => {
                             </View>
                             <Text 
                               style={[styles.riskReason, { color: colors.textSecondary }]}
-                              numberOfLines={2}
                             >
                               {risk.reasons[0]}
                             </Text>

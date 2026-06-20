@@ -98,7 +98,7 @@ interface UseAlertsReturn {
 export const useAlerts = (): UseAlertsReturn => {
   const { user: authUser, initialized: authInitialized } = useAuth();
   const { user, loading: userLoading } = useUser();
-  const { geocoded } = useLocationContext();
+  const { geocoded, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,8 +120,26 @@ export const useAlerts = (): UseAlertsReturn => {
     }
 
     const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
-    const state = geocoded?.state || user?.state || metaState || 'Lagos';
     const requestId = ++requestIdRef.current;
+    const state = geocoded?.state || user?.state || metaState || null;
+
+    if (!state) {
+      if (locationLoading) {
+        setLoading(true);
+        return;
+      }
+      setAlerts([]);
+      setRiskAssessment(null);
+      setBrain(null);
+      setAirQuality(null);
+      setWeather(null);
+      setSeason(null);
+      setLocation(null);
+      setGeneratedAt(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -183,27 +201,27 @@ export const useAlerts = (): UseAlertsReturn => {
         })),
       ].filter((a) => a.message && a.title);
 
-      setAlerts(freshAlerts.length > 0 ? freshAlerts : getDefaultAlerts());
+      setAlerts(freshAlerts);
 
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       console.error('Error fetching alerts:', err);
       setError(err as Error);
       
-      // Set default alerts on error
-      setAlerts(getDefaultAlerts());
+      setAlerts([]);
       setRiskAssessment(null);
       setBrain(null);
       setAirQuality(null);
       setWeather(null);
       setSeason(null);
       setLocation(null);
+      setGeneratedAt(null);
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
       }
     }
-  }, [authInitialized, authUser, geocoded?.state, user?.state, userLoading]);
+  }, [authInitialized, authUser, geocoded?.state, user?.state, userLoading, locationLoading]);
 
   useEffect(() => {
     fetchAlerts();
@@ -223,18 +241,4 @@ export const useAlerts = (): UseAlertsReturn => {
     generatedAt,
   };
 };
-
-// Default alerts when fetch fails
-function getDefaultAlerts(): Alert[] {
-  return [
-    {
-      id: 'default-1',
-      title: '💚 Stay Healthy',
-      message: 'Remember to wash hands frequently and maintain good hygiene.',
-      severity: 'info',
-      source: 'MedGuard',
-      timestamp: 'Today',
-    },
-  ];
-}
 

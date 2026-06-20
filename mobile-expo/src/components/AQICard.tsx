@@ -127,7 +127,7 @@ const AQICard: React.FC<AQICardProps> = ({
           <Text style={[styles.description, { color: themed.text }]}>
             {insight.description}
           </Text>
-          <Text style={[styles.implications, { color: themed.textSecondary }]} numberOfLines={2}>
+          <Text style={[styles.implications, { color: themed.textSecondary }]}>
             {insight.healthImplications}
           </Text>
         </View>

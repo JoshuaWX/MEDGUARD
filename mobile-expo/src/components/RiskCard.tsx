@@ -149,7 +149,7 @@ const RiskCard: React.FC<RiskCardProps> = ({
 
           {/* Primary Reason */}
           {risk.reasons.length > 0 && (
-            <Text style={[styles.reason, { color: themed.textSecondary }]} numberOfLines={2}>
+            <Text style={[styles.reason, { color: themed.textSecondary }]}>
               {risk.reasons[0]}
             </Text>
           )}

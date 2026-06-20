@@ -23,8 +23,9 @@
  * - Removed fixed heights
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -49,6 +50,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import {
   GlassCard,
@@ -65,10 +67,12 @@ import {
   CommunityTrendCard,
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
+import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
+import { useLocationContext } from '../hooks/LocationContext';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -115,6 +119,11 @@ const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; ic
   { key: 'hasSickContact', question: 'checkin_sick_contact', icon: 'people-outline', iconColor: '#ec4899' },
 ];
 
+function formatDistance(distanceMeters: number): string {
+  if (distanceMeters < 1000) return `${Math.max(1, Math.round(distanceMeters))} m`;
+  return `${(distanceMeters / 1000).toFixed(distanceMeters < 10000 ? 1 : 0)} km`;
+}
+
 const MyHealthScreen: React.FC = () => {
   const { t } = useI18n();
   const { isGuest } = useAuthGate();
@@ -155,9 +164,16 @@ const MyHealthScreen: React.FC = () => {
 // ============================================================================
 const MyHealthScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const { user } = useUser();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
+  const {
+    location,
+    geocoded,
+    loading: locationLoading,
+    refreshLocation,
+  } = useLocationContext();
 
   // Health check-in state
   const {
@@ -178,9 +194,92 @@ const MyHealthScreenContent: React.FC = () => {
   const [freeTextSymptoms, setFreeTextSymptoms] = useState('');
   const [showCheckinForm, setShowCheckinForm] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [nearbyFacilities, setNearbyFacilities] = useState<NearbyFacility[]>([]);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(false);
+  const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
+  const [facilitiesRadiusUsed, setFacilitiesRadiusUsed] = useState<number | null>(null);
+  const facilitiesRequestIdRef = useRef(0);
 
   const healthScore = deriveWellnessScore(todayCheckin?.riskLevel ?? null);
   const displayName = user?.name || 'User';
+
+  const loadHealthFacilities = useCallback(async (latitude: number, longitude: number) => {
+    const requestId = ++facilitiesRequestIdRef.current;
+    setFacilitiesLoading(true);
+    setFacilitiesError(null);
+    setFacilitiesRadiusUsed(null);
+
+    const first = await fetchNearbyFacilities({
+      latitude,
+      longitude,
+      radiusMeters: 5000,
+      type: 'clinic',
+    });
+
+    if (requestId !== facilitiesRequestIdRef.current) return;
+
+    if (first.error) {
+      setNearbyFacilities([]);
+      setFacilitiesError(toUserMessage(first.error, 'facilities'));
+      setFacilitiesLoading(false);
+      return;
+    }
+
+    if (first.facilities.length > 0) {
+      setFacilitiesRadiusUsed(5000);
+      setNearbyFacilities(first.facilities);
+      setFacilitiesLoading(false);
+      return;
+    }
+
+    const wider = await fetchNearbyFacilities({
+      latitude,
+      longitude,
+      radiusMeters: 15000,
+      type: 'clinic',
+    });
+
+    if (requestId !== facilitiesRequestIdRef.current) return;
+
+    if (wider.error) {
+      setNearbyFacilities([]);
+      setFacilitiesError(toUserMessage(wider.error, 'facilities'));
+      setFacilitiesLoading(false);
+      return;
+    }
+
+    setFacilitiesRadiusUsed(15000);
+    setNearbyFacilities(wider.facilities);
+    setFacilitiesLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!location) {
+      if (!locationLoading) {
+        setNearbyFacilities([]);
+        setFacilitiesRadiusUsed(null);
+      }
+      return;
+    }
+
+    loadHealthFacilities(location.latitude, location.longitude);
+  }, [location?.latitude, location?.longitude, locationLoading, loadHealthFacilities]);
+
+  const handleRetryFacilities = useCallback(async () => {
+    if (location) {
+      await loadHealthFacilities(location.latitude, location.longitude);
+      return;
+    }
+
+    const latest = await refreshLocation();
+    if (latest) {
+      await loadHealthFacilities(latest.latitude, latest.longitude);
+    }
+  }, [loadHealthFacilities, location, refreshLocation]);
+
+  const handleOpenMap = useCallback(() => {
+    navigation.navigate('Map');
+  }, [navigation]);
 
   // Pulse ring animation for health score
   const pulseScale = useSharedValue(1);
@@ -241,9 +340,14 @@ const MyHealthScreenContent: React.FC = () => {
   // Pull to refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh();
+    await Promise.all([
+      refresh(),
+      location
+        ? loadHealthFacilities(location.latitude, location.longitude)
+        : Promise.resolve(),
+    ]);
     setRefreshing(false);
-  }, [refresh]);
+  }, [refresh, location, loadHealthFacilities]);
 
   // Calculate current risk preview
   const currentRisk = calculateRisk(checkinAnswers as CheckinAnswers);
@@ -258,6 +362,7 @@ const MyHealthScreenContent: React.FC = () => {
   const gradientColors = isDark
     ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
     : Gradients.background.colors as unknown as [string, string, string];
+  const scoreColor = getScoreColor(healthScore);
 
   return (
     <LinearGradient
@@ -295,11 +400,21 @@ const MyHealthScreenContent: React.FC = () => {
             {/* Wellness Score Card */}
             <View style={styles.scoreWrap}>
               <Animated.View style={[styles.scorePulseRing, pulseStyle]} />
-              <GlassCard style={styles.scoreCard} padding={Spacing.xl} intensity={22}>
+              <LinearGradient
+                colors={isDark ? ['#0f3b46', '#0d6b73'] : ['#0f8b8d', '#11b4d4']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.scoreCard}
+              >
                 <Text style={styles.scoreMeta}>{t('health_score_label')}</Text>
                 <Text style={styles.scoreValue}>{healthScore}</Text>
+                <View style={[styles.scoreStatusPill, { backgroundColor: scoreColor }]}>
+                  <Text style={styles.scoreStatusText}>
+                    {todayCheckin?.riskLevel ? todayCheckin.riskLevel.toUpperCase() : 'BASELINE'}
+                  </Text>
+                </View>
                 <Text style={styles.scoreDesc}>{t('health_score_desc')}</Text>
-              </GlassCard>
+              </LinearGradient>
             </View>
           </ImageBackground>
         </Animated.View>
@@ -415,7 +530,7 @@ const MyHealthScreenContent: React.FC = () => {
                         styles.freeTextInput,
                         {
                           color: colors.text,
-                          backgroundColor: isDark ? Colors.whiteAlpha10 : Colors.blackAlpha10,
+                          backgroundColor: isDark ? Colors.whiteAlpha10 : '#f8fafc',
                           borderColor: isDark ? Colors.whiteAlpha20 : Colors.borderLight,
                         },
                       ]}
@@ -500,31 +615,69 @@ const MyHealthScreenContent: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('nearby_clinics')}</Text>
-              <Pressable style={styles.seeAllBtn}>
+              <Pressable style={styles.seeAllBtn} onPress={handleOpenMap}>
                 <Text style={[styles.seeAllText, { color: colors.primary }]}>{t('see_all')}</Text>
                 <ArrowRightIcon size={16} color={colors.primary} />
               </Pressable>
             </View>
 
-            <Animated.View entering={FadeInUp.delay(500).duration(500)}>
-              <ClinicCard
-                name="General Hospital Lagos"
-                address="123 Marina Road, Lagos Island"
-                distance="2.3 km"
-                status="Open"
-                colors={colors}
-              />
-            </Animated.View>
-
-            <Animated.View entering={FadeInUp.delay(600).duration(500)}>
-              <ClinicCard
-                name="St. Nicholas Hospital"
-                address="57 Campbell Street, Lagos"
-                distance="3.1 km"
-                status="Open"
-                colors={colors}
-              />
-            </Animated.View>
+            {facilitiesLoading ? (
+              <GlassCard style={styles.facilityStateCard}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.facilityStateText, { color: colors.textSecondary }]}>
+                  Searching for clinics near {geocoded?.city || geocoded?.state || 'your location'}...
+                </Text>
+              </GlassCard>
+            ) : facilitiesError ? (
+              <GlassCard style={styles.facilityStateCard}>
+                <Text style={[styles.facilityStateTitle, { color: colors.text }]}>Nearby clinics unavailable</Text>
+                <Text style={[styles.facilityStateText, { color: colors.textSecondary }]}>{facilitiesError}</Text>
+                <View style={styles.facilityActions}>
+                  <Pressable style={[styles.facilityActionBtn, { borderColor: colors.border }]} onPress={handleRetryFacilities}>
+                    <Text style={[styles.facilityActionText, { color: colors.primary }]}>Retry</Text>
+                  </Pressable>
+                  <Pressable style={[styles.facilityActionBtn, styles.facilityPrimaryAction]} onPress={handleOpenMap}>
+                    <Text style={styles.facilityPrimaryActionText}>Open Map</Text>
+                  </Pressable>
+                </View>
+              </GlassCard>
+            ) : nearbyFacilities.length > 0 ? (
+              nearbyFacilities.slice(0, 3).map((facility, index) => (
+                <Animated.View
+                  key={facility.id}
+                  entering={FadeInUp.delay(500 + index * 80).duration(500)}
+                >
+                  <ClinicCard
+                    name={facility.name}
+                    address={facility.address || `${facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} near ${geocoded?.city || geocoded?.state || 'your area'}`}
+                    distance={formatDistance(facility.distanceMeters)}
+                    status={facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'}
+                    colors={colors}
+                  />
+                </Animated.View>
+              ))
+            ) : (
+              <GlassCard style={styles.facilityStateCard}>
+                <Text style={[styles.facilityStateTitle, { color: colors.text }]}>
+                  {location ? 'No nearby clinics found yet' : 'Location needed for nearby clinics'}
+                </Text>
+                <Text style={[styles.facilityStateText, { color: colors.textSecondary }]}>
+                  {location
+                    ? `We checked up to ${Math.round((facilitiesRadiusUsed || 15000) / 1000)} km from your location. Try the map to search a different area.`
+                    : 'Turn on location or open the map to search for clinics around you.'}
+                </Text>
+                <View style={styles.facilityActions}>
+                  <Pressable style={[styles.facilityActionBtn, { borderColor: colors.border }]} onPress={handleRetryFacilities}>
+                    <Text style={[styles.facilityActionText, { color: colors.primary }]}>
+                      {location ? 'Retry' : 'Use location'}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={[styles.facilityActionBtn, styles.facilityPrimaryAction]} onPress={handleOpenMap}>
+                    <Text style={styles.facilityPrimaryActionText}>Open Map</Text>
+                  </Pressable>
+                </View>
+              </GlassCard>
+            )}
           </View>
 
           {/* Health Disclaimer */}
@@ -547,7 +700,7 @@ interface ClinicCardProps {
   name: string;
   address: string;
   distance: string;
-  status: 'Open' | 'Closed';
+  status: 'Clinic' | 'Pharmacy';
   colors: {
     text: string;
     textSecondary: string;
@@ -590,8 +743,8 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
           </View>
           <View style={styles.clinicMeta}>
             <Text style={[styles.clinicDistance, { color: colors.primary }]}>{distance}</Text>
-            <View style={[styles.statusBadge, status === 'Open' && styles.statusOpen]}>
-              <Text style={[styles.statusText, status === 'Open' && styles.statusTextOpen]}>
+            <View style={[styles.statusBadge, styles.statusOpen]}>
+              <Text style={[styles.statusText, styles.statusTextOpen]}>
                 {status}
               </Text>
             </View>
@@ -620,8 +773,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.base,
-    marginTop: -Spacing.base,
+    paddingTop: Spacing.lg,
   },
   header: {
     borderBottomLeftRadius: 34,
@@ -682,13 +834,16 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 28,
     alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.whiteAlpha30,
+    ...Shadows.md,
   },
   scoreMeta: {
     fontFamily: FontFamily.medium,
     fontSize: FontSize.sm,
-    color: Colors.whiteAlpha80,
+    color: Colors.whiteAlpha90,
   },
   scoreValue: {
     fontFamily: FontFamily.bold,
@@ -698,28 +853,43 @@ const styles = StyleSheet.create({
   },
   scoreDesc: {
     fontFamily: FontFamily.regular,
-    fontSize: FontSize.xs,
-    color: Colors.whiteAlpha80,
+    fontSize: FontSize.sm,
+    color: Colors.whiteAlpha90,
     marginTop: Spacing.sm,
+    textAlign: 'center',
+    lineHeight: FontSize.sm * 1.45,
+  },
+  scoreStatusPill: {
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    marginTop: Spacing.xs,
+  },
+  scoreStatusText: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.xs,
+    color: Colors.textLight,
   },
   // Check-in styles
   checkinCard: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing['2xl'],
     borderRadius: 24,
   },
   checkinHeader: {
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.lg,
   },
   checkinTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
   },
   checkinResult: {
     marginTop: Spacing.sm,
   },
   checkinForm: {
-    gap: Spacing.sm,
+    gap: Spacing.base,
   },
   progressRow: {
     flexDirection: 'row',
@@ -729,14 +899,14 @@ const styles = StyleSheet.create({
   },
   progressSegment: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: Colors.borderLight,
   },
   progressText: {
     fontFamily: FontFamily.medium,
-    fontSize: FontSize.xs,
-    marginBottom: Spacing.sm,
+    fontSize: FontSize.sm,
+    marginBottom: Spacing.xs,
   },
   riskPreview: {
     flexDirection: 'row',
@@ -766,7 +936,7 @@ const styles = StyleSheet.create({
   },
   freeTextInput: {
     borderWidth: 1,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.base,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
@@ -865,6 +1035,46 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.sm,
     color: Colors.primary,
+  },
+  facilityStateCard: {
+    borderRadius: 22,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  facilityStateTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.base,
+  },
+  facilityStateText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.45,
+  },
+  facilityActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  facilityActionBtn: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  facilityPrimaryAction: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  facilityActionText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  facilityPrimaryActionText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+    color: Colors.textLight,
   },
   clinicCard: {
     flexDirection: 'row',

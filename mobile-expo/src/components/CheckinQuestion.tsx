@@ -92,30 +92,30 @@ const CheckinQuestion: React.FC<CheckinQuestionProps> = ({
         },
       ]}
     >
-      {/* Icon badge */}
-      <View
-        style={[
-          styles.iconBadge,
-          {
-            backgroundColor: isYes
-              ? 'rgba(245,158,11,0.10)'
-              : isNo
-              ? 'rgba(16,185,129,0.10)'
-              : (iconColor + '14'),
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon as any}
-          size={20}
-          color={isYes ? '#d97706' : isNo ? '#059669' : iconColor}
-        />
-      </View>
+      <View style={styles.questionRow}>
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              backgroundColor: isYes
+                ? 'rgba(245,158,11,0.10)'
+                : isNo
+                ? 'rgba(16,185,129,0.10)'
+                : (iconColor + '14'),
+            },
+          ]}
+        >
+          <Ionicons
+            name={icon as any}
+            size={20}
+            color={isYes ? '#d97706' : isNo ? '#059669' : iconColor}
+          />
+        </View>
 
-      {/* Question text */}
-      <Text style={[styles.question, { color: themed.text }]} numberOfLines={2}>
-        {question}
-      </Text>
+        <Text style={[styles.question, { color: themed.text }]}>
+          {question}
+        </Text>
+      </View>
 
       {/* Toggle buttons */}
       <View style={styles.toggleGroup}>
@@ -179,15 +179,18 @@ const CheckinQuestion: React.FC<CheckinQuestionProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.base,
     paddingHorizontal: Spacing.base,
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
     marginBottom: Spacing.sm,
-    gap: Spacing.md,
+    gap: Spacing.base,
     ...Shadows.xs,
+  },
+  questionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
   },
   iconBadge: {
     width: 40,
@@ -199,24 +202,25 @@ const styles = StyleSheet.create({
   question: {
     flex: 1,
     fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    lineHeight: FontSize.sm * 1.45,
+    fontSize: FontSize.base,
+    lineHeight: FontSize.base * 1.4,
   },
   toggleGroup: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   toggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 10,
     borderRadius: BorderRadius.full,
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
     backgroundColor: 'transparent',
-    minWidth: 68,
+    minWidth: 92,
+    minHeight: 46,
     justifyContent: 'center',
   },
   toggleYesActive: {

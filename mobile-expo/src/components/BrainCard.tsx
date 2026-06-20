@@ -10,8 +10,8 @@
  * by the intel Edge Function.
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -42,12 +42,18 @@ const LEVEL_META: Record<BrainRiskLevel, { icon: string; tint: string; bg: strin
 const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) => {
   const { isDark } = useTheme();
   const colors = useThemedColors(isDark);
+  const [expanded, setExpanded] = useState(false);
 
   if (!brain) return null;
 
   const meta = LEVEL_META[brain.riskLevel] ?? LEVEL_META.Low;
   const heading =
     title ?? (brain.scope === 'personal' ? 'Your Health Signal' : 'Area Health Signal');
+  const keySignal = brain.signals?.find((signal) => signal.summary || signal.evidence) ?? null;
+  const actionsToShow = compact && !expanded
+    ? brain.recommendedActions?.slice(0, 1) ?? []
+    : brain.recommendedActions?.slice(0, 3) ?? [];
+  const canExpand = compact && ((brain.recommendedActions?.length ?? 0) > 1 || (brain.signals?.length ?? 0) > 0);
 
   return (
     <Animated.View
@@ -59,7 +65,7 @@ const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) 
           <Ionicons name={meta.icon as keyof typeof Ionicons.glyphMap} size={18} color={meta.tint} />
         </View>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.title, { color: colors.text }]}>
             {heading}
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -74,35 +80,60 @@ const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) 
       </View>
 
       <View style={styles.metaRow}>
-        <View style={styles.metaPill}>
-          <Ionicons name="analytics-outline" size={12} color={colors.textMuted} />
-          <Text style={[styles.metaText, { color: colors.textMuted }]}>
-            Confidence: {brain.confidence}
+        <View style={[styles.metaPill, { backgroundColor: isDark ? Colors.whiteAlpha10 : '#f1f9f8' }]}>
+          <Ionicons name="analytics-outline" size={13} color={Colors.primary} />
+          <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+            {brain.confidence} confidence
           </Text>
         </View>
         {brain.meta?.signalsUsed > 0 && (
-          <View style={styles.metaPill}>
-            <Ionicons name="pulse-outline" size={12} color={colors.textMuted} />
-            <Text style={[styles.metaText, { color: colors.textMuted }]}>
+          <View style={[styles.metaPill, { backgroundColor: isDark ? Colors.whiteAlpha10 : '#f1f9f8' }]}>
+            <Ionicons name="pulse-outline" size={13} color={Colors.primary} />
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
               {brain.meta.signalsUsed} signal{brain.meta.signalsUsed === 1 ? '' : 's'}
             </Text>
           </View>
         )}
       </View>
 
+      <Text style={[styles.summaryLabel, { color: colors.text }]}>Summary</Text>
       <Text style={[styles.summary, { color: colors.textSecondary }]}>
         {brain.summary}
       </Text>
 
-      {!compact && brain.recommendedActions?.length > 0 && (
+      {keySignal && (!compact || expanded) && (
+        <View style={[styles.reasonBox, { backgroundColor: isDark ? Colors.whiteAlpha10 : '#f8fbfb' }]}>
+          <Text style={[styles.reasonLabel, { color: colors.textMuted }]}>Key signal</Text>
+          <Text style={[styles.reasonText, { color: colors.textSecondary }]}>
+            {keySignal.summary || keySignal.evidence}
+          </Text>
+        </View>
+      )}
+
+      {actionsToShow.length > 0 && (
         <View style={styles.actions}>
-          {brain.recommendedActions.slice(0, 4).map((action, idx) => (
+          {actionsToShow.map((action, idx) => (
             <View key={idx} style={styles.actionRow}>
               <Ionicons name="bulb-outline" size={14} color={Colors.primary} />
               <Text style={[styles.actionText, { color: colors.text }]}>{action}</Text>
             </View>
           ))}
         </View>
+      )}
+
+      {canExpand && (
+        <Pressable
+          onPress={() => setExpanded((next) => !next)}
+          accessibilityRole="button"
+          style={styles.detailsButton}
+        >
+          <Text style={styles.detailsText}>{expanded ? 'Show less' : 'View details'}</Text>
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={15}
+            color={Colors.primary}
+          />
+        </Pressable>
       )}
 
       <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
@@ -114,28 +145,41 @@ const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) 
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    padding: Spacing.base,
+    gap: Spacing.md,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   iconWrap: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
   },
   headerText: { flex: 1 },
-  title: { fontFamily: FontFamily.semibold, fontSize: FontSize.base },
+  title: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, lineHeight: 24 },
   subtitle: { fontFamily: FontFamily.regular, fontSize: FontSize.xs, marginTop: 1 },
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  levelBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   levelText: { fontFamily: FontFamily.bold, fontSize: FontSize.xs },
   metaRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  metaPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontFamily: FontFamily.medium, fontSize: 11 },
-  summary: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 19 },
-  actions: { gap: 6, marginTop: 2 },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  metaText: { fontFamily: FontFamily.medium, fontSize: FontSize.xs },
+  summaryLabel: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm, marginBottom: -Spacing.xs },
+  summary: { fontFamily: FontFamily.regular, fontSize: FontSize.base, lineHeight: 23 },
+  reasonBox: { borderRadius: BorderRadius.lg, padding: Spacing.sm, gap: 3 },
+  reasonLabel: { fontFamily: FontFamily.semibold, fontSize: FontSize.xs, textTransform: 'uppercase' },
+  reasonText: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
+  actions: { gap: 8, marginTop: 2 },
   actionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  actionText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 18 },
+  actionText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
+  detailsButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  detailsText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm, color: Colors.primary },
   disclaimer: { fontFamily: FontFamily.regular, fontSize: 11, fontStyle: 'italic', marginTop: 2 },
 });
 
