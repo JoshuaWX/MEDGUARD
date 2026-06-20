@@ -10,17 +10,17 @@
  * outbreaks. `diagnosis` and `outbreakConfirmed` are always false in v1.
  */
 
-export type BrainRiskLevel = 'Low' | 'Moderate' | 'Elevated';
-export type BrainConfidence = 'Low' | 'Medium' | 'High';
-export type SignalSeverity = 'low' | 'medium' | 'high';
+export type BrainRiskLevel = "Low" | "Moderate" | "Elevated";
+export type BrainConfidence = "Low" | "Medium" | "High";
+export type SignalSeverity = "low" | "medium" | "high";
 
 export type SignalType =
-  | 'symptom_trend'
-  | 'weather'
-  | 'aqi'
-  | 'outbreak_alert'
-  | 'verified_report'
-  | 'historical_pattern';
+  | "symptom_trend"
+  | "weather"
+  | "aqi"
+  | "outbreak_alert"
+  | "verified_report"
+  | "historical_pattern";
 
 /**
  * A single normalized signal contributing to the area/community risk picture.
@@ -36,16 +36,16 @@ export interface BrainSignal {
   /** Internal-only weighting hint (0..1). Not part of the public contract. */
   weight?: number;
   /** Coarse freshness label for confidence scoring; not user-facing. */
-  freshness?: 'live' | 'recent' | 'stale' | 'unknown';
+  freshness?: "live" | "recent" | "stale" | "unknown";
 }
 
-export type BrainScope = 'area' | 'personal';
+export type BrainScope = "area" | "personal";
 
 export interface BrainMeta {
-  schemaVersion: 'brain_v1';
+  schemaVersion: "brain_v1";
   signalsUsed: number;
   dataFreshness: Record<string, string>;
-  generatedBy: 'deterministic' | 'llm-assisted';
+  generatedBy: "deterministic" | "llm-assisted";
 }
 
 /**
@@ -86,13 +86,13 @@ export interface BrainForecastInput {
 }
 
 export interface BrainSeasonInput {
-  label: 'harmattan' | 'dry' | 'rainy' | 'unknown';
+  label: "harmattan" | "dry" | "rainy" | "unknown";
   description: string;
   confidence: number;
 }
 
 export interface BrainAqiInput {
-  level: 'good' | 'fair' | 'moderate' | 'poor' | 'very_poor';
+  level: "good" | "fair" | "moderate" | "poor" | "very_poor";
   dominantPollutant?: string;
   healthImplications?: string;
 }
@@ -100,7 +100,7 @@ export interface BrainAqiInput {
 /** Minimal shape of a disease risk entry from the existing risk-engine. */
 export interface BrainDiseaseRiskInput {
   disease: string;
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: "low" | "medium" | "high";
   isActive: boolean;
   reasons: string[];
   sources: string[];
@@ -124,7 +124,7 @@ export interface BrainWhoAlertInput {
 /** A daily personal check-in row (only used when the user is authenticated). */
 export interface BrainCheckinInput {
   checkinDate: string;
-  riskLevel: 'low' | 'moderate' | 'elevated';
+  riskLevel: "low" | "moderate" | "elevated";
   hasFever?: boolean;
   hasDigestiveIssues?: boolean;
   hasWaterExposure?: boolean;
@@ -140,7 +140,7 @@ export interface BrainCommunityTrendInput {
   digestiveCount: number;
   elevatedRiskCount: number;
   prevWeekTotal?: number | null;
-  trendDirection?: 'increasing' | 'stable' | 'decreasing' | null;
+  trendDirection?: "increasing" | "stable" | "decreasing" | null;
 }
 
 /**
@@ -148,10 +148,15 @@ export interface BrainCommunityTrendInput {
  * AGGREGATES ONLY — never raw personal rows.
  */
 export interface BrainTrendBaselineInput {
+  state?: string;
   symptomGroup: string;
   currentWeekCount: number;
+  previous4WeekAverage?: number;
+  percentageChange?: number;
+  confidence?: "low" | "medium" | "high";
+  /** Compatibility alias for older internal analyzers. */
   rollingAvg4w: number;
-  classification: 'normal' | 'rising' | 'elevated';
+  classification: "normal" | "rising" | "elevated";
 }
 
 /** Verified, admin-entered report (Phase 5). Phase 2 keeps this as a stub input. */
@@ -161,8 +166,8 @@ export interface BrainVerifiedReportInput {
   signalType: SignalType;
   summary: string;
   sourceType: string;
-  credibilityLevel: 'low' | 'medium' | 'high';
-  verificationStatus: 'verified' | 'pending' | 'rejected';
+  credibilityLevel: "low" | "medium" | "high";
+  verificationStatus: "verified" | "pending" | "rejected";
   occurredAt: string;
   expiresAt?: string | null;
 }

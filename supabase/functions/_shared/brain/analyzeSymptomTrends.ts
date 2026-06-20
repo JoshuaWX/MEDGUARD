@@ -11,10 +11,21 @@
  */
 
 import type {
-  BrainSignal,
   BrainCommunityTrendInput,
+  BrainSignal,
   BrainTrendBaselineInput,
-} from './types.ts';
+} from "./types.ts";
+import { loadTrendBaseline, type RpcCapableClient } from "./trendBaseline.ts";
+
+export async function analyzeSymptomTrendsFromRpc(
+  client: RpcCapableClient | null | undefined,
+  state: string,
+  isoWeek?: string | null,
+  communityTrends?: BrainCommunityTrendInput[] | null,
+): Promise<BrainSignal[]> {
+  const trendBaseline = await loadTrendBaseline(client, state, isoWeek);
+  return analyzeSymptomTrends(communityTrends, trendBaseline);
+}
 
 /** Analyze week-over-week community aggregates (anonymous). */
 export function analyzeSymptomTrends(
@@ -22,24 +33,41 @@ export function analyzeSymptomTrends(
   trendBaseline?: BrainTrendBaselineInput[] | null,
 ): BrainSignal[] {
   const signals: BrainSignal[] = [];
+  const baselineRows = trendBaseline ?? [];
 
   // Prefer the explicit rolling-average baseline (Phase 4) when available.
-  for (const b of trendBaseline ?? []) {
-    if (b.classification === 'normal') continue;
-    const ratio = b.rollingAvg4w > 0 ? b.currentWeekCount / b.rollingAvg4w : 0;
+  for (const b of baselineRows) {
+    if (b.classification === "normal") continue;
+    if (b.confidence === "low") continue;
+    const average = b.previous4WeekAverage ?? b.rollingAvg4w;
+    const ratio = average > 0 ? b.currentWeekCount / average : 0;
+    const pct = typeof b.percentageChange === "number" &&
+        Number.isFinite(b.percentageChange)
+      ? `, ${Math.round(b.percentageChange)}% change`
+      : "";
+    const confidence = b.confidence ? `, ${b.confidence} confidence` : "";
     signals.push({
-      type: b.classification === 'elevated' ? 'historical_pattern' : 'symptom_trend',
-      severity: b.classification === 'elevated' ? 'high' : 'medium',
-      summary: `${capitalize(b.symptomGroup)} reports are ${b.classification} versus recent weeks`,
-      evidence: `${b.currentWeekCount} this week vs ${b.rollingAvg4w.toFixed(1)} 4-week average` +
-        (ratio > 0 ? ` (${ratio.toFixed(1)}x)` : ''),
-      source: 'community_trends_baseline',
-      weight: b.classification === 'elevated' ? 0.65 : 0.4,
-      freshness: 'recent',
+      type: b.classification === "elevated"
+        ? "historical_pattern"
+        : "symptom_trend",
+      severity: b.classification === "elevated" ? "high" : "medium",
+      summary: `${
+        capitalize(b.symptomGroup)
+      } reports are ${b.classification} versus recent weeks`,
+      evidence:
+        `${b.currentWeekCount} this week vs ${
+          average.toFixed(1)
+        } previous 4-week average` +
+        (ratio > 0
+          ? ` (${ratio.toFixed(1)}x${pct}${confidence})`
+          : `${pct}${confidence}`),
+      source: "community_trends_baseline",
+      weight: b.classification === "elevated" ? 0.65 : 0.4,
+      freshness: "recent",
     });
   }
 
-  if (signals.length > 0) return signals;
+  if (baselineRows.length > 0) return signals;
 
   // Fallback: simple week-over-week from community_weekly_trends aggregates.
   const latest = pickLatest(communityTrends);
@@ -50,14 +78,15 @@ export function analyzeSymptomTrends(
     const ratio = latest.totalCheckins / prev;
     if (ratio >= 1.5) {
       signals.push({
-        type: 'symptom_trend',
-        severity: ratio >= 2 ? 'high' : 'medium',
-        summary: 'Community health reports are higher than the previous week',
-        evidence: `${latest.totalCheckins} reports this week vs ${prev} last week`,
-        source: 'community_trends',
+        type: "symptom_trend",
+        severity: ratio >= 2 ? "high" : "medium",
+        summary: "Community health reports are higher than the previous week",
+        evidence:
+          `${latest.totalCheckins} reports this week vs ${prev} last week`,
+        source: "community_trends",
         sourceId: `${latest.state}:${latest.isoWeek}`,
         weight: ratio >= 2 ? 0.55 : 0.35,
-        freshness: 'recent',
+        freshness: "recent",
       });
     }
   }
@@ -67,14 +96,16 @@ export function analyzeSymptomTrends(
     const elevatedShare = latest.elevatedRiskCount / latest.totalCheckins;
     if (elevatedShare >= 0.3) {
       signals.push({
-        type: 'symptom_trend',
-        severity: elevatedShare >= 0.5 ? 'high' : 'medium',
-        summary: 'A notable share of community check-ins are elevated this week',
-        evidence: `${latest.elevatedRiskCount} of ${latest.totalCheckins} check-ins elevated`,
-        source: 'community_trends',
+        type: "symptom_trend",
+        severity: elevatedShare >= 0.5 ? "high" : "medium",
+        summary:
+          "A notable share of community check-ins are elevated this week",
+        evidence:
+          `${latest.elevatedRiskCount} of ${latest.totalCheckins} check-ins elevated`,
+        source: "community_trends",
         sourceId: `${latest.state}:${latest.isoWeek}`,
         weight: elevatedShare >= 0.5 ? 0.5 : 0.3,
-        freshness: 'recent',
+        freshness: "recent",
       });
     }
   }
