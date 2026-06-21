@@ -1,5 +1,13 @@
 project_id = "cddfhyxlhtmrrtduwlqd"
 
+[auth]
+site_url = "medguard://signin"
+additional_redirect_urls = [
+  "medguard://signin",
+  "medguard://auth/callback",
+  "medguard://google-auth",
+]
+
 [functions.chat]
 verify_jwt = true
 

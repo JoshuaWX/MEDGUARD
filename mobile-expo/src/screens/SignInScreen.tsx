@@ -49,31 +49,25 @@ import {
   Duration,
   Gradients,
 } from '../../theme';
-import { useRoute, RouteProp } from '@react-navigation/native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SignIn'>;
-type SignInRouteProp = RouteProp<RootStackParamList, 'SignIn'>;
 
 const HERO_BG_URI =
   'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?auto=format&fit=crop&w=800&q=80';
 
 const SignInScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const route = useRoute<SignInRouteProp>();
   const insets = useSafeAreaInsets();
   const { signIn, signInWithGoogle, loading, continueAsGuest, resetPassword } = useAuth();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const [error, setError] = useState<string | null>(null);
-  const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
-  const isRecoveryRoute = route.params?.mode === 'resetPassword';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
 
   // Floating animation for decorative elements
   const float1Y = useSharedValue(0);
@@ -116,26 +110,30 @@ const SignInScreen: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
-    await signInWithGoogle();
+    setError(null);
+    const result = await signInWithGoogle();
+    if (result.outcome === 'failed' && result.error) {
+      setError(toUserMessage(result.error, 'signin'));
+    }
   };
 
-  const handleGuest = () => {
-    // Set guest mode flag in auth context, then navigate
-    continueAsGuest();
+  const handleGuest = async () => {
+    await continueAsGuest();
     navigation.navigate('MainTabs');
   };
 
   const handleForgotPassword = async () => {
     setForgotError(null);
-    if (!forgotEmail.trim()) {
-      setForgotError('Please enter your email address above, then tap Forgot Password.');
+    const resetEmail = email.trim();
+    if (!resetEmail) {
+      setForgotError('Enter your email address above, then tap Forgot Password.');
       return;
     }
     setForgotLoading(true);
-    const { error: resetErr } = await resetPassword(forgotEmail.trim());
+    const { error: resetErr } = await resetPassword(resetEmail);
     setForgotLoading(false);
     if (resetErr) {
-      setForgotError(resetErr.message);
+      setForgotError(toUserMessage(resetErr, 'signin'));
     } else {
       setForgotSent(true);
     }
@@ -208,14 +206,6 @@ const SignInScreen: React.FC = () => {
           </View>
         )}
 
-        {isRecoveryRoute && (
-          <View style={[styles.recoveryInfo, { backgroundColor: isDark ? colors.glass : Colors.infoLight }]}>
-            <Text style={[styles.recoveryInfoText, { color: isDark ? colors.text : Colors.info }]}>
-              Recovery link verified. Set your new password in the reset modal.
-            </Text>
-          </View>
-        )}
-
         {/* Form Section */}
         <ScrollView
           style={[styles.formContainer, { backgroundColor: colors.surface }]}
@@ -244,22 +234,12 @@ const SignInScreen: React.FC = () => {
               icon={<LockIcon size={24} color={colors.primary} />}
             />
 
-            {/* Remember me & Forgot password */}
+            {/* Password recovery */}
             <View style={styles.optionsRow}>
-              <Pressable
-                style={styles.rememberRow}
-                onPress={() => setRememberMe(!rememberMe)}
-              >
-                <View style={[styles.checkbox, { borderColor: isDark ? colors.border : Colors.borderLight }, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={[styles.rememberText, { color: colors.textSecondary }]}>{t('remember_me')}</Text>
-              </Pressable>
-              <Pressable onPress={() => {
-                setForgotEmail(email); // pre-fill from email input
-                handleForgotPassword();
-              }}>
-                <Text style={[styles.forgotText, { color: colors.primary }]}>{t('forgot_password')}</Text>
+              <Pressable onPress={handleForgotPassword} disabled={forgotLoading}>
+                <Text style={[styles.forgotText, { color: colors.primary }]}>
+                  {forgotLoading ? 'Sending reset email...' : t('forgot_password')}
+                </Text>
               </Pressable>
             </View>
 
@@ -448,36 +428,8 @@ const styles = StyleSheet.create({
   },
   optionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-  },
-  rememberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  checkbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  checkmark: {
-    color: Colors.textLight,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  rememberText: {
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
   },
   forgotText: {
     fontFamily: FontFamily.medium,

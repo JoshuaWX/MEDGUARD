@@ -59,6 +59,23 @@ export function toUserMessage(error: unknown, context: ErrorContext = 'general')
     return 'The email or password is incorrect. Please check and try again.';
   }
 
+  if (
+    message.includes('session mismatch') ||
+    message.includes('session_invalid') ||
+    message.includes('session could not be verified') ||
+    message.includes('did not match the requested account')
+  ) {
+    return 'We could not verify this sign-in safely. Please try again.';
+  }
+
+  if (message.includes('provider is not enabled') || message.includes('unsupported provider')) {
+    return 'Google sign-in is not configured yet. Please use email and password for now.';
+  }
+
+  if (message.includes('oauth') || message.includes('google sign-in')) {
+    return 'Google sign-in could not be completed. Please try again.';
+  }
+
   if (message.includes('email not confirmed') || message.includes('confirm your email')) {
     return 'Please confirm your email address before signing in.';
   }

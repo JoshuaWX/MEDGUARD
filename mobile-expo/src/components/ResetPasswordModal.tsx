@@ -24,6 +24,7 @@ import Input from './Input';
 import { LockIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
+import { toUserMessage } from '../services/errorMessages';
 import {
   Colors,
   Spacing,
@@ -38,7 +39,7 @@ interface Props {
   onDismiss: () => void;
 }
 
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 10;
 
 const ResetPasswordModal: React.FC<Props> = ({ visible, onSubmit, onDismiss }) => {
   const { isDark, colors } = useTheme();
@@ -68,7 +69,7 @@ const ResetPasswordModal: React.FC<Props> = ({ visible, onSubmit, onDismiss }) =
     setLoading(false);
 
     if (result.error) {
-      setError(result.error.message || 'Failed to update password.');
+      setError(toUserMessage(result.error, 'auth'));
     } else {
       setSuccess(true);
     }

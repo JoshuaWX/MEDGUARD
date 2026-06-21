@@ -21,6 +21,7 @@
       }
     },
     "android": {
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -28,7 +29,7 @@
       "edgeToEdgeEnabled": true,
       "versionCode": 1,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.medguard",
+      "package": "com.medguard.ng",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
@@ -37,7 +38,11 @@
         {
           "action": "VIEW",
           "autoVerify": false,
-          "data": [{ "scheme": "medguard" }],
+          "data": [
+            { "scheme": "medguard", "host": "signin" },
+            { "scheme": "medguard", "host": "auth" },
+            { "scheme": "medguard", "host": "google-auth" }
+          ],
           "category": ["DEFAULT", "BROWSABLE"]
         }
       ]
@@ -48,7 +53,9 @@
     "plugins": [
       "expo-font",
       "expo-location",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "extra": {}
   }

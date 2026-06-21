@@ -1,19 +1,16 @@
 /**
- * Auth (web-parity)
- *
- * The web app:
- * - Signs up with Supabase Auth and stores profile-like metadata in user_metadata
- * - Only creates/updates `profiles` when there is an authenticated session (RLS-safe)
- * - Routes first-login users to onboarding step 2 based on `user_metadata.profile_complete`
- * - Does NOT support Google sign-in yet (shows an inline message)
+ * Mobile auth state, recovery, and OAuth flows backed by Supabase Auth.
+ * Profile provisioning stays outside auth callbacks to avoid auth-lock races.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../services/supabase';
 import { AuthChangeEvent, Session, User, AuthError } from '@supabase/supabase-js';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthState {
   session: Session | null;
@@ -37,14 +34,17 @@ interface SignUpData {
 }
 
 type NextRoute = 'MainTabs' | 'SignUp2';
+type AuthOutcome = 'authenticated' | 'confirmation_required' | 'cancelled' | 'failed';
 
 type SignInResult = {
+  outcome: AuthOutcome;
   data: any | null;
   error: (AuthError & { code?: string }) | null;
   nextRoute?: NextRoute;
 };
 
 type SignUpResult = {
+  outcome: AuthOutcome;
   data: any | null;
   error: (AuthError & { code?: string; hint?: string }) | null;
   nextRoute?: NextRoute;
@@ -54,23 +54,28 @@ type SignUpResult = {
 type AuthContextValue = AuthState & {
   signIn: (email: string, password: string) => Promise<SignInResult>;
   signUp: (signUpData: SignUpData) => Promise<SignUpResult>;
-  signInWithGoogle: () => Promise<{ data: null; error: AuthError & { code?: string } }>;
+  signInWithGoogle: () => Promise<SignInResult>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   completeOnboarding: () => Promise<void>;
   /** Enter guest mode (no authentication) */
-  continueAsGuest: () => void;
+  continueAsGuest: () => Promise<void>;
   /** True when a recovery deep link has been verified and user must set a new password */
   pendingRecovery: boolean;
   /** Set a new password after recovery verification */
   updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
   /** Clear the pendingRecovery flag (e.g. on dismiss) */
-  clearRecovery: () => void;
+  clearRecovery: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const SIGN_IN_REDIRECT = 'medguard://signin';
+const RECOVERY_REDIRECT = 'medguard://auth/callback?type=recovery';
+const GOOGLE_REDIRECT = 'medguard://google-auth';
+
 const STAGED_KEYS = {
+  email: 'mg_signup_email',
   fullName: 'mg_full_name',
   firstName: 'mg_first_name',
   state: 'mg_location',
@@ -81,6 +86,7 @@ const STAGED_KEYS = {
 } as const;
 
 async function stageOnboardingData(input: {
+  email: string;
   fullName: string;
   state: string;
   gender?: string;
@@ -90,6 +96,7 @@ async function stageOnboardingData(input: {
 }) {
   const first = input.fullName.split(/\s+/)[0] || input.fullName;
   await Promise.all([
+    AsyncStorage.setItem(STAGED_KEYS.email, input.email.trim().toLowerCase()),
     AsyncStorage.setItem(STAGED_KEYS.fullName, input.fullName),
     AsyncStorage.setItem(STAGED_KEYS.firstName, first),
     AsyncStorage.setItem(STAGED_KEYS.state, input.state),
@@ -101,7 +108,8 @@ async function stageOnboardingData(input: {
 }
 
 async function readStagedOnboardingData() {
-  const [fullName, state, gender, ageRaw, latRaw, lonRaw] = await Promise.all([
+  const [email, fullName, state, gender, ageRaw, latRaw, lonRaw] = await Promise.all([
+    AsyncStorage.getItem(STAGED_KEYS.email),
     AsyncStorage.getItem(STAGED_KEYS.fullName),
     AsyncStorage.getItem(STAGED_KEYS.state),
     AsyncStorage.getItem(STAGED_KEYS.gender),
@@ -115,6 +123,7 @@ async function readStagedOnboardingData() {
   const longitude = lonRaw != null ? Number(lonRaw) : null;
 
   return {
+    email: email?.trim().toLowerCase() || null,
     fullName: fullName || null,
     state: state || null,
     gender: gender || null,
@@ -145,6 +154,29 @@ function normalizeAuthError(error: AuthError): AuthError & { code?: string; hint
   return err;
 }
 
+function authError(message: string, code: string): AuthError & { code?: string } {
+  const error = new Error(message) as AuthError & { code?: string };
+  error.code = code;
+  return error;
+}
+
+function firstParam(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return undefined;
+}
+
+function parseHashParams(url: string): Record<string, string> {
+  const hash = url.includes('#') ? url.split('#')[1] : '';
+  if (!hash) return {};
+
+  return hash.split('&').reduce<Record<string, string>>((result, pair) => {
+    const [rawKey, ...rawValue] = pair.split('=');
+    if (rawKey) result[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue.join('='));
+    return result;
+  }, {});
+}
+
 async function ensureProfileExists(user: User) {
   if (!user?.id) return;
 
@@ -164,7 +196,13 @@ async function ensureProfileExists(user: User) {
   if (existing?.id) return;
 
   // 2) Build payload from staged onboarding data + durable user_metadata
-  const staged = await readStagedOnboardingData();
+  const stagedData = await readStagedOnboardingData();
+  const userEmail = user.email?.trim().toLowerCase() || null;
+  const stagedMatchesUser = Boolean(stagedData.email && userEmail === stagedData.email);
+  const staged = stagedMatchesUser
+    ? stagedData
+    : { fullName: null, state: null, gender: null, age: null, latitude: null, longitude: null };
+  if (stagedData.email && !stagedMatchesUser) await clearStagedOnboardingData();
   const meta: any = (user as any)?.user_metadata || {};
 
   const fullName =
@@ -203,6 +241,8 @@ async function ensureProfileExists(user: User) {
     const { error } = await supabase.from('profiles').upsert([payload] as any, { onConflict: 'id' });
     if (error) {
       console.error('ensureProfileExists upsert failed:', error.message, error.details, error.hint);
+    } else if (stagedMatchesUser) {
+      await clearStagedOnboardingData();
     }
   } catch (e) {
     console.error('ensureProfileExists exception:', e);
@@ -218,126 +258,112 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     isGuest: false,
   });
   const [pendingRecovery, setPendingRecovery] = useState(false);
+  const processedRedirects = React.useRef(new Set<string>());
+
+  const consumeAuthRedirect = useCallback(async (url: string): Promise<{ error: AuthError | null }> => {
+    if (!url || processedRedirects.current.has(url)) return { error: null };
+    processedRedirects.current.add(url);
+
+    try {
+      const parsed = Linking.parse(url);
+      const hashParams = parseHashParams(url);
+      const code = firstParam(parsed.queryParams?.code) || hashParams.code;
+      const tokenHash = firstParam(parsed.queryParams?.token_hash);
+      const type = firstParam(parsed.queryParams?.type) || hashParams.type;
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
+        if (type === 'recovery') setPendingRecovery(true);
+        return { error: null };
+      }
+
+      if (tokenHash && type) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type as any,
+        });
+        if (error) throw error;
+        if (type === 'recovery') setPendingRecovery(true);
+        return { error: null };
+      }
+
+      // Transitional support for confirmation links issued before PKCE was enabled.
+      const accessToken = hashParams.access_token;
+      const refreshToken = hashParams.refresh_token;
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+        if (type === 'recovery') setPendingRecovery(true);
+      }
+
+      return { error: null };
+    } catch (error) {
+      processedRedirects.current.delete(url);
+      return { error: normalizeAuthError(error as AuthError) };
+    }
+  }, []);
 
   useEffect(() => {
+    let active = true;
+
     const initializeAuth = async () => {
       try {
-        // Check if previously entered guest mode
         const guestFlag = await AsyncStorage.getItem('mg_guest_mode');
         const isGuest = guestFlag === '1';
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        let verifiedSession = session;
 
-        const { data: { session } } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (session) {
+          const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
+            session.access_token
+          );
+          if (claimsError || claimsData?.claims?.sub !== session.user.id) {
+            await supabase.auth.signOut({ scope: 'local' });
+            verifiedSession = null;
+          }
+        }
+
+        if (!active) return;
         setState({
-          session,
-          user: session?.user ?? null,
+          session: verifiedSession,
+          user: verifiedSession?.user ?? null,
           loading: false,
           initialized: true,
-          // Only guest if no session AND guest flag is set
-          isGuest: !session && isGuest,
+          isGuest: !verifiedSession && isGuest,
         });
       } catch (error) {
         console.error('Error initializing auth:', error);
-        setState((prev) => ({ ...prev, loading: false, initialized: true }));
-      }
-    };
-
-    initializeAuth();
-
-    // ── Deep link handler: email confirmation / recovery callback ───────
-    // Supabase sends users to:
-    //   1) medguard://auth/callback?code=<CODE>             (PKCE flow)
-    //   2) medguard://auth/callback#access_token=...&type=  (Implicit flow)
-    //   3) medguard://signin?token_hash=...&type=           (Direct token)
-    // We handle all three and establish a session.
-    const handleDeepLink = async (event: { url: string }) => {
-      try {
-        const url = event.url;
-        if (!url) return;
-
-        const parsed = Linking.parse(url);
-        const tokenHash = parsed.queryParams?.token_hash as string | undefined;
-        const type = parsed.queryParams?.type as string | undefined;
-        const code = parsed.queryParams?.code as string | undefined;
-
-        // ── PKCE flow: exchange authorisation code for session ──
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.warn('[MedGuard] Code exchange failed:', error.message);
-          } else {
-            // If the original redirect was for recovery, flag the modal
-            if (type === 'recovery') {
-              setPendingRecovery(true);
-            }
-          }
-          return;
-        }
-
-        // ── Token-hash flow: verify OTP directly ──
-        if (tokenHash && type) {
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: type as any,
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        if (active) {
+          setState({
+            session: null,
+            user: null,
+            loading: false,
+            initialized: true,
+            isGuest: false,
           });
-          if (error) {
-            console.warn('[MedGuard] OTP verification failed:', error.message);
-          } else if (type === 'recovery') {
-            setPendingRecovery(true);
-          }
-          return;
         }
-
-        // ── Implicit flow: tokens arrive as hash fragment ──
-        if (url.includes('#')) {
-          const hashPart = url.split('#')[1];
-          if (hashPart) {
-            // Parse hash fragment manually (URLSearchParams may not exist in RN)
-            const hashParams: Record<string, string> = {};
-            hashPart.split('&').forEach((pair) => {
-              const [key, ...rest] = pair.split('=');
-              if (key) hashParams[key] = decodeURIComponent(rest.join('='));
-            });
-
-            const accessToken = hashParams['access_token'];
-            const refreshToken = hashParams['refresh_token'];
-            const hashType = hashParams['type'];
-
-            if (accessToken) {
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken || '',
-              });
-              if (error) {
-                console.warn('[MedGuard] setSession failed:', error.message);
-              } else if (hashType === 'recovery') {
-                setPendingRecovery(true);
-              }
-              return;
-            }
-          }
-        }
-
-        // Deep link did not match any auth pattern
-      } catch (e) {
-        console.warn('Deep link handler error:', e);
       }
     };
 
-    // Listen for incoming deep links while app is open
-    const linkSubscription = Linking.addEventListener('url', handleDeepLink);
+    void initializeAuth();
 
-    // Handle the case where the app was cold-started from a deep link
-    Linking.getInitialURL().then((url: string | null) => {
-      if (url) handleDeepLink({ url });
+    const linkSubscription = Linking.addEventListener('url', ({ url }) => {
+      void consumeAuthRedirect(url);
+    });
+    void Linking.getInitialURL().then((url) => {
+      if (url) void consumeAuthRedirect(url);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      // If user signs in, clear guest mode
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        await AsyncStorage.removeItem('mg_guest_mode');
+        void AsyncStorage.removeItem('mg_guest_mode');
       }
-
-      // Supabase fires PASSWORD_RECOVERY when a recovery session is established
       if (event === 'PASSWORD_RECOVERY') {
         setPendingRecovery(true);
       }
@@ -347,71 +373,89 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session,
         user: session?.user ?? null,
         loading: false,
-        // Clear guest mode on sign in
         isGuest: session?.user ? false : prev.isGuest,
       }));
-
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          await ensureProfileExists(session.user);
-        } catch (e) {
-          console.warn('ensureProfileExists failed:', e);
-        }
-      }
     });
 
     return () => {
+      active = false;
       subscription.unsubscribe();
       linkSubscription.remove();
     };
+  }, [consumeAuthRedirect]);
+
+  useEffect(() => {
+    if (state.user) void ensureProfileExists(state.user);
+  }, [state.user?.id]);
+
+  const beginFreshAuthAttempt = useCallback(async () => {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    await AsyncStorage.removeItem('mg_guest_mode');
+    setState((prev) => ({
+      ...prev,
+      session: null,
+      user: null,
+      isGuest: false,
+      loading: true,
+    }));
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
-    setState((prev) => ({ ...prev, loading: true }));
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      await beginFreshAuthAttempt();
+      const normalizedEmail = email.trim().toLowerCase();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
       if (error) throw error;
 
-      const sessionUser = data?.session?.user || null;
-      if (sessionUser) {
-        // Ensure a profile exists (matches web sign-in handler behavior)
-        let createdProfileNow = false;
-        try {
-          const { data: existing } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', sessionUser.id)
-            .maybeSingle();
-          if (!existing) {
-            await ensureProfileExists(sessionUser);
-            createdProfileNow = true;
-          }
-        } catch {
-          // Best-effort; routing still continues
-        }
-
-        const profileComplete = Boolean((sessionUser as any)?.user_metadata?.profile_complete === true);
-        const isFirstLogin = createdProfileNow || !profileComplete;
-
-        return { data, error: null, nextRoute: isFirstLogin ? 'SignUp2' : 'MainTabs' };
+      const session = data?.session ?? null;
+      const sessionUser = session?.user ?? null;
+      if (!session || !sessionUser) {
+        throw authError('No authenticated session was returned.', 'session_missing');
+      }
+      if (sessionUser.email?.toLowerCase() !== normalizedEmail) {
+        await supabase.auth.signOut({ scope: 'local' });
+        throw authError('The authenticated account did not match the requested account.', 'session_mismatch');
       }
 
-      return { data, error: null, nextRoute: 'MainTabs' };
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
+        session.access_token
+      );
+      if (claimsError || claimsData?.claims?.sub !== sessionUser.id) {
+        await supabase.auth.signOut({ scope: 'local' });
+        throw authError('The authenticated session could not be verified.', 'session_invalid');
+      }
+
+      const profileComplete = sessionUser.user_metadata?.profile_complete === true;
+      setState((prev) => ({
+        ...prev,
+        session,
+        user: sessionUser,
+        isGuest: false,
+      }));
+
+      return {
+        outcome: 'authenticated',
+        data,
+        error: null,
+        nextRoute: profileComplete ? 'MainTabs' : 'SignUp2',
+      };
     } catch (error) {
       const authError = normalizeAuthError(error as AuthError);
-      return { data: null, error: authError };
+      return { outcome: 'failed', data: null, error: authError };
     } finally {
       setState((prev) => ({ ...prev, loading: false }));
     }
-  }, []);
+  }, [beginFreshAuthAttempt]);
 
   const signUp = useCallback(async (signUpData: SignUpData): Promise<SignUpResult> => {
-    setState((prev) => ({ ...prev, loading: true }));
-
     try {
-      // Stage onboarding data locally so first sign-in can bootstrap a profile if email confirmation is required.
+      await beginFreshAuthAttempt();
+      const normalizedEmail = signUpData.email.trim().toLowerCase();
       await stageOnboardingData({
+        email: normalizedEmail,
         fullName: signUpData.name,
         state: signUpData.state,
         gender: signUpData.gender,
@@ -430,36 +474,24 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         longitude: typeof signUpData.longitude === 'number' ? signUpData.longitude : null,
       };
 
-      // Include emailRedirectTo so the confirmation email deep-links back into
-      // the app's sign-in screen (medguard://signin).
-      const redirectUrl = Linking.createURL('signin');
-
       const { data, error } = await supabase.auth.signUp({
-        email: signUpData.email,
+        email: normalizedEmail,
         password: signUpData.password,
-        options: { data: meta, emailRedirectTo: redirectUrl },
+        options: { data: meta, emailRedirectTo: SIGN_IN_REDIRECT },
       });
 
       if (error) throw error;
 
       const createdUser = (data as any)?.user || null;
       const hasSession = Boolean((data as any)?.session);
-      const identities = createdUser?.identities;
 
-      // Match web: treat identities=[] as "already exists"
-      if (Array.isArray(identities) && identities.length === 0) {
-        const err: any = new Error('User already exists. Please sign in instead.');
-        err.code = 'user_already_exists';
-        throw err;
-      }
-
-      // If email confirmation is enabled, Supabase may return a user without session.
-      // Match web behavior: do not attempt profile upsert (RLS) and instruct user to verify.
       if (!hasSession) {
-        const err: any = new Error('Email not confirmed');
-        err.code = 'email_not_confirmed';
-        err.hint = 'Account created. Please check your email and confirm your account before signing in.';
-        return { data, error: err, needsEmailConfirmation: true };
+        return {
+          outcome: 'confirmation_required',
+          data,
+          error: null,
+          needsEmailConfirmation: true,
+        };
       }
 
       // With an active session, safely upsert profile.
@@ -490,25 +522,65 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         }
       }
 
-      return { data, error: null, nextRoute: 'SignUp2' };
+      return { outcome: 'authenticated', data, error: null, nextRoute: 'SignUp2' };
     } catch (error) {
       const authError = normalizeAuthError(error as AuthError);
-      return { data: null, error: authError };
+      return { outcome: 'failed', data: null, error: authError };
     } finally {
       setState((prev) => ({ ...prev, loading: false }));
     }
-  }, []);
+  }, [beginFreshAuthAttempt]);
 
-  const signInWithGoogle = useCallback(async () => {
-    // Web parity: button exists but is not available yet.
-    Alert.alert(
-      'Google sign-in not available',
-      'Google sign-in is not available yet. Please use your email and password.'
-    );
-    const err: any = new Error('Google sign-in is not available yet.');
-    err.code = 'oauth_not_available';
-    return { data: null, error: err };
-  }, []);
+  const signInWithGoogle = useCallback(async (): Promise<SignInResult> => {
+    try {
+      await beginFreshAuthAttempt();
+      const { data: oauthData, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: GOOGLE_REDIRECT,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (oauthError) throw oauthError;
+      if (!oauthData?.url) throw authError('Google did not return a sign-in URL.', 'oauth_url_missing');
+
+      const browserResult = await WebBrowser.openAuthSessionAsync(oauthData.url, GOOGLE_REDIRECT, {
+        showInRecents: true,
+      });
+      if (browserResult.type !== 'success') {
+        return { outcome: 'cancelled', data: null, error: null };
+      }
+
+      const callback = await consumeAuthRedirect(browserResult.url);
+      if (callback.error) throw callback.error;
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const session = sessionData.session;
+      if (!session?.user) throw authError('Google sign-in did not create a session.', 'session_missing');
+
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
+        session.access_token
+      );
+      if (claimsError || claimsData?.claims?.sub !== session.user.id) {
+        await supabase.auth.signOut({ scope: 'local' });
+        throw authError('The Google session could not be verified.', 'session_invalid');
+      }
+
+      const profileComplete = session.user.user_metadata?.profile_complete === true;
+      return {
+        outcome: 'authenticated',
+        data: sessionData,
+        error: null,
+        nextRoute: profileComplete ? 'MainTabs' : 'SignUp2',
+      };
+    } catch (error) {
+      return { outcome: 'failed', data: null, error: normalizeAuthError(error as AuthError) };
+    } finally {
+      setState((prev) => ({ ...prev, loading: false }));
+    }
+  }, [beginFreshAuthAttempt, consumeAuthRedirect]);
 
   const signOut = useCallback(async () => {
     try {
@@ -543,8 +615,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
    * Enter guest mode - allows browsing without authentication.
    * Guest users have limited access to features.
    */
-  const continueAsGuest = useCallback(() => {
-    AsyncStorage.setItem('mg_guest_mode', '1').catch(() => {});
+  const continueAsGuest = useCallback(async () => {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    await AsyncStorage.setItem('mg_guest_mode', '1');
     setState((prev) => ({
       ...prev,
       isGuest: true,
@@ -555,11 +628,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const resetPassword = useCallback(async (email: string) => {
     try {
-      const redirectUrl = Linking.createURL('auth/callback', {
-        queryParams: { type: 'recovery' },
-      });
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: RECOVERY_REDIRECT,
       });
       if (error) throw error;
       return { error: null };
@@ -572,15 +642,32 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      setPendingRecovery(false);
+      const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' });
+      if (signOutError) throw signOutError;
+      await clearStagedOnboardingData();
+      setState((prev) => ({
+        ...prev,
+        session: null,
+        user: null,
+        isGuest: false,
+        loading: false,
+      }));
       return { error: null };
     } catch (error) {
       return { error: error as AuthError };
     }
   }, []);
 
-  const clearRecovery = useCallback(() => {
+  const clearRecovery = useCallback(async () => {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     setPendingRecovery(false);
+    setState((prev) => ({
+      ...prev,
+      session: null,
+      user: null,
+      isGuest: false,
+      loading: false,
+    }));
   }, []);
 
   const completeOnboarding = useCallback(async () => {

@@ -101,8 +101,8 @@ const WelcomeScreen: React.FC = () => {
 
   const handleSignUp = useCallback(() => navigation.navigate('SignUp'), [navigation]);
   const handleSignIn = useCallback(() => navigation.navigate('SignIn'), [navigation]);
-  const handleGuest = useCallback(() => {
-    continueAsGuest();
+  const handleGuest = useCallback(async () => {
+    await continueAsGuest();
     navigation.navigate('MainTabs');
   }, [continueAsGuest, navigation]);
 

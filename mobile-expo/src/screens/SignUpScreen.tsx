@@ -259,6 +259,10 @@ const SignUpScreen: React.FC = () => {
       setError('Please enter a password');
       return;
     }
+    if (password.length < 10) {
+      setError('Use at least 10 characters for your password');
+      return;
+    }
     if (!confirmPassword) {
       setError('Please confirm your password');
       return;
@@ -307,13 +311,17 @@ const SignUpScreen: React.FC = () => {
       longitude: useLocation ? verifiedLocation?.longitude : undefined,
     });
 
+    if (result.outcome === 'confirmation_required') {
+      Alert.alert(
+        'Check your email',
+        'If this address can be registered, we sent a confirmation link. Open it on this device, then sign in.'
+      );
+      navigation.navigate('SignIn');
+      return;
+    }
+
     if (result.error) {
       const msg = toUserMessage(result.error, 'signup');
-      if (result.needsEmailConfirmation || (result.error as any)?.code === 'email_not_confirmed') {
-        Alert.alert('Confirm your email', msg);
-        navigation.navigate('SignIn');
-        return;
-      }
       setError(msg);
       return;
     }

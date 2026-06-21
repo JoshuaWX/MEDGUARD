@@ -79,15 +79,16 @@ function RootNavigator() {
         SignUp: 'signup',
       },
     },
-    // Custom subscribe to also handle auth/callback → SignIn with resetPassword mode
+    // Auth callbacks open Sign In; the AuthProvider verifies the link before
+    // exposing the blocking recovery modal.
     getPathFromState: undefined,
     getStateFromPath: (path: string, options: any) => {
       // Strip hash fragments and query params for route matching
       const cleanPath = path.split('?')[0].split('#')[0];
-      // Map auth/callback to SignIn with mode param
+      // Route placement is not proof that an auth callback is valid.
       if (cleanPath === 'auth/callback' || cleanPath.startsWith('auth/callback/')) {
         return {
-          routes: [{ name: 'SignIn', params: { mode: 'resetPassword' } }],
+          routes: [{ name: 'SignIn' }],
         };
       }
       // Fall back to default

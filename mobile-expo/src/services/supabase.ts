@@ -6,15 +6,19 @@
  */
 
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { authStorage } from './authStorage';
 
 // Read from Expo public environment variables (configured in app.json or .env)
 const SUPABASE_URL =
   Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY =
-  Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_KEY =
+  Constants.expoConfig?.extra?.supabasePublishableKey ||
+  Constants.expoConfig?.extra?.supabaseAnonKey ||
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  '';
 
 const isValidUrl = (value: string) => {
   try {
@@ -27,7 +31,7 @@ const isValidUrl = (value: string) => {
 };
 
 const isSupabaseConfigured =
-  Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY) && isValidUrl(SUPABASE_URL);
+  Boolean(SUPABASE_URL) && Boolean(SUPABASE_KEY) && isValidUrl(SUPABASE_URL);
 
 export const supabaseConfigured = isSupabaseConfigured;
 
@@ -42,12 +46,18 @@ const createUnconfiguredSupabase = () => {
   return {
     auth: {
       getSession: async () => ({ data: { session: null }, error: makeError() }),
+      getClaims: async () => ({ data: { claims: null }, error: makeError() }),
+      getUser: async () => ({ data: { user: null }, error: makeError() }),
       onAuthStateChange: () => ({ data: { subscription } }),
       signInWithPassword: async () => ({ data: null, error: makeError() }),
       signUp: async () => ({ data: null, error: makeError() }),
       signInWithOAuth: async () => ({ data: null, error: makeError() }),
       signOut: async () => ({ error: makeError() }),
       resetPasswordForEmail: async () => ({ error: makeError() }),
+      exchangeCodeForSession: async () => ({ data: null, error: makeError() }),
+      verifyOtp: async () => ({ data: null, error: makeError() }),
+      setSession: async () => ({ data: null, error: makeError() }),
+      updateUser: async () => ({ data: null, error: makeError() }),
     },
     from: () => {
       const chain = {
@@ -78,12 +88,13 @@ if (!isSupabaseConfigured) {
 }
 
 export const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  ? createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
-        storage: AsyncStorage,
+        storage: authStorage,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
+        flowType: 'pkce',
       },
     })
   : (createUnconfiguredSupabase() as any);
