@@ -6,11 +6,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import Constants from 'expo-constants';
 import MapCanvas, { Marker, type MapCanvasHandle, type Region } from '../components/MapCanvas';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +34,9 @@ const DEFAULT_REGION: Region = {
 };
 
 const TAB_BAR_OVERLAY_GUARD = 96;
+const ANDROID_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || '';
+const CAN_MOUNT_NATIVE_MAP =
+  Platform.OS !== 'android' || Constants.appOwnership === 'expo' || Boolean(ANDROID_MAPS_KEY);
 
 type FacilityFilter = 'all' | 'clinic' | 'pharmacy';
 
@@ -232,27 +237,36 @@ const MapScreen: React.FC = () => {
         </View>
       )}
 
-      <MapCanvas
-        ref={(r) => {
-          mapRef.current = r;
-        }}
-        style={styles.map}
-        region={region}
-        onRegionChangeComplete={setRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {facilities.map((facility) => (
-          <Marker
-            key={facility.id}
-            coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
-            title={facility.name}
-            description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
-            pinColor={facilityColor(facility.kind)}
-            onPress={() => setSelectedFacility(facility)}
+      {CAN_MOUNT_NATIVE_MAP ? (
+        <MapCanvas
+          ref={(r) => {
+            mapRef.current = r;
+          }}
+          style={styles.map}
+          region={region}
+          onRegionChangeComplete={setRegion}
+          showsUserLocation={permissionStatus === 'granted'}
+          showsMyLocationButton={false}
+        >
+          {facilities.map((facility) => (
+            <Marker
+              key={facility.id}
+              coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
+              title={facility.name}
+              description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
+              pinColor={facilityColor(facility.kind)}
+              onPress={() => setSelectedFacility(facility)}
+            />
+          ))}
+        </MapCanvas>
+      ) : (
+        <View style={[styles.mapUnavailable, { backgroundColor: colors.background }]}>
+          <ErrorBanner
+            title="Map unavailable"
+            message="The map is not configured in this build. Please install an updated MedGuard build."
           />
-        ))}
-      </MapCanvas>
+        </View>
+      )}
 
       <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}> 
         {loadingFacilities ? (
@@ -388,6 +402,11 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapUnavailable: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.base,
   },
   bottomSheet: {
     borderTopWidth: 1,

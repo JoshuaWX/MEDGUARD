@@ -13,6 +13,23 @@ export interface NearbyFacility {
   source: string;
 }
 
+function isUsableFacility(value: unknown): value is NearbyFacility {
+  const facility = value as Partial<NearbyFacility> | null;
+  return Boolean(
+    facility &&
+    typeof facility.id === 'string' &&
+    facility.id.length > 0 &&
+    typeof facility.name === 'string' &&
+    facility.name.length > 0 &&
+    Number.isFinite(facility.latitude) &&
+    Number.isFinite(facility.longitude) &&
+    Number(facility.latitude) >= -90 &&
+    Number(facility.latitude) <= 90 &&
+    Number(facility.longitude) >= -180 &&
+    Number(facility.longitude) <= 180
+  );
+}
+
 interface NearbyFacilitiesResponse {
   facilities: NearbyFacility[];
   query: {
@@ -45,5 +62,8 @@ export async function fetchNearbyFacilities(params: {
   );
 
   if (error) return { facilities: [] as NearbyFacility[], error };
-  return { facilities: data?.facilities || [], error: null };
+  const facilities = Array.isArray(data?.facilities)
+    ? data.facilities.filter(isUsableFacility)
+    : [];
+  return { facilities, error: null };
 }

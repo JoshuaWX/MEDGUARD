@@ -31,7 +31,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
   Image,
   ImageBackground,
   TextInput,
@@ -65,6 +64,8 @@ import {
   RiskLevelCard,
   StreakBadge,
   CommunityTrendCard,
+  ErrorBanner,
+  useFeedback,
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
@@ -168,6 +169,7 @@ const MyHealthScreenContent: React.FC = () => {
   const { user } = useUser();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
+  const { toast } = useFeedback();
   const {
     location,
     geocoded,
@@ -193,6 +195,7 @@ const MyHealthScreenContent: React.FC = () => {
   const [checkinAnswers, setCheckinAnswers] = useState<Partial<CheckinAnswers>>({});
   const [freeTextSymptoms, setFreeTextSymptoms] = useState('');
   const [showCheckinForm, setShowCheckinForm] = useState(false);
+  const [checkinError, setCheckinError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [nearbyFacilities, setNearbyFacilities] = useState<NearbyFacility[]>([]);
   const [facilitiesLoading, setFacilitiesLoading] = useState(false);
@@ -312,6 +315,7 @@ const MyHealthScreenContent: React.FC = () => {
   // Handle check-in answer
   const handleCheckinAnswer = (key: keyof CheckinAnswers, value: boolean) => {
     setCheckinAnswers(prev => ({ ...prev, [key]: value }));
+    setCheckinError(null);
   };
 
   // Submit daily check-in
@@ -319,7 +323,7 @@ const MyHealthScreenContent: React.FC = () => {
     // Validate all questions answered
     const allAnswered = CHECKIN_QUESTIONS.every(q => checkinAnswers[q.key] !== undefined);
     if (!allAnswered) {
-      Alert.alert(t('checkin_incomplete'), t('checkin_answer_all'));
+      setCheckinError(t('checkin_answer_all'));
       return;
     }
 
@@ -331,9 +335,10 @@ const MyHealthScreenContent: React.FC = () => {
       setShowCheckinForm(false);
       setCheckinAnswers({});
       setFreeTextSymptoms('');
-      Alert.alert(t('checkin_success'), t('checkin_recorded'));
+      setCheckinError(null);
+      toast({ tone: 'success', title: t('checkin_success'), message: t('checkin_recorded') });
     } catch (error) {
-      Alert.alert(t('error'), toUserMessage(error, 'checkin'));
+      setCheckinError(toUserMessage(error, 'checkin'));
     }
   };
 
@@ -546,6 +551,10 @@ const MyHealthScreenContent: React.FC = () => {
                     </Text>
                   </View>
 
+                  {checkinError ? (
+                    <ErrorBanner message={checkinError} title={t('checkin_incomplete')} />
+                  ) : null}
+
                   <Button
                     title={t('submit_checkin')}
                     onPress={handleSubmitCheckin}
@@ -556,7 +565,10 @@ const MyHealthScreenContent: React.FC = () => {
                 // Show start button
                 <Button
                   title={t('start_daily_checkin')}
-                  onPress={() => setShowCheckinForm(true)}
+                  onPress={() => {
+                    setCheckinError(null);
+                    setShowCheckinForm(true);
+                  }}
                 />
               )}
             </GlassCard>

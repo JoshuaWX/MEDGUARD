@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { ErrorBanner, GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, AuthGateModal } from '../components';
+import { ErrorBanner, GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, useFeedback } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -42,6 +42,7 @@ const SettingsScreen: React.FC = () => {
   const { lang, setLang, t } = useI18n();
   const { isDark, colors, mode } = useTheme();
   const { isGuest, requireAuth, AuthGateModalComponent } = useAuthGate();
+  const { toast } = useFeedback();
   
   // Notification settings
   const {
@@ -92,8 +93,10 @@ const SettingsScreen: React.FC = () => {
 
   // Handler for test notification
   const handleTestNotification = async () => {
-    await sendTest();
-    Alert.alert('Test Sent', 'Check your notifications!');
+    const sent = await sendTest();
+    if (sent) {
+      toast({ tone: 'success', title: 'Test sent', message: 'Check your notifications.' });
+    }
   };
 
   // Parse reminder time for picker

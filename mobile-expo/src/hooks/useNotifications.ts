@@ -54,7 +54,7 @@ interface UseNotificationsReturn {
   requestPermission: () => Promise<boolean>;
   setReminderEnabled: (enabled: boolean) => Promise<void>;
   setReminderTime: (time: string) => Promise<void>;
-  sendTest: () => Promise<void>;
+  sendTest: () => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -210,9 +210,11 @@ export function useNotifications(): UseNotificationsReturn {
   const sendTest = useCallback(async () => {
     try {
       await sendTestNotification();
+      return true;
     } catch (err) {
       console.error('Error sending test notification:', err);
       setError(toUserMessage(err, 'notifications'));
+      return false;
     }
   }, []);
 

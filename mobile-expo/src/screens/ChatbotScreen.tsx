@@ -19,7 +19,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated as RNAnimated,
   KeyboardAvoidingView,
   Modal,
@@ -30,6 +29,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -46,6 +46,7 @@ import {
   PencilIcon,
   TrashIcon,
   AuthGateModal,
+  useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
@@ -56,10 +57,6 @@ import { supabase } from '../services/supabase';
 import { invokeEdgeFunction } from '../services/edge';
 import { toUserMessage } from '../services/errorMessages';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
-
-// ANDROID FIX: Removed Dimensions.get('window') for SIDEBAR_WIDTH
-// Using a fixed value is acceptable here as sidebar is a overlay drawer
-const SIDEBAR_WIDTH = 280;
 
 // Guest mode limits
 const GUEST_MAX_REQUESTS_PER_SESSION = 10;
@@ -123,13 +120,16 @@ function createGuestSessionId() {
 const ChatbotScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const sidebarWidth = Math.min(320, Math.max(260, windowWidth * 0.84));
   const { user: authUser, isGuest } = useAuth();
   const { user } = useUser();
   const { t } = useI18n();
   const { showAuthGate, AuthGateModalComponent } = useAuthGate();
+  const { confirm, notify, toast } = useFeedback();
 
   const scrollRef = useRef<ScrollView | null>(null);
-  const sidebarAnim = useRef(new RNAnimated.Value(-SIDEBAR_WIDTH)).current;
+  const sidebarAnim = useRef(new RNAnimated.Value(-320)).current;
   
   // ============================================================================
   // PERFORMANCE: AbortController for cancelling pending requests on unmount
@@ -209,11 +209,11 @@ const ChatbotScreen: React.FC = () => {
   // Toggle sidebar animation
   useEffect(() => {
     RNAnimated.timing(sidebarAnim, {
-      toValue: sidebarOpen ? 0 : -SIDEBAR_WIDTH,
+      toValue: sidebarOpen ? 0 : -sidebarWidth,
       duration: 250,
       useNativeDriver: true,
     }).start();
-  }, [sidebarOpen]);
+  }, [sidebarAnim, sidebarOpen, sidebarWidth]);
 
   // Load conversations list (skip for guests - no history persistence)
   const loadConversations = useCallback(async () => {
@@ -351,31 +351,42 @@ const ChatbotScreen: React.FC = () => {
   const deleteConversation = useCallback(
     async (convId: string) => {
       try {
-        await supabase.from('chat_messages').delete().eq('conversation_id', convId);
-        await supabase.from('chat_conversations').delete().eq('id', convId);
+        const { error: messagesError } = await supabase
+          .from('chat_messages')
+          .delete()
+          .eq('conversation_id', convId);
+        if (messagesError) throw messagesError;
+
+        const { error: conversationError } = await supabase
+          .from('chat_conversations')
+          .delete()
+          .eq('id', convId);
+        if (conversationError) throw conversationError;
         setConversations((prev) => prev.filter((c) => c.id !== convId));
         if (conversationId === convId) {
           resetChat();
         }
       } catch (e: any) {
         console.error('Delete failed:', e?.message);
+        await notify({ tone: 'danger', title: 'Chat not deleted', message: toUserMessage(e, 'chat') });
       }
     },
-    [conversationId, resetChat]
+    [conversationId, notify, resetChat]
   );
 
   const confirmDeleteConversation = useCallback(
-    (convId: string) => {
-      Alert.alert(
-        'Delete chat?',
-        'This will permanently delete this chat and all its messages.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: () => deleteConversation(convId) },
-        ]
-      );
+    async (convId: string) => {
+      const accepted = await confirm({
+        tone: 'danger',
+        title: 'Delete chat?',
+        message: 'This will permanently delete this chat and all its messages.',
+        confirmLabel: 'Delete',
+      });
+      if (!accepted) return;
+      await deleteConversation(convId);
+      toast({ tone: 'success', message: 'Chat deleted.' });
     },
-    [deleteConversation]
+    [confirm, deleteConversation, toast]
   );
 
   const openRename = useCallback((conv: Conversation) => {
@@ -541,8 +552,9 @@ const ChatbotScreen: React.FC = () => {
           {
             backgroundColor: theme.bgSecondary,
             borderRightColor: theme.borderColor,
+            width: sidebarWidth,
             transform: [{ translateX: sidebarAnim }],
-            paddingTop: insets.top,
+            paddingTop: insets.top + Spacing.xs,
           },
         ]}
       >
@@ -638,7 +650,7 @@ const ChatbotScreen: React.FC = () => {
         </View>
 
         {/* Sidebar Footer - User Menu */}
-        <View style={[styles.sidebarFooter, { borderTopColor: theme.borderColor }]}>
+        <View style={[styles.sidebarFooter, { borderTopColor: theme.borderColor, paddingBottom: insets.bottom + Spacing.sm }]}>
           <View style={styles.userMenu}>
             <LinearGradient
               colors={isGuest ? ['#6b7280', '#4b5563'] : [theme.accent, '#3b82f6']}
@@ -981,7 +993,6 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: SIDEBAR_WIDTH,
     zIndex: 100,
     borderRightWidth: 1,
   },
@@ -1025,6 +1036,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     marginBottom: 2,
+    minHeight: 52,
   },
   chatTitle: {
     flex: 1,
@@ -1032,8 +1044,11 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
   },
   actionBtn: {
-    padding: 4,
-    borderRadius: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
   },
   emptyState: {
     fontSize: 14,

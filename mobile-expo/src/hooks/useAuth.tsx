@@ -35,6 +35,7 @@ interface SignUpData {
 
 type NextRoute = 'MainTabs' | 'SignUp2';
 type AuthOutcome = 'authenticated' | 'confirmation_required' | 'cancelled' | 'failed';
+type SessionValidation = 'verified' | 'temporarily_unverified' | 'invalid';
 
 type SignInResult = {
   outcome: AuthOutcome;
@@ -160,6 +161,36 @@ function authError(message: string, code: string): AuthError & { code?: string }
   return error;
 }
 
+function isTransientAuthError(error: unknown): boolean {
+  const candidate = error as { message?: string; code?: string; status?: number } | null;
+  const message = String(candidate?.message || '').toLowerCase();
+  const code = String(candidate?.code || '').toLowerCase();
+  const status = Number(candidate?.status || 0);
+
+  return (
+    status === 0 ||
+    status === 408 ||
+    status === 429 ||
+    status >= 500 ||
+    code.includes('network') ||
+    code.includes('timeout') ||
+    message.includes('network request failed') ||
+    message.includes('failed to fetch') ||
+    message.includes('fetch failed') ||
+    message.includes('timed out') ||
+    message.includes('timeout')
+  );
+}
+
+async function validateSession(session: Session): Promise<SessionValidation> {
+  const { data, error } = await supabase.auth.getClaims(session.access_token);
+  const subject = data?.claims?.sub;
+
+  if (subject) return subject === session.user.id ? 'verified' : 'invalid';
+  if (error && isTransientAuthError(error)) return 'temporarily_unverified';
+  return 'invalid';
+}
+
 function firstParam(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -258,13 +289,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     isGuest: false,
   });
   const [pendingRecovery, setPendingRecovery] = useState(false);
-  const processedRedirects = React.useRef(new Set<string>());
+  const redirectTasks = React.useRef(
+    new Map<string, Promise<{ error: AuthError | null }>>()
+  );
 
-  const consumeAuthRedirect = useCallback(async (url: string): Promise<{ error: AuthError | null }> => {
-    if (!url || processedRedirects.current.has(url)) return { error: null };
-    processedRedirects.current.add(url);
+  const consumeAuthRedirect = useCallback((url: string): Promise<{ error: AuthError | null }> => {
+    if (!url) return Promise.resolve({ error: null });
+    const existing = redirectTasks.current.get(url);
+    if (existing) return existing;
 
-    try {
+    if (redirectTasks.current.size >= 20) {
+      const oldest = redirectTasks.current.keys().next().value;
+      if (oldest) redirectTasks.current.delete(oldest);
+    }
+
+    const task = (async () => {
+      try {
       const parsed = Linking.parse(url);
       const hashParams = parseHashParams(url);
       const code = firstParam(parsed.queryParams?.code) || hashParams.code;
@@ -300,11 +340,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (type === 'recovery') setPendingRecovery(true);
       }
 
-      return { error: null };
-    } catch (error) {
-      processedRedirects.current.delete(url);
-      return { error: normalizeAuthError(error as AuthError) };
-    }
+        return { error: null };
+      } catch (error) {
+        return { error: normalizeAuthError(error as AuthError) };
+      }
+    })();
+
+    // Linking and openAuthSessionAsync can deliver the same callback. Sharing
+    // one promise makes both callers wait for the same PKCE exchange instead
+    // of letting one race ahead to getSession().
+    redirectTasks.current.set(url, task);
+    return task;
   }, []);
 
   useEffect(() => {
@@ -319,12 +365,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
         if (sessionError) throw sessionError;
         if (session) {
-          const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
-            session.access_token
-          );
-          if (claimsError || claimsData?.claims?.sub !== session.user.id) {
+          const validation = await validateSession(session);
+          if (validation === 'invalid') {
             await supabase.auth.signOut({ scope: 'local' });
             verifiedSession = null;
+          } else if (validation === 'temporarily_unverified') {
+            console.warn('Session verification deferred until connectivity returns.');
           }
         }
 
@@ -354,10 +400,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     void initializeAuth();
 
     const linkSubscription = Linking.addEventListener('url', ({ url }) => {
-      void consumeAuthRedirect(url);
+      void consumeAuthRedirect(url).then(({ error }) => {
+        if (error) console.warn('Auth redirect failed:', error.message);
+      });
     });
     void Linking.getInitialURL().then((url) => {
-      if (url) void consumeAuthRedirect(url);
+      if (url) {
+        void consumeAuthRedirect(url).then(({ error }) => {
+          if (error) console.warn('Initial auth redirect failed:', error.message);
+        });
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
@@ -420,10 +472,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         throw authError('The authenticated account did not match the requested account.', 'session_mismatch');
       }
 
-      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
-        session.access_token
-      );
-      if (claimsError || claimsData?.claims?.sub !== sessionUser.id) {
+      const validation = await validateSession(session);
+      if (validation === 'invalid') {
         await supabase.auth.signOut({ scope: 'local' });
         throw authError('The authenticated session could not be verified.', 'session_invalid');
       }
@@ -560,15 +610,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const session = sessionData.session;
       if (!session?.user) throw authError('Google sign-in did not create a session.', 'session_missing');
 
-      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
-        session.access_token
-      );
-      if (claimsError || claimsData?.claims?.sub !== session.user.id) {
+      const validation = await validateSession(session);
+      if (validation === 'invalid') {
         await supabase.auth.signOut({ scope: 'local' });
         throw authError('The Google session could not be verified.', 'session_invalid');
       }
 
       const profileComplete = session.user.user_metadata?.profile_complete === true;
+      setState((prev) => ({
+        ...prev,
+        session,
+        user: session.user,
+        isGuest: false,
+      }));
       return {
         outcome: 'authenticated',
         data: sessionData,

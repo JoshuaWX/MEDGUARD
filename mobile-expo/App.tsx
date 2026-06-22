@@ -16,6 +16,7 @@ import { I18nProvider } from './src/i18n';
 import SplashScreen from './src/screens/SplashScreen';
 import { configureNotifications } from './src/services/notifications';
 import VersionGate from './src/components/VersionGate';
+import { FeedbackProvider } from './src/components';
 
 // Prevent native splash from auto-hiding
 ExpoSplashScreen.preventAutoHideAsync();
@@ -62,13 +63,15 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <I18nProvider>
-            <AuthProvider>
-              <LocationProvider>
-                <VersionGate>
-                  <RootNavigator />
-                </VersionGate>
-              </LocationProvider>
-            </AuthProvider>
+            <FeedbackProvider>
+              <AuthProvider>
+                <LocationProvider>
+                  <VersionGate>
+                    <RootNavigator />
+                  </VersionGate>
+                </LocationProvider>
+              </AuthProvider>
+            </FeedbackProvider>
           </I18nProvider>
         </ThemeProvider>
       </SafeAreaProvider>

@@ -96,6 +96,39 @@ The email and profile scopes are normally present already. Add `openid`
 manually if it is missing. Do not add Gmail, Drive, health, or other sensitive
 Google scopes; MedGuard only needs the user's identity.
 
+### Make the consent screen show MedGuard
+
+If Google displays `Sign in to <project-ref>.supabase.co`, complete the
+**Branding** page with the MedGuard app name, logo, support email, homepage,
+privacy policy, terms, and developer contact email. Add `medguardng.me` as the
+authorized domain, then open **Verification Center** and submit the brand for
+verification when the public pages are live. Google may take several business
+days to approve branding changes.
+
+Branding makes Google identify the app as MedGuard. Completely replacing the
+random Supabase hostname in OAuth consent text requires a Supabase custom
+domain. Custom domains are a paid add-on for projects on a paid Supabase plan.
+Use:
+
+```text
+api.medguardng.me
+```
+
+Do not use `auth.medguardng.me` for Supabase because that subdomain is reserved
+for Resend email authentication. Configure the custom domain under Supabase
+**Project Settings > General > Custom Domains** and add the CNAME/TXT records
+Supabase provides to Namecheap.
+
+Before activating it, add both callback URLs to the Google Web OAuth client:
+
+```text
+https://cddfhyxlhtmrrtduwlqd.supabase.co/auth/v1/callback
+https://api.medguardng.me/auth/v1/callback
+```
+
+After Supabase activates the custom domain, Auth advertises the branded callback
+to Google. The original Supabase project domain remains operational.
+
 ## Part 3: Create Google OAuth clients
 
 MedGuard should have a Web client and an Android client. The Web client owns
@@ -370,6 +403,7 @@ In the Supabase Authentication settings:
 
 - [Supabase Google Auth guide](https://supabase.com/docs/guides/auth/social-login/auth-google)
 - [Supabase redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls)
+- [Supabase custom domains](https://supabase.com/docs/guides/platform/custom-domains)
 - [Supabase custom SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp)
 - [Google Auth Platform](https://console.cloud.google.com/auth/overview)
 - [Resend Supabase SMTP guide](https://resend.com/docs/send-with-supabase-smtp)

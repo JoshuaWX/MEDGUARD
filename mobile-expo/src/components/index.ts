@@ -20,6 +20,8 @@ export { default as AQICard } from './AQICard';
 export { default as FeatureBlockedScreen } from './FeatureBlockedScreen';
 export { default as AuthGateModal } from './AuthGateModal';
 export { default as ResetPasswordModal } from './ResetPasswordModal';
+export { FeedbackProvider, useFeedback } from './FeedbackProvider';
+export type { ConfirmOptions, FeedbackTone, NotifyOptions, ToastOptions } from './FeedbackProvider';
 export {
   ErrorBanner,
   ForceUpdateView,

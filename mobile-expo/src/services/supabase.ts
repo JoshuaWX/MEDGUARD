@@ -6,7 +6,8 @@
  */
 
 import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
+import { AppState, Platform } from 'react-native';
+import { createClient, processLock } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { authStorage } from './authStorage';
 
@@ -95,9 +96,27 @@ export const supabase = isSupabaseConfigured
         persistSession: true,
         detectSessionInUrl: false,
         flowType: 'pkce',
+        lock: processLock,
       },
     })
   : (createUnconfiguredSupabase() as any);
+
+// Supabase's refresh timer runs continuously on non-browser platforms unless
+// it is tied to the app lifecycle. Register this once at module scope so a
+// returning Android app refreshes its session without competing background
+// refreshes.
+if (isSupabaseConfigured && Platform.OS !== 'web') {
+  const updateAuthRefresh = (appState: string) => {
+    if (appState === 'active') {
+      supabase.auth.startAutoRefresh();
+    } else {
+      supabase.auth.stopAutoRefresh();
+    }
+  };
+
+  updateAuthRefresh(AppState.currentState);
+  AppState.addEventListener('change', updateAuthRefresh);
+}
 
 export type Database = {
   public: {

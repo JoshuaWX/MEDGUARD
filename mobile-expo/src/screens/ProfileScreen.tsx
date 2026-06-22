@@ -13,8 +13,6 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActionSheetIOS,
-  Alert,
   Image,
   ImageBackground,
   Modal,
@@ -40,6 +38,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -60,6 +59,7 @@ import {
   SettingsIcon,
   UserIcon,
   FeatureBlockedScreen,
+  useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
@@ -92,21 +92,10 @@ const ProfileScreen: React.FC = () => {
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const { isGuest } = useAuthGate();
+  const { confirm, notify, toast } = useFeedback();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
-
-  // Guest users see sign-in required blocker
-  if (isGuest) {
-    return (
-      <FeatureBlockedScreen
-        title={t('profile')}
-        description="Sign in to manage your profile, upload an avatar, and personalize your health experience."
-        icon="generic"
-        buttonText="Go Back"
-        showHomeButton={true}
-      />
-    );
-  }
+  const [avatarSourceOpen, setAvatarSourceOpen] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -229,25 +218,24 @@ const ProfileScreen: React.FC = () => {
     }
   }, [navigation]);
 
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'SignIn' }],
-            });
-          } catch (e) {
-            Alert.alert('Sign out failed', toUserMessage(e, 'auth'));
-          }
-        },
-      },
-    ]);
+  const handleSignOut = async () => {
+    const accepted = await confirm({
+      tone: 'danger',
+      title: 'Sign out?',
+      message: 'You will need to sign in again to access your personal health information.',
+      confirmLabel: 'Sign out',
+    });
+    if (!accepted) return;
+
+    try {
+      await signOut();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'SignIn' }],
+      });
+    } catch (e) {
+      await notify({ tone: 'danger', title: 'Sign out failed', message: toUserMessage(e, 'auth') });
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -259,27 +247,26 @@ const ProfileScreen: React.FC = () => {
         age: Number.isFinite(ageNum) ? ageNum : null,
       });
       setEditMode(false);
-      Alert.alert('Success', 'Profile updated successfully!');
+      toast({ tone: 'success', title: 'Profile updated', message: 'Your changes have been saved.' });
     } catch (e) {
-      Alert.alert('Profile update failed', toUserMessage(e, 'profile'));
+      await notify({ tone: 'danger', title: 'Profile update failed', message: toUserMessage(e, 'profile') });
     }
   };
 
-  const handleAvatarPress = useCallback(() => {
-    const options = ['Take Photo', 'Choose from Library', 'Cancel'];
-    const cancelButtonIndex = 2;
-
-    const handleSelection = async (index: number) => {
-      if (index === cancelButtonIndex) return;
-
+  const handleAvatarSelection = useCallback(async (source: 'camera' | 'library') => {
+      setAvatarSourceOpen(false);
       try {
         let result: ImagePicker.ImagePickerResult;
 
-        if (index === 0) {
+        if (source === 'camera') {
           // Take photo
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permission Required', 'Camera permission is needed to take a photo.');
+            await notify({
+              tone: 'warning',
+              title: 'Camera permission needed',
+              message: 'Allow camera access in your device settings to take a profile photo.',
+            });
             return;
           }
           result = await ImagePicker.launchCameraAsync({
@@ -292,7 +279,11 @@ const ProfileScreen: React.FC = () => {
           // Choose from library
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permission Required', 'Photo library permission is needed to select a photo.');
+            await notify({
+              tone: 'warning',
+              title: 'Photo access needed',
+              message: 'Allow photo access in your device settings to choose a profile picture.',
+            });
             return;
           }
           result = await ImagePicker.launchImageLibraryAsync({
@@ -308,38 +299,34 @@ const ProfileScreen: React.FC = () => {
           setAvatarUploading(true);
           try {
             await updateAvatar(uri);
-            Alert.alert('Success', 'Profile picture updated!');
+            toast({ tone: 'success', title: 'Photo updated', message: 'Your profile picture has been saved.' });
           } catch (err) {
             console.error('Avatar upload failed:', err);
-            Alert.alert('Upload failed', toUserMessage(err, 'upload'));
+            await notify({ tone: 'danger', title: 'Upload failed', message: toUserMessage(err, 'upload') });
           } finally {
             setAvatarUploading(false);
           }
         }
       } catch (err) {
         console.error('Image picker error:', err);
-        Alert.alert('Photo picker unavailable', toUserMessage(err, 'upload'));
+        await notify({ tone: 'danger', title: 'Photo picker unavailable', message: toUserMessage(err, 'upload') });
       }
-    };
+  }, [notify, toast, updateAvatar]);
 
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex },
-        handleSelection
-      );
-    } else {
-      // Android: use Alert as a simple action sheet
-      Alert.alert(
-        'Change Profile Picture',
-        'Choose an option',
-        [
-          { text: 'Take Photo', onPress: () => handleSelection(0) },
-          { text: 'Choose from Library', onPress: () => handleSelection(1) },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
-    }
-  }, [updateAvatar]);
+  const handleAvatarPress = useCallback(() => setAvatarSourceOpen(true), []);
+
+  // Guest users see sign-in required blocker after all hooks are registered.
+  if (isGuest) {
+    return (
+      <FeatureBlockedScreen
+        title={t('profile')}
+        description="Sign in to manage your profile, upload an avatar, and personalize your health experience."
+        icon="generic"
+        buttonText="Go Back"
+        showHomeButton={true}
+      />
+    );
+  }
 
   return (
     <LinearGradient
@@ -435,6 +422,49 @@ const ProfileScreen: React.FC = () => {
                 />
                 <Pressable onPress={() => setAvatarPreviewOpen(false)} style={styles.avatarModalClose} hitSlop={10}>
                   <Text style={styles.avatarModalCloseText}>×</Text>
+                </Pressable>
+              </Pressable>
+            </Pressable>
+          </Modal>
+
+          <Modal
+            visible={avatarSourceOpen}
+            transparent
+            statusBarTranslucent
+            animationType="fade"
+            onRequestClose={() => setAvatarSourceOpen(false)}
+          >
+            <Pressable style={styles.avatarSourceBackdrop} onPress={() => setAvatarSourceOpen(false)}>
+              <Pressable
+                accessibilityViewIsModal
+                style={[
+                  styles.avatarSourceCard,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    paddingBottom: insets.bottom + Spacing.xl,
+                  },
+                ]}
+                onPress={(event) => event.stopPropagation()}
+              >
+                <Text style={[styles.avatarSourceTitle, { color: colors.text }]}>Change profile picture</Text>
+                <Text style={[styles.avatarSourceMessage, { color: colors.textSecondary }]}>Choose where your new photo should come from.</Text>
+                <Pressable
+                  onPress={() => void handleAvatarSelection('camera')}
+                  style={[styles.avatarSourceOption, { borderColor: colors.border }]}
+                >
+                  <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                  <Text style={[styles.avatarSourceOptionText, { color: colors.text }]}>Take a photo</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleAvatarSelection('library')}
+                  style={[styles.avatarSourceOption, { borderColor: colors.border }]}
+                >
+                  <Ionicons name="images-outline" size={22} color={colors.primary} />
+                  <Text style={[styles.avatarSourceOptionText, { color: colors.text }]}>Choose from photos</Text>
+                </Pressable>
+                <Pressable onPress={() => setAvatarSourceOpen(false)} style={styles.avatarSourceCancel}>
+                  <Text style={[styles.avatarSourceCancelText, { color: colors.textSecondary }]}>Cancel</Text>
                 </Pressable>
               </Pressable>
             </Pressable>
@@ -816,6 +846,54 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     lineHeight: 28,
     marginTop: -2,
+  },
+  avatarSourceBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(3,15,20,0.64)',
+    justifyContent: 'flex-end',
+  },
+  avatarSourceCard: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
+  },
+  avatarSourceTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.xl,
+    marginBottom: Spacing.xs,
+  },
+  avatarSourceMessage: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    marginBottom: Spacing.lg,
+  },
+  avatarSourceOption: {
+    minHeight: 54,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+  },
+  avatarSourceOptionText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  avatarSourceCancel: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xs,
+  },
+  avatarSourceCancelText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
   },
   userName: {
     fontFamily: FontFamily.bold,

@@ -28,12 +28,13 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
-import { Button, Input, GlassCard, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon, ErrorBanner } from '../components';
+import { Button, Input, ArrowBackIcon, EmailIcon, LockIcon, ShieldIcon, ArrowRightIcon, ErrorBanner } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { toUserMessage } from '../services/errorMessages';
 // continueAsGuest is destructured from useAuth below
@@ -199,23 +200,25 @@ const SignInScreen: React.FC = () => {
             </View>
           </ImageBackground>
 
-        {/* Error message */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <ErrorBanner message={error} title="Sign in failed" />
-          </View>
-        )}
-
         {/* Form Section */}
         <ScrollView
           style={[styles.formContainer, { backgroundColor: colors.surface }]}
           // ANDROID FIX: flexGrow ensures proper scrolling on short screens
-          contentContainerStyle={[styles.formContent, { flexGrow: 1 }]}
+          contentContainerStyle={[
+            styles.formContent,
+            { flexGrow: 1, paddingBottom: insets.bottom + Spacing.xl },
+          ]}
           // ANDROID FIX: Prevents keyboard dismissal when tapping inputs
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.form}>
+            {error ? (
+              <View style={styles.errorContainer}>
+                <ErrorBanner message={error} title="Sign in failed" />
+              </View>
+            ) : null}
+
             <Input
               placeholder={t('email_address')}
               keyboardType="email-address"
@@ -243,6 +246,17 @@ const SignInScreen: React.FC = () => {
               </Pressable>
             </View>
 
+            {forgotSent ? (
+              <Text style={[styles.forgotSentText, { color: colors.primary }]}>
+                Password reset email sent. Open the link on this device to continue.
+              </Text>
+            ) : null}
+            {forgotError ? (
+              <Text style={[styles.forgotSentText, { color: Colors.danger }]}>
+                {forgotError}
+              </Text>
+            ) : null}
+
             {/* Sign In Button */}
             <Button
               title={t('login')}
@@ -263,11 +277,7 @@ const SignInScreen: React.FC = () => {
               title={t('continue_with_google')}
               onPress={handleGoogleSignIn}
               variant="google"
-              icon={
-                // React Native Image can't render remote SVGs.
-                // Use a lightweight text mark so the button still renders correctly.
-                <Text style={[styles.googleMark, { color: colors.text }]}>G</Text>
-              }
+              icon={<Ionicons name="logo-google" size={20} color={colors.text} />}
               iconPosition="left"
               textStyle={{ color: colors.text, fontFamily: FontFamily.medium }}
             />
@@ -279,31 +289,20 @@ const SignInScreen: React.FC = () => {
                 <Text style={[styles.signupLink, { color: colors.primary }]}>{t('create_one')}</Text>
               </Pressable>
             </View>
+
+            <View style={[styles.guestSection, { borderTopColor: colors.border }]}>
+              <Button
+                title={t('guest_continue')}
+                onPress={handleGuest}
+                variant="outline"
+                icon={<Ionicons name="eye-outline" size={20} color={colors.textSecondary} />}
+                iconPosition="left"
+                textStyle={{ color: colors.textSecondary }}
+                style={{ ...styles.guestButton, backgroundColor: colors.background, borderColor: colors.border }}
+              />
+            </View>
           </View>
         </ScrollView>
-
-          {/* Guest button footer */}
-          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.base, backgroundColor: colors.surface, borderTopColor: isDark ? colors.border : Colors.borderLight }]}>
-            {forgotSent && (
-              <Text style={[styles.forgotSentText, { color: colors.primary }]}>
-                Password reset email sent. Open the link on this device to continue.
-              </Text>
-            )}
-            {forgotError && (
-              <Text style={[styles.forgotSentText, { color: Colors.danger }]}>
-                {forgotError}
-              </Text>
-            )}
-            <Button
-              title={t('guest_continue')}
-              onPress={handleGuest}
-              variant="outline"
-              icon={<Text style={styles.eyeIcon}>👁</Text>}
-              iconPosition="left"
-              textStyle={{ color: colors.textSecondary }}
-              style={{ ...styles.guestButton, backgroundColor: colors.background, borderColor: isDark ? colors.border : Colors.borderLight }}
-            />
-          </View>
 
         </KeyboardAvoidingView>
       </View>
@@ -390,8 +389,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   errorContainer: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.base,
+    marginBottom: Spacing.xs,
   },
   recoveryInfo: {
     marginHorizontal: Spacing.xl,
@@ -452,20 +450,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textMuted,
   },
-  googleIcon: {
-    width: 20,
-    height: 20,
-  },
-  googleMark: {
-    width: 20,
-    height: 20,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    color: Colors.textPrimary,
-    fontFamily: FontFamily.bold,
-    fontSize: 14,
-    lineHeight: 20,
-  },
   signupRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -481,21 +465,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.primary,
   },
-  footer: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.base,
+  guestSection: {
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surfaceLight,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    paddingTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   guestButton: {
     backgroundColor: Colors.backgroundLight,
     borderColor: Colors.borderLight,
-  },
-  eyeIcon: {
-    fontSize: 18,
   },
   forgotSentText: {
     fontFamily: FontFamily.regular,

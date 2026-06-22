@@ -23,12 +23,12 @@ import {
   ImageBackground,
   Modal,
   FlatList,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeInUp, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -48,6 +48,7 @@ import {
   ShieldIcon,
   PasswordStrengthIndicator,
   ErrorBanner,
+  useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -120,6 +121,7 @@ const SignUpScreen: React.FC = () => {
   const { signUp, loading } = useAuth();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
+  const { notify } = useFeedback();
   const [error, setError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState('');
@@ -235,14 +237,12 @@ const SignUpScreen: React.FC = () => {
         const msg =
           'Location permission was denied. Enable it in settings, or turn off “Use my location” to continue.';
         setError(msg);
-        Alert.alert('Location', msg);
         return;
       }
 
       if (!verifiedLocation?.verified) {
         const msg = 'Location verification failed. Tap Retry, or turn off “Use my location” to continue.';
         setError(msg);
-        Alert.alert('Location', msg);
         return;
       }
     }
@@ -312,10 +312,12 @@ const SignUpScreen: React.FC = () => {
     });
 
     if (result.outcome === 'confirmation_required') {
-      Alert.alert(
-        'Check your email',
-        'If this address can be registered, we sent a confirmation link. Open it on this device, then sign in.'
-      );
+      await notify({
+        tone: 'success',
+        title: 'Check your email',
+        message: 'If this address can be registered, we sent a confirmation link. Open it on this device, then sign in.',
+        actionLabel: 'Go to sign in',
+      });
       navigation.navigate('SignIn');
       return;
     }
@@ -397,7 +399,10 @@ const SignUpScreen: React.FC = () => {
         >
           <ScrollView
             // ANDROID FIX: flexGrow ensures proper scrolling on short screens
-            contentContainerStyle={[styles.formContent, { flexGrow: 1 }]}
+            contentContainerStyle={[
+              styles.formContent,
+              { flexGrow: 1, paddingBottom: insets.bottom + 112 },
+            ]}
             // ANDROID FIX: Prevents keyboard dismissal when tapping inputs
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -472,7 +477,7 @@ const SignUpScreen: React.FC = () => {
                       }]}
                       onPress={() => setShowGenderPicker(true)}
                     >
-                      <Text style={styles.selectIcon}>⚥</Text>
+                      <Ionicons name="male-female-outline" size={20} color={colors.primary} />
                       <Text style={[styles.selectText, { color: colors.text }, !gender && { color: colors.textMuted }]}>
                         {gender ? genderOptions.find(g => g.value === gender)?.label : t('gender')}
                       </Text>
@@ -486,7 +491,7 @@ const SignUpScreen: React.FC = () => {
                       keyboardType="numeric"
                       value={age}
                       onChangeText={setAge}
-                      icon={<Text style={styles.inputIcon}>🎂</Text>}
+                      icon={<Ionicons name="calendar-outline" size={20} color={colors.primary} />}
                     />
                   </View>
                 </View>
@@ -499,7 +504,7 @@ const SignUpScreen: React.FC = () => {
                   }]}
                   onPress={() => setShowStatePicker(true)}
                 >
-                  <Text style={styles.selectIcon}>📍</Text>
+                  <Ionicons name="location-outline" size={20} color={colors.primary} />
                   <Text style={[styles.selectText, { color: colors.text }, !state && { color: colors.textMuted }]}>
                     {state || t('state')}
                   </Text>
@@ -540,28 +545,28 @@ const SignUpScreen: React.FC = () => {
                   ) : verifiedLocation?.verified ? (
                     <>
                       <View style={[styles.locationStatusIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                        <Text style={styles.locationStatusEmoji}>✓</Text>
+                        <Ionicons name="checkmark" size={22} color={Colors.emerald} />
                       </View>
                       <View style={styles.locationText}>
                         <Text style={[styles.locationTitle, { color: Colors.emerald }]}>Location Verified</Text>
-                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
                           {verifiedLocation.address || verifiedLocation.detectedState}
                         </Text>
                       </View>
                       <Pressable onPress={verifyLocation} style={[styles.locationActionBtn, { backgroundColor: isDark ? colors.glass : 'rgba(17, 180, 212, 0.1)' }]}>
-                        <Text style={[styles.locationActionText, { color: colors.primary }]}>↻</Text>
+                        <Ionicons name="refresh" size={20} color={colors.primary} />
                       </Pressable>
                     </>
                   ) : (
                     <>
                       <View style={[styles.locationStatusIcon, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
-                        <Text style={styles.locationStatusEmoji}>!</Text>
+                        <Ionicons name="alert" size={20} color={Colors.danger} />
                       </View>
                       <View style={styles.locationText}>
                         <Text style={[styles.locationTitle, { color: Colors.danger }]}>
                           {permissionDenied ? 'Permission Required' : 'Verification Failed'}
                         </Text>
-                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                        <Text style={[styles.locationSubtitle, { color: colors.textSecondary }]} numberOfLines={3}>
                           {locationError || 'Tap retry to verify'}
                         </Text>
                       </View>
@@ -573,9 +578,12 @@ const SignUpScreen: React.FC = () => {
                 </View>
               )}
 
-              <Text style={[styles.locationNoticeText, { color: colors.textMuted }]}>
-                ℹ️ Location helps personalize health alerts for your area
-              </Text>
+              <View style={styles.locationNoticeRow}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+                <Text style={[styles.locationNoticeText, { color: colors.textMuted }]}>
+                  Location helps personalize health alerts for your area
+                </Text>
+              </View>
             </View>
 
             {/* Error display */}
@@ -682,8 +690,7 @@ const styles = StyleSheet.create({
   heroBg: {
     // ANDROID FIX: Use minHeight instead of fixed percentage-based height
     // This allows the hero to adapt to content while maintaining visual consistency
-    minHeight: 210,
-    maxHeight: 270,
+    minHeight: 236,
     justifyContent: 'space-between',
   },
   header: {
@@ -759,16 +766,18 @@ const styles = StyleSheet.create({
     color: Colors.whiteAlpha90,
     textAlign: 'center',
     marginTop: Spacing.xs,
+    lineHeight: 21,
+    paddingHorizontal: Spacing.xl,
   },
 
   /* ─── Form Card ─── */
   formWrapper: {
     flex: 1,
-    marginTop: -Spacing.xl,
+    marginTop: -Spacing.base,
   },
   formCard: {
     flex: 1,
-    marginTop: -Spacing.base,
+    marginTop: 0,
     borderTopLeftRadius: BorderRadius['3xl'],
     borderTopRightRadius: BorderRadius['3xl'],
     ...Shadows.lg,
@@ -811,18 +820,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     gap: Spacing.sm,
   },
-  selectIcon: {
-    fontSize: 18,
-  },
   selectText: {
     flex: 1,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
   },
-  inputIcon: {
-    fontSize: 18,
-  },
-
   /* ─── Location Section ─── */
   locationHeader: {
     flexDirection: 'row',
@@ -856,10 +858,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  locationStatusEmoji: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
   locationText: {
     flex: 1,
   },
@@ -885,8 +883,15 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   locationNoticeText: {
+    flex: 1,
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,
+    lineHeight: 18,
+  },
+  locationNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
     marginTop: Spacing.xs,
   },
 
