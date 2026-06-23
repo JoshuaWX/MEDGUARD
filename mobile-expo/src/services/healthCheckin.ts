@@ -177,7 +177,7 @@ export async function hasCheckedInToday(userId: string): Promise<boolean> {
 
   if (error) {
     console.error('Error checking today\'s checkin:', error);
-    return false;
+    throw error;
   }
 
   return !!data;
@@ -198,7 +198,7 @@ export async function getTodayCheckin(userId: string): Promise<HealthCheckin | n
 
   if (error) {
     console.error('Error fetching today\'s checkin:', error);
-    return null;
+    throw error;
   }
 
   if (!data) return null;
@@ -291,7 +291,7 @@ export async function getRecentCheckins(
 
   if (error) {
     console.error('Error fetching recent checkins:', error);
-    return [];
+    throw error;
   }
 
   return (data || []).map(mapCheckinFromDb);
@@ -313,7 +313,7 @@ export async function getStreak(userId: string): Promise<HealthStreak> {
 
   if (error) {
     console.error('Error fetching streak:', error);
-    return { currentStreak: 0, longestStreak: 0, lastCheckinDate: null };
+    throw error;
   }
 
   if (!data) {
@@ -411,7 +411,7 @@ export async function getCommunityTrends(
 
   if (error) {
     console.error('Error fetching community trends:', error);
-    return [];
+    throw error;
   }
 
   return (data || []).map(mapTrendFromDb);

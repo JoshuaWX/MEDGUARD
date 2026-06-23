@@ -19,7 +19,6 @@ import {
   HealthStreak,
   CommunityTrend,
   RiskLevel,
-  hasCheckedInToday,
   getTodayCheckin,
   submitCheckin,
   getRecentCheckins,
@@ -31,6 +30,7 @@ import {
   getStreakEmoji,
   getStreakMessage,
 } from '../services/healthCheckin';
+import { toUserMessage } from '../services/errorMessages';
 
 // ============================================================================
 // TYPES
@@ -70,7 +70,7 @@ interface UseHealthCheckinReturn {
 // ============================================================================
 
 export function useHealthCheckin(): UseHealthCheckinReturn {
-  const { user: authUser } = useAuth();
+  const { user: authUser, session, initialized } = useAuth();
   const { user: profile } = useUser();
   
   // State
@@ -89,6 +89,15 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
   const [communityTrends, setCommunityTrends] = useState<CommunityTrend[]>([]);
   
   const requestIdRef = useRef(0);
+
+  const clearPersonalHealthState = useCallback(() => {
+    setHasCheckedIn(false);
+    setTodayCheckin(null);
+    setStreak({ currentStreak: 0, longestStreak: 0, lastCheckinDate: null });
+    setRecentCheckins([]);
+    setCommunityTrends([]);
+    setError(null);
+  }, []);
   
   // Get user's state for community trends
   const userState = profile?.state || null;
@@ -97,9 +106,17 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
    * Fetch all check-in data
    */
   const fetchData = useCallback(async () => {
-    if (!authUser?.id) {
+    const hasUsableSession = Boolean(
+      initialized &&
+      authUser?.id &&
+      session?.access_token &&
+      session.user.id === authUser.id
+    );
+
+    if (!hasUsableSession || !authUser?.id) {
       requestIdRef.current += 1;
-      setLoading(false);
+      clearPersonalHealthState();
+      setLoading(!initialized);
       return;
     }
     
@@ -110,13 +127,7 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
       setError(null);
       
       // Fetch in parallel for efficiency
-      const [
-        checkedIn,
-        today,
-        streakData,
-        recent,
-      ] = await Promise.all([
-        hasCheckedInToday(authUser.id),
+      const [today, streakData, recent] = await Promise.all([
         getTodayCheckin(authUser.id),
         getStreak(authUser.id),
         getRecentCheckins(authUser.id, 7),
@@ -124,7 +135,7 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
       
       if (requestId !== requestIdRef.current) return;
 
-      setHasCheckedIn(checkedIn);
+      setHasCheckedIn(Boolean(today));
       setTodayCheckin(today);
       setStreak(streakData);
       setRecentCheckins(recent);
@@ -141,20 +152,30 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
       console.error('Error fetching health checkin data:', err);
-      setError('Failed to load health data');
+      setError(toUserMessage(err, 'checkin'));
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
       }
     }
-  }, [authUser?.id, userState]);
+  }, [authUser?.id, clearPersonalHealthState, initialized, session?.access_token, session?.user.id, userState]);
   
+  // Never leave one account's health history visible while another account
+  // is becoming active.
+  useEffect(() => {
+    requestIdRef.current += 1;
+    clearPersonalHealthState();
+  }, [authUser?.id, clearPersonalHealthState]);
+
   /**
    * Initial fetch on mount
    */
   useEffect(() => {
-    fetchData();
-  }, [authUser?.id, fetchData]);
+    void fetchData();
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [fetchData]);
   
   /**
    * Submit daily check-in
@@ -163,7 +184,7 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
     answers: CheckinAnswers,
     otherSymptoms?: string
   ) => {
-    if (!authUser?.id) {
+    if (!authUser?.id || !session?.access_token || session.user.id !== authUser.id) {
       throw new Error('You must be signed in to submit a check-in');
     }
     
@@ -194,13 +215,13 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
       setRecentCheckins(prev => [checkin, ...prev.slice(0, 6)]);
       
     } catch (err: any) {
-      const message = err?.message || 'Failed to submit check-in';
+      const message = toUserMessage(err, 'checkin');
       setError(message);
       throw err;
     } finally {
       setSubmitting(false);
     }
-  }, [authUser?.id, hasCheckedIn, userState]);
+  }, [authUser?.id, hasCheckedIn, session?.access_token, session?.user.id, userState]);
   
   /**
    * Get trend message for display

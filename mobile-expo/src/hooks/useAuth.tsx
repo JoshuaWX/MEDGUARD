@@ -5,6 +5,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../services/supabase';
@@ -36,6 +37,7 @@ interface SignUpData {
 type NextRoute = 'MainTabs' | 'SignUp2';
 type AuthOutcome = 'authenticated' | 'confirmation_required' | 'cancelled' | 'failed';
 type SessionValidation = 'verified' | 'temporarily_unverified' | 'invalid';
+type AuthRedirectResult = { session: Session | null; error: AuthError | null };
 
 type SignInResult = {
   outcome: AuthOutcome;
@@ -191,6 +193,27 @@ async function validateSession(session: Session): Promise<SessionValidation> {
   return 'invalid';
 }
 
+const INITIAL_SESSION_RETRY_DELAYS_MS = [0, 400] as const;
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+async function getInitialSessionWithRetry(): Promise<Session | null> {
+  let lastError: AuthError | null = null;
+
+  for (const delayMs of INITIAL_SESSION_RETRY_DELAYS_MS) {
+    if (delayMs > 0) await wait(delayMs);
+
+    const { data, error } = await supabase.auth.getSession();
+    if (!error) return data.session;
+
+    lastError = error;
+    if (!isTransientAuthError(error)) throw error;
+  }
+
+  throw lastError ?? authError('Authentication is temporarily unavailable.', 'auth_unavailable');
+}
+
 function firstParam(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -290,11 +313,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   });
   const [pendingRecovery, setPendingRecovery] = useState(false);
   const redirectTasks = React.useRef(
-    new Map<string, Promise<{ error: AuthError | null }>>()
+    new Map<string, Promise<AuthRedirectResult>>()
   );
 
-  const consumeAuthRedirect = useCallback((url: string): Promise<{ error: AuthError | null }> => {
-    if (!url) return Promise.resolve({ error: null });
+  const consumeAuthRedirect = useCallback((url: string): Promise<AuthRedirectResult> => {
+    if (!url) return Promise.resolve({ session: null, error: null });
     const existing = redirectTasks.current.get(url);
     if (existing) return existing;
 
@@ -305,114 +328,96 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     const task = (async () => {
       try {
-      const parsed = Linking.parse(url);
-      const hashParams = parseHashParams(url);
-      const code = firstParam(parsed.queryParams?.code) || hashParams.code;
-      const tokenHash = firstParam(parsed.queryParams?.token_hash);
-      const type = firstParam(parsed.queryParams?.type) || hashParams.type;
+        const parsed = Linking.parse(url);
+        const hashParams = parseHashParams(url);
+        const code = firstParam(parsed.queryParams?.code) || hashParams.code;
+        const tokenHash = firstParam(parsed.queryParams?.token_hash);
+        const type = firstParam(parsed.queryParams?.type) || hashParams.type;
 
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) throw error;
-        if (type === 'recovery') setPendingRecovery(true);
-        return { error: null };
-      }
+        if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          if (type === 'recovery') setPendingRecovery(true);
+          return { session: data.session, error: null };
+        }
 
-      if (tokenHash && type) {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: type as any,
-        });
-        if (error) throw error;
-        if (type === 'recovery') setPendingRecovery(true);
-        return { error: null };
-      }
+        if (tokenHash && type) {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as any,
+          });
+          if (error) throw error;
+          if (type === 'recovery') setPendingRecovery(true);
+          return { session: data.session, error: null };
+        }
 
-      // Transitional support for confirmation links issued before PKCE was enabled.
-      const accessToken = hashParams.access_token;
-      const refreshToken = hashParams.refresh_token;
-      if (accessToken && refreshToken) {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) throw error;
-        if (type === 'recovery') setPendingRecovery(true);
-      }
+        // Transitional support for confirmation links issued before PKCE was enabled.
+        const accessToken = hashParams.access_token;
+        const refreshToken = hashParams.refresh_token;
+        if (accessToken && refreshToken) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+          if (type === 'recovery') setPendingRecovery(true);
+          return { session: data.session, error: null };
+        }
 
-        return { error: null };
+        return { session: null, error: null };
       } catch (error) {
-        return { error: normalizeAuthError(error as AuthError) };
+        return { session: null, error: normalizeAuthError(error as AuthError) };
       }
     })();
 
     // Linking and openAuthSessionAsync can deliver the same callback. Sharing
-    // one promise makes both callers wait for the same PKCE exchange instead
-    // of letting one race ahead to getSession().
+    // one promise prevents duplicate PKCE exchanges.
     redirectTasks.current.set(url, task);
     return task;
   }, []);
 
   useEffect(() => {
     let active = true;
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    let linkSubscription: { remove: () => void } | null = null;
+    let appStateSubscription: { remove: () => void } | null = null;
+    let refreshState: 'active' | 'inactive' | null = null;
+    let refreshTask = Promise.resolve();
 
-    const initializeAuth = async () => {
-      try {
-        const guestFlag = await AsyncStorage.getItem('mg_guest_mode');
-        const isGuest = guestFlag === '1';
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        let verifiedSession = session;
-
-        if (sessionError) throw sessionError;
-        if (session) {
-          const validation = await validateSession(session);
-          if (validation === 'invalid') {
-            await supabase.auth.signOut({ scope: 'local' });
-            verifiedSession = null;
-          } else if (validation === 'temporarily_unverified') {
-            console.warn('Session verification deferred until connectivity returns.');
-          }
-        }
-
-        if (!active) return;
-        setState({
-          session: verifiedSession,
-          user: verifiedSession?.user ?? null,
-          loading: false,
-          initialized: true,
-          isGuest: !verifiedSession && isGuest,
-        });
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-        if (active) {
-          setState({
-            session: null,
-            user: null,
-            loading: false,
-            initialized: true,
-            isGuest: false,
-          });
-        }
-      }
+    const commitSession = (session: Session | null, isGuest = false) => {
+      if (!active) return;
+      setState({
+        session,
+        user: session?.user ?? null,
+        loading: false,
+        initialized: true,
+        isGuest: !session && isGuest,
+      });
     };
 
-    void initializeAuth();
+    const syncAutoRefresh = (nextState: AppStateStatus) => {
+      if (Platform.OS === 'web' || !active) return;
+      const nextRefreshState = nextState === 'active' ? 'active' : 'inactive';
+      if (refreshState === nextRefreshState) return;
+      refreshState = nextRefreshState;
 
-    const linkSubscription = Linking.addEventListener('url', ({ url }) => {
-      void consumeAuthRedirect(url).then(({ error }) => {
-        if (error) console.warn('Auth redirect failed:', error.message);
-      });
-    });
-    void Linking.getInitialURL().then((url) => {
-      if (url) {
-        void consumeAuthRedirect(url).then(({ error }) => {
-          if (error) console.warn('Initial auth redirect failed:', error.message);
+      refreshTask = refreshTask
+        .catch(() => undefined)
+        .then(async () => {
+          if (!active) return;
+          if (nextRefreshState === 'active') {
+            await supabase.auth.startAutoRefresh();
+          } else {
+            await supabase.auth.stopAutoRefresh();
+          }
+        })
+        .catch((error) => {
+          console.warn('Unable to update auth refresh lifecycle:', error);
         });
-      }
-    });
+    };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+    const handleAuthEvent = (event: AuthChangeEvent, session: Session | null) => {
+      if (!active) return;
       if (event === 'SIGNED_IN' && session?.user) {
         void AsyncStorage.removeItem('mg_guest_mode');
       }
@@ -425,14 +430,72 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session,
         user: session?.user ?? null,
         loading: false,
+        initialized: true,
         isGuest: session?.user ? false : prev.isGuest,
       }));
-    });
+
+      if (event === 'INITIAL_SESSION' && Platform.OS !== 'web') {
+        syncAutoRefresh(AppState.currentState);
+      }
+    };
+
+    const handleRedirect = async (url: string, label: string) => {
+      const { session, error } = await consumeAuthRedirect(url);
+      if (error) {
+        console.warn(`${label} auth redirect failed:`, error.message);
+        return;
+      }
+      if (session) commitSession(session);
+    };
+
+    const initializeAuth = async () => {
+      const guestFlag = await AsyncStorage.getItem('mg_guest_mode').catch(() => null);
+      const isGuest = guestFlag === '1';
+
+      try {
+        let verifiedSession = await getInitialSessionWithRetry();
+        if (verifiedSession) {
+          const validation = await validateSession(verifiedSession);
+          if (validation === 'invalid') {
+            await supabase.auth.signOut({ scope: 'local' });
+            verifiedSession = null;
+          } else if (validation === 'temporarily_unverified') {
+            console.warn('Session verification deferred until connectivity returns.');
+          }
+        }
+        commitSession(verifiedSession, isGuest);
+      } catch (error) {
+        const message = isTransientAuthError(error)
+          ? 'Authentication initialization was delayed; the saved session was left intact.'
+          : 'Authentication initialization failed; the saved session was left intact.';
+        console.warn(message, error);
+        commitSession(null, isGuest);
+      }
+
+      if (!active) return;
+
+      const initialUrl = await Linking.getInitialURL().catch(() => null);
+      if (initialUrl && active) await handleRedirect(initialUrl, 'Initial');
+      if (!active) return;
+
+      authSubscription = supabase.auth.onAuthStateChange(handleAuthEvent).data.subscription;
+      linkSubscription = Linking.addEventListener('url', ({ url }) => {
+        void handleRedirect(url, 'Incoming');
+      });
+
+      if (Platform.OS !== 'web') {
+        appStateSubscription = AppState.addEventListener('change', syncAutoRefresh);
+      }
+    };
+
+    void initializeAuth();
 
     return () => {
       active = false;
-      subscription.unsubscribe();
-      linkSubscription.remove();
+      authSubscription?.unsubscribe();
+      linkSubscription?.remove();
+      appStateSubscription?.remove();
+      if (Platform.OS !== 'web') void supabase.auth.stopAutoRefresh();
     };
   }, [consumeAuthRedirect]);
 
@@ -441,7 +504,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [state.user?.id]);
 
   const beginFreshAuthAttempt = useCallback(async () => {
-    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) throw error;
     await AsyncStorage.removeItem('mg_guest_mode');
     setState((prev) => ({
       ...prev,
@@ -604,10 +668,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       const callback = await consumeAuthRedirect(browserResult.url);
       if (callback.error) throw callback.error;
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      const session = sessionData.session;
+      const session = callback.session;
       if (!session?.user) throw authError('Google sign-in did not create a session.', 'session_missing');
 
       const validation = await validateSession(session);
@@ -625,7 +686,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }));
       return {
         outcome: 'authenticated',
-        data: sessionData,
+        data: { session, user: session.user },
         error: null,
         nextRoute: profileComplete ? 'MainTabs' : 'SignUp2',
       };

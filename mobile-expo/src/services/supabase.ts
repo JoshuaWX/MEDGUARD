@@ -6,7 +6,6 @@
  */
 
 import 'react-native-url-polyfill/auto';
-import { AppState, Platform } from 'react-native';
 import { createClient, processLock } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { authStorage } from './authStorage';
@@ -88,8 +87,8 @@ if (!isSupabaseConfigured) {
   );
 }
 
-export const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+const createConfiguredSupabase = () =>
+  createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         storage: authStorage,
         autoRefreshToken: true,
@@ -98,25 +97,20 @@ export const supabase = isSupabaseConfigured
         flowType: 'pkce',
         lock: processLock,
       },
-    })
+    });
+
+type ConfiguredSupabaseClient = ReturnType<typeof createConfiguredSupabase>;
+const globalWithSupabase = globalThis as typeof globalThis & {
+  __medguardSupabase?: ConfiguredSupabaseClient;
+};
+
+// Expo Fast Refresh can re-evaluate this module without disposing the previous
+// GoTrue client. Reuse one client so refresh timers never compete for the same
+// persisted session lock.
+export const supabase = isSupabaseConfigured
+  ? (globalWithSupabase.__medguardSupabase ??=
+      createConfiguredSupabase())
   : (createUnconfiguredSupabase() as any);
-
-// Supabase's refresh timer runs continuously on non-browser platforms unless
-// it is tied to the app lifecycle. Register this once at module scope so a
-// returning Android app refreshes its session without competing background
-// refreshes.
-if (isSupabaseConfigured && Platform.OS !== 'web') {
-  const updateAuthRefresh = (appState: string) => {
-    if (appState === 'active') {
-      supabase.auth.startAutoRefresh();
-    } else {
-      supabase.auth.stopAutoRefresh();
-    }
-  };
-
-  updateAuthRefresh(AppState.currentState);
-  AppState.addEventListener('change', updateAuthRefresh);
-}
 
 export type Database = {
   public: {
