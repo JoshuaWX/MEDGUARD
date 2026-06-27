@@ -119,55 +119,54 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
   return (
     <Animated.View
       entering={FadeIn.duration(450)}
-      style={[styles.card, { backgroundColor: themed.surface }]}
+      style={[styles.card, { backgroundColor: themed.surface, borderColor: themed.border }]}
     >
-      {/* Progress ring + count */}
-      <View style={styles.ringWrap}>
-        <Svg width={RING_SIZE} height={RING_SIZE} style={styles.svg}>
-          {/* Track */}
-          <Circle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RADIUS}
-            stroke={isDark ? Colors.whiteAlpha10 : '#e5e7eb'}
-            strokeWidth={STROKE_WIDTH}
-            fill="none"
-          />
-          {/* Fill */}
-          <AnimatedCircle
-            cx={RING_SIZE / 2}
-            cy={RING_SIZE / 2}
-            r={RADIUS}
-            stroke={accent}
-            strokeWidth={STROKE_WIDTH}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-            animatedProps={ringProps}
-            rotation="-90"
-            origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-          />
-        </Svg>
-        {/* Centre number */}
-        <View style={styles.ringCenter}>
-          <Text style={[styles.ringCount, { color: accent }]}>{currentStreak}</Text>
+      <View style={styles.topRow}>
+        {/* Progress ring + count */}
+        <View style={styles.ringWrap}>
+          <Svg width={RING_SIZE} height={RING_SIZE} style={styles.svg}>
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RADIUS}
+              stroke={isDark ? Colors.whiteAlpha10 : '#e5e7eb'}
+              strokeWidth={STROKE_WIDTH}
+              fill="none"
+            />
+            <AnimatedCircle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RADIUS}
+              stroke={accent}
+              strokeWidth={STROKE_WIDTH}
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              animatedProps={ringProps}
+              rotation="-90"
+              origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+            />
+          </Svg>
+          <View style={styles.ringCenter}>
+            <Text style={[styles.ringCount, { color: accent }]}>{currentStreak}</Text>
+          </View>
+        </View>
+
+        {/* Text area */}
+        <View style={styles.textArea}>
+          <View style={styles.streakTitleRow}>
+            <Ionicons name={iconName as any} size={20} color={accent} />
+            <Text style={[styles.message, { color: themed.text }]}>{message}</Text>
+          </View>
+          <Text style={[styles.milestoneHint, { color: themed.textSecondary }]}>
+            {currentStreak < 30
+              ? `Next milestone: ${milestone} days`
+              : 'You reached the top milestone!'}
+          </Text>
         </View>
       </View>
 
-      {/* Text area */}
-      <View style={styles.textArea}>
-        <View style={styles.streakTitleRow}>
-          <Ionicons name={iconName as any} size={20} color={accent} />
-          <Text style={[styles.message, { color: themed.text }]}>{message}</Text>
-        </View>
-        <Text style={[styles.milestoneHint, { color: themed.textSecondary }]}>
-          {currentStreak < 30
-            ? `Next milestone: ${milestone} days`
-            : 'You reached the top milestone!'}
-        </Text>
-      </View>
-
-      {/* Personal best */}
+      {/* Personal best — normal flow, no overlap */}
       {longestStreak !== undefined && longestStreak > currentStreak && (
         <View style={[styles.bestRow, { borderTopColor: themed.border }]}>
           <Ionicons name="trophy-outline" size={14} color={themed.textMuted} />
@@ -196,12 +195,16 @@ const styles = StyleSheet.create({
 
   // ── Full card ─────────────────────────────────────────────────────────
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
-    gap: Spacing.base,
+    borderWidth: 1,
+    gap: Spacing.sm,
     ...Shadows.sm,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.base,
   },
   ringWrap: {
     width: RING_SIZE,
@@ -242,12 +245,8 @@ const styles = StyleSheet.create({
     marginLeft: 28,
   },
   bestRow: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     borderTopWidth: 1,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',

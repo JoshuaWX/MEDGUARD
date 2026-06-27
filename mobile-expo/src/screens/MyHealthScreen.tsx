@@ -198,8 +198,8 @@ const MyHealthScreenContent: React.FC = () => {
   const [facilitiesRadiusUsed, setFacilitiesRadiusUsed] = useState<number | null>(null);
   const facilitiesRequestIdRef = useRef(0);
 
-  // Live steps + body metrics feed the real wellness score.
-  const { steps, available: stepsAvailable } = useSteps();
+  // Steps (Health Connect all-day, or live pedometer) + body metrics feed the score.
+  const { steps, weeklySteps, available: stepsAvailable, needsPermission: stepsNeedPermission, connect: connectSteps } = useSteps();
   const bmi = computeBmi(user?.heightCm ?? null, user?.weightKg ?? null);
   const bmiCat = bmiCategory(bmi);
   const scoreResult = computeHealthScore({
@@ -629,17 +629,24 @@ const MyHealthScreenContent: React.FC = () => {
                   <Ionicons name="walk-outline" size={18} color={Colors.primary} />
                   <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Steps today</Text>
                 </View>
-                {stepsAvailable ? (
+                {stepsNeedPermission ? (
+                  <>
+                    <Text style={[styles.metricValue, { color: colors.textMuted }]}>—</Text>
+                    <Pressable onPress={() => void connectSteps()}>
+                      <Text style={[styles.metricSub, { color: Colors.primary }]}>Connect all-day steps</Text>
+                    </Pressable>
+                  </>
+                ) : stepsAvailable ? (
                   <>
                     <Text style={[styles.metricValue, { color: colors.text }]}>{steps.toLocaleString()}</Text>
                     <Text style={[styles.metricSub, { color: colors.textMuted }]}>
-                      {steps >= 8000 ? 'Goal reached 🎉' : `${Math.max(0, 8000 - steps).toLocaleString()} to 8,000`}
+                      {weeklySteps > 0 ? `${weeklySteps.toLocaleString()} this week` : (steps >= 8000 ? 'Goal reached 🎉' : `${Math.max(0, 8000 - steps).toLocaleString()} to 8,000`)}
                     </Text>
                   </>
                 ) : (
                   <>
                     <Text style={[styles.metricValue, { color: colors.textMuted }]}>—</Text>
-                    <Text style={[styles.metricSub, { color: colors.textMuted }]}>Step sensor unavailable</Text>
+                    <Text style={[styles.metricSub, { color: colors.textMuted }]}>Step data unavailable</Text>
                   </>
                 )}
               </View>
