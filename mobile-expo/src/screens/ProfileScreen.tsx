@@ -112,6 +112,15 @@ const ProfileScreen: React.FC = () => {
   const [prefHealthAlerts, setPrefHealthAlerts] = useState(true);
   const [prefDailyTips, setPrefDailyTips] = useState(false);
 
+  // Medical info (persisted to profiles.conditions/allergies/medications)
+  const [medicalModalOpen, setMedicalModalOpen] = useState(false);
+  const [conditions, setConditions] = useState<string[]>([]);
+  const [allergies, setAllergies] = useState<string[]>([]);
+  const [medications, setMedications] = useState<string[]>([]);
+  const [conditionInput, setConditionInput] = useState('');
+  const [allergyInput, setAllergyInput] = useState('');
+  const [medicationInput, setMedicationInput] = useState('');
+
   // Floating shape animations
   const float1 = useSharedValue(0);
   const float2 = useSharedValue(0);
@@ -159,7 +168,95 @@ const ProfileScreen: React.FC = () => {
     });
     setGender((user.gender as Gender) || '');
     setAge(user.age != null ? String(user.age) : '');
+    setConditions(user.conditions || []);
+    setAllergies(user.allergies || []);
+    setMedications(user.medications || []);
   }, [user]);
+
+  const addEntry = useCallback(
+    (list: string[], setList: (v: string[]) => void, value: string, clearInput: () => void) => {
+      const v = value.trim();
+      if (!v) return;
+      if (!list.some((x) => x.toLowerCase() === v.toLowerCase())) setList([...list, v]);
+      clearInput();
+    },
+    []
+  );
+
+  const removeEntry = useCallback(
+    (list: string[], setList: (v: string[]) => void, value: string) => {
+      setList(list.filter((x) => x !== value));
+    },
+    []
+  );
+
+  const handleSaveMedical = useCallback(async () => {
+    try {
+      await updateProfile({ conditions, allergies, medications });
+      setMedicalModalOpen(false);
+      toast({ tone: 'success', title: 'Medical info saved', message: 'Your changes have been saved.' });
+    } catch (e) {
+      await notify({ tone: 'danger', title: 'Save failed', message: toUserMessage(e, 'profile') });
+    }
+  }, [conditions, allergies, medications, updateProfile, toast, notify]);
+
+  const handleCancelMedical = useCallback(() => {
+    // Revert local edits to the saved profile values.
+    setConditions(user?.conditions || []);
+    setAllergies(user?.allergies || []);
+    setMedications(user?.medications || []);
+    setConditionInput('');
+    setAllergyInput('');
+    setMedicationInput('');
+    setMedicalModalOpen(false);
+  }, [user]);
+
+  const renderMedSection = (
+    label: string,
+    list: string[],
+    setList: (v: string[]) => void,
+    input: string,
+    setInput: (v: string) => void,
+    placeholder: string
+  ) => (
+    <View style={styles.medSection}>
+      <Text style={styles.medSectionLabel}>{label}</Text>
+      <View style={styles.medChipWrap}>
+        {list.length === 0 ? (
+          <Text style={styles.medEmptyText}>{t('none')}</Text>
+        ) : (
+          list.map((entry) => (
+            <Pressable
+              key={entry}
+              onPress={() => removeEntry(list, setList, entry)}
+              style={[styles.medChip, { borderColor: colors.border }]}
+              hitSlop={6}
+            >
+              <Text style={[styles.medChipText, { color: colors.text }]}>{entry}</Text>
+              <Ionicons name="close" size={14} color={colors.textSecondary} />
+            </Pressable>
+          ))
+        )}
+      </View>
+      <View style={styles.medAddRow}>
+        <Input
+          value={input}
+          onChangeText={setInput}
+          placeholder={placeholder}
+          containerStyle={styles.medAddInput}
+          onSubmitEditing={() => addEntry(list, setList, input, () => setInput(''))}
+          returnKeyType="done"
+        />
+        <Pressable
+          onPress={() => addEntry(list, setList, input, () => setInput(''))}
+          style={[styles.medAddBtn, { backgroundColor: colors.primary }]}
+          hitSlop={6}
+        >
+          <Ionicons name="add" size={20} color={Colors.textLight} />
+        </Pressable>
+      </View>
+    </View>
+  );
 
   const handleOpenSettings = useCallback(() => {
     const parent: any = (navigation as any).getParent?.();
@@ -470,6 +567,47 @@ const ProfileScreen: React.FC = () => {
             </Pressable>
           </Modal>
 
+          <Modal
+            visible={medicalModalOpen}
+            transparent
+            statusBarTranslucent
+            animationType="slide"
+            onRequestClose={handleCancelMedical}
+          >
+            <Pressable style={styles.avatarSourceBackdrop} onPress={handleCancelMedical}>
+              <Pressable
+                accessibilityViewIsModal
+                style={[
+                  styles.medModalCard,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    paddingBottom: insets.bottom + Spacing.xl,
+                  },
+                ]}
+                onPress={(event) => event.stopPropagation()}
+              >
+                <Text style={[styles.avatarSourceTitle, { color: colors.text }]}>{t('medical_info')}</Text>
+                <Text style={[styles.avatarSourceMessage, { color: colors.textSecondary }]}>
+                  This helps the assistant give safer, more relevant guidance. It is private to you.
+                </Text>
+                <ScrollView style={styles.medModalScroll} keyboardShouldPersistTaps="handled">
+                  {renderMedSection(t('conditions'), conditions, setConditions, conditionInput, setConditionInput, 'e.g. Asthma')}
+                  {renderMedSection(t('allergies'), allergies, setAllergies, allergyInput, setAllergyInput, 'e.g. Penicillin')}
+                  {renderMedSection(t('medications'), medications, setMedications, medicationInput, setMedicationInput, 'e.g. Ventolin')}
+                </ScrollView>
+                <View style={styles.medModalActions}>
+                  <Pressable onPress={handleCancelMedical} style={styles.medCancelBtn}>
+                    <Text style={[styles.medCancelText, { color: colors.textSecondary }]}>{t('cancel') || 'Cancel'}</Text>
+                  </Pressable>
+                  <View style={styles.medSaveBtnWrap}>
+                    <Button title={t('save_changes')} onPress={handleSaveMedical} loading={loading} />
+                  </View>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+
           {/* Main */}
           <View style={styles.main}>
             {/* Personal Details */}
@@ -608,18 +746,42 @@ const ProfileScreen: React.FC = () => {
 
                   <View style={styles.kvRow}>
                     <Text style={styles.kvLabel}>{t('conditions')}</Text>
-                    <View style={styles.kvPill}>
-                      <Text style={styles.kvPillText}>{t('none')}</Text>
+                    <View style={styles.kvValueWrap}>
+                      {conditions.length === 0 ? (
+                        <View style={styles.kvPill}><Text style={styles.kvPillText}>{t('none')}</Text></View>
+                      ) : (
+                        conditions.map((c) => (
+                          <View key={c} style={styles.kvPill}><Text style={styles.kvPillText}>{c}</Text></View>
+                        ))
+                      )}
                     </View>
                   </View>
                   <View style={styles.kvRow}>
                     <Text style={styles.kvLabel}>{t('allergies')}</Text>
-                    <View style={styles.kvPill}>
-                      <Text style={styles.kvPillText}>{t('none')}</Text>
+                    <View style={styles.kvValueWrap}>
+                      {allergies.length === 0 ? (
+                        <View style={styles.kvPill}><Text style={styles.kvPillText}>{t('none')}</Text></View>
+                      ) : (
+                        allergies.map((a) => (
+                          <View key={a} style={styles.kvPill}><Text style={styles.kvPillText}>{a}</Text></View>
+                        ))
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.kvRow}>
+                    <Text style={styles.kvLabel}>{t('medications')}</Text>
+                    <View style={styles.kvValueWrap}>
+                      {medications.length === 0 ? (
+                        <View style={styles.kvPill}><Text style={styles.kvPillText}>{t('none')}</Text></View>
+                      ) : (
+                        medications.map((m) => (
+                          <View key={m} style={styles.kvPill}><Text style={styles.kvPillText}>{m}</Text></View>
+                        ))
+                      )}
                     </View>
                   </View>
 
-                  <Pressable onPress={() => {}} style={styles.editMedicalBtn}>
+                  <Pressable onPress={() => setMedicalModalOpen(true)} style={styles.editMedicalBtn}>
                     <Text style={styles.editMedicalText}>{t('edit_medical_info')}</Text>
                   </Pressable>
                 </View>
@@ -1005,6 +1167,92 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+  },
+  kvValueWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginLeft: Spacing.sm,
+  },
+  medSection: {
+    marginBottom: Spacing.lg,
+  },
+  medSectionLabel: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  medChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  medEmptyText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  medChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  medChipText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  medAddRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  medAddInput: {
+    flex: 1,
+    height: 44,
+    borderRadius: BorderRadius.xl,
+  },
+  medAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medModalCard: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    maxHeight: '85%',
+  },
+  medModalScroll: {
+    marginTop: Spacing.md,
+  },
+  medModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  medCancelBtn: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.base,
+  },
+  medCancelText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  medSaveBtnWrap: {
+    flex: 1,
   },
   kvPill: {
     paddingHorizontal: Spacing.md,

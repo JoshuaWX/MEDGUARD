@@ -16,7 +16,7 @@ import { buildBrainAsync } from '../_shared/brain/buildBrain.ts';
 import { toBrainInput } from '../_shared/brain/intelAdapter.ts';
 import { loadTrendBaseline } from '../_shared/brain/trendBaseline.ts';
 import { loadVerifiedReports } from '../_shared/brain/verifiedReportsLoader.ts';
-import type { BrainCheckinInput } from '../_shared/brain/types.ts';
+import { loadPersonalHealthSnapshot } from '../_shared/personalHealth.ts';
 
 // OpenWeather API key from environment
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
@@ -366,27 +366,12 @@ async function attachPersonalBrain(
   if (!authUserId) return payload;
   try {
     const userClient = createUserClient(req);
-    const { data: rows, error } = await userClient
-      .from('health_checkins')
-      .select('checkin_date, risk_level, has_fever, has_digestive_issues, has_water_exposure, has_sick_contact')
-      .order('checkin_date', { ascending: false })
-      .limit(14);
-    if (error || !Array.isArray(rows) || rows.length === 0) {
-      logIntel('personal_brain_skipped', { reason: error ? 'query_error' : 'no_checkins' });
+    const snapshot = await loadPersonalHealthSnapshot(userClient, area, { useLlm: BRAIN_LLM_SUMMARY });
+    if (!snapshot) {
+      logIntel('personal_brain_skipped', { reason: 'no_personal_data' });
       return payload;
     }
-    const checkins: BrainCheckinInput[] = rows.map((r) => ({
-      checkinDate: String((r as Record<string, unknown>).checkin_date ?? ''),
-      riskLevel: ((r as Record<string, unknown>).risk_level as 'low' | 'moderate' | 'elevated') ?? 'low',
-      hasFever: Boolean((r as Record<string, unknown>).has_fever),
-      hasDigestiveIssues: Boolean((r as Record<string, unknown>).has_digestive_issues),
-      hasWaterExposure: Boolean((r as Record<string, unknown>).has_water_exposure),
-      hasSickContact: Boolean((r as Record<string, unknown>).has_sick_contact),
-    }));
-    const personalBrain = await buildBrainAsync(
-      toBrainInput({ area, scope: 'personal', checkins }),
-      { useLlm: BRAIN_LLM_SUMMARY },
-    );
+    const personalBrain = snapshot.personalBrain;
     logIntel('personal_brain_built', { riskLevel: personalBrain.riskLevel, confidence: personalBrain.confidence, signals: personalBrain.meta.signalsUsed });
     // Shallow clone so we never mutate the (already-cached) area payload.
     return { ...payload, personalBrain };

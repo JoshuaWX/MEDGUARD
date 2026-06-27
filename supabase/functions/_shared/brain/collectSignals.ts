@@ -14,6 +14,7 @@ import { analyzeAqi } from './analyzeAqi.ts';
 import { analyzeOutbreakAlerts } from './analyzeOutbreakAlerts.ts';
 import { analyzeSymptomTrends } from './analyzeSymptomTrends.ts';
 import { analyzeCheckins } from './analyzeCheckins.ts';
+import { analyzeSymptomLogs } from './analyzeSymptomLogs.ts';
 import { analyzeVerifiedReports } from './analyzeVerifiedReports.ts';
 
 export function collectSignals(input: BrainBuildInput): BrainSignal[] {
@@ -29,6 +30,7 @@ export function collectSignals(input: BrainBuildInput): BrainSignal[] {
   // Personal signals only for the personal scope (authenticated callers).
   if (input.scope === 'personal') {
     signals.push(...analyzeCheckins(input.checkins));
+    signals.push(...analyzeSymptomLogs(input.symptomLogs, now));
   }
 
   return signals;

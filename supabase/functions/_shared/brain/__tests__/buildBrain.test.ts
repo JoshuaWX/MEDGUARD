@@ -72,6 +72,55 @@ Deno.test('buildBrain: low-signal area => Low risk, still safe', () => {
   assert(validateSummary(quiet.summary).ok);
 });
 
+Deno.test('buildBrain: personal scope surfaces chat-logged symptoms', () => {
+  const brain = buildBrain({
+    area: 'Lagos',
+    scope: 'personal',
+    weather: { temp: 27, humidity: 55, precipitation: 0 },
+    season: { label: 'dry', description: 'Dry season', confidence: 0.6 },
+    aqi: { level: 'good' },
+    diseases: [],
+    outbreaks: [],
+    whoAlerts: [],
+    symptomLogs: [
+      { symptomKey: 'fever', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' },
+      { symptomKey: 'cough', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' },
+    ],
+    now: NOW,
+  });
+  const fromLogs = brain.signals.find((s) => s.source === 'symptom_logs');
+  assert(fromLogs, 'expected a symptom_logs signal in personal scope');
+});
+
+Deno.test('buildBrain: area scope ignores symptom logs', () => {
+  const brain = buildBrain(baseInput({
+    scope: 'area',
+    symptomLogs: [{ symptomKey: 'fever', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' }],
+  }));
+  assertFalseLocal(brain.signals.some((s) => s.source === 'symptom_logs'));
+});
+
+Deno.test('buildBrain: a few logged symptoms alone must NOT reach Elevated', () => {
+  const brain = buildBrain({
+    area: 'Lagos',
+    scope: 'personal',
+    weather: { temp: 27, humidity: 55, precipitation: 0 },
+    season: { label: 'dry', description: 'Dry season', confidence: 0.6 },
+    aqi: { level: 'good' },
+    diseases: [],
+    outbreaks: [],
+    whoAlerts: [],
+    symptomLogs: [
+      { symptomKey: 'fever', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' },
+      { symptomKey: 'cough', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' },
+      { symptomKey: 'headache', occurredAt: '2026-06-15T00:00:00Z', source: 'chat' },
+    ],
+    now: NOW,
+  });
+  assert(brain.riskLevel !== 'Elevated', `logged symptoms alone should not be Elevated, got ${brain.riskLevel}`);
+  assert(validateSummary(brain.summary).ok);
+});
+
 Deno.test('buildBrain: signalsUsed matches signals length', () => {
   const brain = buildBrain(baseInput({}));
   assertEquals(brain.meta.signalsUsed, brain.signals.length);

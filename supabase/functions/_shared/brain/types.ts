@@ -131,6 +131,19 @@ export interface BrainCheckinInput {
   hasSickContact?: boolean;
 }
 
+/**
+ * A logged symptom row (personal). Sourced from `symptom_logs` and only used
+ * for the `personal` Brain scope. Includes symptoms the user typed in chat
+ * (`source: 'chat'`) so the Brain reacts to them. AGGREGATED INTO A TREND
+ * SIGNAL ONLY — never echoed back as a diagnosis.
+ */
+export interface BrainSymptomLogInput {
+  symptomKey: string;
+  severity?: number | null;
+  occurredAt: string;
+  source?: string;
+}
+
 /** Aggregated, anonymous community trend row for a state/week. */
 export interface BrainCommunityTrendInput {
   isoWeek: string;
@@ -185,6 +198,8 @@ export interface BrainBuildInput {
   whoAlerts?: BrainWhoAlertInput[] | null;
   /** Personal — only present when authenticated. */
   checkins?: BrainCheckinInput[] | null;
+  /** Personal — logged symptoms (incl. chat-derived). Only used for personal scope. */
+  symptomLogs?: BrainSymptomLogInput[] | null;
   /** Community aggregates (anonymous). */
   communityTrends?: BrainCommunityTrendInput[] | null;
   trendBaseline?: BrainTrendBaselineInput[] | null;

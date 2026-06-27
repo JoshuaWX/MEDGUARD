@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, getCachedAccessToken, setCachedAccessToken } from './supabase';
 import { toUserMessage } from './errorMessages';
 
 // ============================================================================
@@ -18,9 +18,17 @@ export type EdgeInvokeOptions = {
 };
 
 async function getAccessToken(): Promise<string | null> {
+  // Fast path: use the in-memory token kept fresh by the auth listener in
+  // supabase.ts. This avoids acquiring the GoTrue processLock on every call.
+  const cached = getCachedAccessToken();
+  if (cached) return cached;
+
+  // Cold-start fallback: acquire the lock just once and cache the result.
   try {
     const { data } = await supabase.auth.getSession();
-    return data.session?.access_token || null;
+    const token = data.session?.access_token || null;
+    setCachedAccessToken(token);
+    return token;
   } catch {
     return null;
   }

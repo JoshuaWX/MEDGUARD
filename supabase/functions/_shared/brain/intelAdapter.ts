@@ -20,6 +20,7 @@ import type {
   BrainOutbreakInput,
   BrainWhoAlertInput,
   BrainCheckinInput,
+  BrainSymptomLogInput,
   BrainCommunityTrendInput,
   BrainTrendBaselineInput,
   BrainVerifiedReportInput,
@@ -46,6 +47,7 @@ export interface IntelAdapterInput {
   outbreaks?: RawOutbreak[] | null;
   whoAlerts?: RawWhoAlert[] | null;
   checkins?: BrainCheckinInput[] | null;
+  symptomLogs?: BrainSymptomLogInput[] | null;
   communityTrends?: BrainCommunityTrendInput[] | null;
   trendBaseline?: BrainTrendBaselineInput[] | null;
   verifiedReports?: BrainVerifiedReportInput[] | null;
@@ -128,6 +130,7 @@ export function toBrainInput(input: IntelAdapterInput): BrainBuildInput {
     outbreaks,
     whoAlerts,
     checkins: input.scope === 'personal' ? input.checkins ?? null : null,
+    symptomLogs: input.scope === 'personal' ? input.symptomLogs ?? null : null,
     communityTrends: input.communityTrends ?? null,
     trendBaseline: input.trendBaseline ?? null,
     verifiedReports: input.verifiedReports ?? null,

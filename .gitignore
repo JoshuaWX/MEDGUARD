@@ -17,3 +17,8 @@ command.txt
 # Deno generated lockfiles (edge function type-check/test artifacts)
 deno.lock
 supabase/functions/deno.lock
+
+CLAUDE_CODE_HANDOFF.md
+FIXES.md
+Future.txt
+mobile-expo/SETUP_REFERENCE.md

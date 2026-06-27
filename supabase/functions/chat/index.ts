@@ -3,6 +3,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabase.ts';
 import { optionalEnv, requiredEnv } from '../_shared/env.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
+import { loadPersonalHealthSnapshot, type PersonalHealthSnapshot } from '../_shared/personalHealth.ts';
 
 // ============================================================================
 // PERFORMANCE: Request timeout to prevent hanging connections
@@ -615,21 +616,75 @@ interface UserProfile {
   medications?: string[] | string;
 }
 
-function buildUserContext(profile: UserProfile | null): string {
-  if (!profile) return '';
+/** Normalize a profile list field (text[] or comma string) to clean entries. */
+function normalizeList(value: string[] | string | undefined | null): string[] {
+  if (!value) return [];
+  const raw = Array.isArray(value) ? value : String(value).split(',');
+  const out: string[] = [];
+  for (const item of raw) {
+    const cleaned = String(item).trim();
+    if (cleaned && !out.includes(cleaned)) out.push(cleaned);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+function buildUserContext(
+  profile: UserProfile | null,
+  snapshot?: PersonalHealthSnapshot | null,
+): string {
   const parts: string[] = [];
 
-  const name = (profile.full_name || profile.name || '').trim();
-  if (name) parts.push(`User name: ${name}.`);
+  if (profile) {
+    const name = (profile.full_name || profile.name || '').trim();
+    if (name) parts.push(`User name: ${name}.`);
 
-  const state = (profile.state || '').trim();
-  if (state) parts.push(`User location/state: ${state}.`);
+    const state = (profile.state || '').trim();
+    if (state) parts.push(`User location/state: ${state}.`);
 
-  const age = profile.age;
-  if (age) parts.push(`User age: ${age}.`);
+    const age = profile.age;
+    if (age) parts.push(`User age: ${age}.`);
 
-  const gender = (profile.gender || '').trim();
-  if (gender) parts.push(`User gender: ${gender}.`);
+    const gender = (profile.gender || '').trim();
+    if (gender) parts.push(`User gender: ${gender}.`);
+
+    // Known medical history — use to give safer, more relevant guidance
+    // (e.g. respect allergies). Do NOT treat these as the current complaint.
+    const conditions = normalizeList(profile.conditions);
+    if (conditions.length) parts.push(`Known conditions: ${conditions.join(', ')}.`);
+    const allergies = normalizeList(profile.allergies);
+    if (allergies.length) parts.push(`Known allergies: ${allergies.join(', ')}.`);
+    const medications = normalizeList(profile.medications);
+    if (medications.length) parts.push(`Current medications: ${medications.join(', ')}.`);
+  }
+
+  // MedGuard Brain awareness: the user's own current health picture. Use this
+  // to personalize, NOT to diagnose or to confirm any condition/outbreak.
+  if (snapshot) {
+    const health: string[] = [];
+    health.push(`Current personal health-risk level: ${snapshot.riskLevel} (confidence: ${snapshot.confidence}).`);
+    // Always state check-in status so the assistant can answer "have I checked
+    // in today?" accurately.
+    if (snapshot.hasCheckedInToday) {
+      health.push(`Daily check-in today: done${snapshot.todayCheckinRisk ? ` (risk ${snapshot.todayCheckinRisk})` : ''}.`);
+    } else {
+      health.push(`Daily check-in today: not done yet.`);
+    }
+    if (snapshot.streak > 0) {
+      health.push(`Check-in streak: ${snapshot.streak} day(s).`);
+    }
+    if (snapshot.topSignalSummaries.length > 0) {
+      health.push(`Recent health signals: ${snapshot.topSignalSummaries.join('; ')}.`);
+    }
+    if (snapshot.recentSymptoms.length > 0) {
+      health.push(`Recently logged symptoms: ${snapshot.recentSymptoms.join(', ')}.`);
+    }
+    if (health.length > 0) {
+      parts.push(
+        `MedGuard health snapshot (personalize with this; never diagnose or confirm an outbreak):\n${health.join('\n')}`,
+      );
+    }
+  }
 
   return parts.join('\n');
 }
@@ -643,6 +698,66 @@ function formatHistoryForLLM(history: Array<{ role: string; content: string }>):
       return `${role}: ${m.content}`;
     })
     .join('\n');
+}
+
+// ============================================================================
+// SYMPTOM EXTRACTION (write-back loop to the Brain)
+// ----------------------------------------------------------------------------
+// Pulls symptoms the user reports experiencing THEMSELVES out of their message,
+// constrained to a fixed vocabulary, and stores them in `symptom_logs` so the
+// MedGuard Brain's personal scope reacts to them next time. Strictly awareness:
+// we record a reported symptom, we never infer or store a diagnosis.
+// ============================================================================
+
+/** Canonical symptom keys we are willing to store. Anything else is ignored. */
+const SYMPTOM_KEYS = [
+  'fever', 'cough', 'headache', 'sore_throat', 'fatigue', 'body_pain',
+  'nausea', 'vomiting', 'diarrhea', 'constipation', 'rash', 'itching',
+  'dizziness', 'chills', 'breathing', 'chest_pain', 'bleeding', 'weakness',
+  'runny_nose', 'loss_of_appetite', 'abdominal_pain', 'back_pain',
+] as const;
+
+const SYMPTOM_EXTRACTION_SYSTEM = `You extract symptoms a user reports CURRENTLY EXPERIENCING THEMSELVES from their message.
+Only use keys from this exact list: ${SYMPTOM_KEYS.join(', ')}.
+Rules:
+- Include a key ONLY if the user says they (or "I") currently have/feel it.
+- Do NOT include symptoms they ask about in general, ask definitions of, or deny having.
+- Do NOT diagnose or add conditions. Symptoms only.
+- Respond with ONLY a compact JSON array of keys, e.g. ["fever","cough"]. If none, respond [].`;
+
+function parseSymptomKeys(raw: string): string[] {
+  if (!raw) return [];
+  // Strip code fences / stray prose; grab the first JSON array.
+  const match = raw.match(/\[[^\]]*\]/);
+  if (!match) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const allow = new Set<string>(SYMPTOM_KEYS as readonly string[]);
+  const out: string[] = [];
+  for (const item of parsed) {
+    const key = typeof item === 'string' ? item.trim().toLowerCase() : '';
+    if (allow.has(key) && !out.includes(key)) out.push(key);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
+/** Best-effort symptom extraction. Returns [] on any failure (never throws). */
+async function extractSymptomsFromMessage(message: string): Promise<string[]> {
+  try {
+    const raw = await chatCompletion({
+      system: SYMPTOM_EXTRACTION_SYSTEM,
+      messages: [{ role: 'user', content: message }],
+    });
+    return parseSymptomKeys(raw);
+  } catch {
+    return [];
+  }
 }
 
 // ============================================================================
@@ -712,6 +827,7 @@ serve(async (req: Request) => {
     let profile: UserProfile | null = null;
     let conversationId = body?.conversation_id || null;
     let previousMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    let healthSnapshot: PersonalHealthSnapshot | null = null;
 
     if (!isGuest && userId) {
       const conversationPromise = (async () => {
@@ -741,19 +857,27 @@ serve(async (req: Request) => {
         conversationPromise,
         supabase
           .from('profiles')
-          .select('full_name, state, age, gender')
+          .select('full_name, state, age, gender, conditions, allergies, medications')
           .eq('id', userId)
           .maybeSingle(),
       ]);
       conversationId = resolvedConversationId;
       profile = (profileResult.data as UserProfile | null) || null;
 
-      const historyResult = await supabase
-        .from('chat_messages')
-        .select('role, content, created_at')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(20);
+      // Load history and the shared MedGuard personal health snapshot in
+      // parallel. The snapshot makes chat health-aware; failure must never
+      // break chat, so it is swallowed to null.
+      const area = (profile?.state || '').trim();
+      const [historyResult, snapshot] = await Promise.all([
+        supabase
+          .from('chat_messages')
+          .select('role, content, created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        loadPersonalHealthSnapshot(supabase, area).catch(() => null),
+      ]);
+      healthSnapshot = snapshot;
 
       if (historyResult.error) throw historyResult.error;
       previousMessages = ((historyResult.data as HistoryMessage[] || [])
@@ -802,7 +926,7 @@ serve(async (req: Request) => {
     const retrievedContext = contextChunks.join('\n\n---\n\n');
 
     // Build context (fast operations)
-    const userContext = buildUserContext(profile);
+    const userContext = buildUserContext(profile, healthSnapshot);
     const historyText = formatHistoryForLLM(previousMessages);
 
     const contextParts: string[] = [];
@@ -830,11 +954,19 @@ ${intentPrompt}`;
       }, { status: 504 });
     }
     const llmTimeout = Math.min(llmRemainingTime - 1500, 24000);
-    const answer = await withTimeout(
-      chatCompletion({ system: systemPrompt, messages: historyMessages }),
-      llmTimeout,
-      'AI response generation'
-    );
+
+    // Generate the answer and (for authenticated symptom messages) extract any
+    // self-reported symptoms in parallel — both only need the user message, so
+    // there is no added latency. Extraction never throws.
+    const shouldExtractSymptoms = !isGuest && !!userId && intent === 'symptom_analysis';
+    const [answer, extractedSymptoms] = await Promise.all([
+      withTimeout(
+        chatCompletion({ system: systemPrompt, messages: historyMessages }),
+        llmTimeout,
+        'AI response generation'
+      ),
+      shouldExtractSymptoms ? extractSymptomsFromMessage(message) : Promise.resolve([] as string[]),
+    ]);
 
     if (!isGuest && conversationId) {
       const { error: persistErr } = await supabase
@@ -853,12 +985,33 @@ ${intentPrompt}`;
       }
     }
 
+    // Write-back loop: store chat-derived symptoms so the Brain reacts to them.
+    if (!isGuest && userId && extractedSymptoms.length > 0) {
+      const stateVal = (profile?.state || '').trim() || null;
+      const occurredAt = new Date().toISOString();
+      const rows = extractedSymptoms.map((key) => ({
+        user_id: userId,
+        symptom_key: key,
+        source: 'chat',
+        state: stateVal,
+        occurred_at: occurredAt,
+      }));
+      const { error: symErr } = await supabase.from('symptom_logs').insert(rows);
+      if (symErr) {
+        console.warn(JSON.stringify({
+          event: 'chat_symptom_log_failed',
+          reason: symErr.message,
+        }));
+      }
+    }
+
     console.log(JSON.stringify({
       event: 'chat_completed',
       ms: Date.now() - requestStart,
       intent,
       ragStatus,
       isGuest,
+      symptomsLogged: extractedSymptoms.length,
     }));
 
     return jsonResponse({

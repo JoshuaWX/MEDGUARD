@@ -21,6 +21,9 @@ export interface UserProfile {
   avatarPath: string | null;
   useLocation: boolean;
   healthScore: number | null;
+  conditions: string[];
+  allergies: string[];
+  medications: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -145,6 +148,9 @@ export const useUser = (): UseUserReturn => {
           avatarPath: data.avatar_path,
           useLocation: data.use_location ?? false,
           healthScore: data.health_score,
+          conditions: Array.isArray(data.conditions) ? data.conditions : [],
+          allergies: Array.isArray(data.allergies) ? data.allergies : [],
+          medications: Array.isArray(data.medications) ? data.medications : [],
           createdAt: data.created_at,
           updatedAt: data.updated_at,
         });
@@ -166,6 +172,9 @@ export const useUser = (): UseUserReturn => {
           avatarPath: null,
           useLocation: Boolean(meta.use_location ?? meta.useLocation ?? false),
           healthScore: null,
+          conditions: [],
+          allergies: [],
+          medications: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -198,6 +207,9 @@ export const useUser = (): UseUserReturn => {
       if (data.age !== undefined) updateData.age = data.age;
       if (data.useLocation !== undefined) updateData.use_location = data.useLocation;
       if (data.healthScore !== undefined) updateData.health_score = data.healthScore;
+      if (data.conditions !== undefined) updateData.conditions = data.conditions;
+      if (data.allergies !== undefined) updateData.allergies = data.allergies;
+      if (data.medications !== undefined) updateData.medications = data.medications;
 
       const { error: updateError } = await supabase
         .from('profiles')

@@ -112,6 +112,37 @@ export const supabase = isSupabaseConfigured
       createConfiguredSupabase())
   : (createUnconfiguredSupabase() as any);
 
+// ============================================================================
+// Cached access token
+// ----------------------------------------------------------------------------
+// Reading the access token via supabase.auth.getSession() acquires the GoTrue
+// processLock. Doing that on every edge-function call (and on every screen that
+// fires several calls at once) floods the lock and produces repeated
+// "Lock acquisition timed out" warnings; worse, a timed-out getSession() yields
+// no token, so authenticated requests silently downgrade to guest.
+//
+// Instead we keep the current token in memory, updated once by a single auth
+// listener, and read it synchronously. A one-time getSession() fallback covers
+// the brief window before the first auth event fires on cold start.
+// ============================================================================
+let cachedAccessToken: string | null = null;
+
+if (isSupabaseConfigured) {
+  supabase.auth.onAuthStateChange((_event: unknown, session: { access_token?: string } | null) => {
+    cachedAccessToken = session?.access_token ?? null;
+  });
+}
+
+/** Synchronously read the last-known access token (no lock). May be null. */
+export function getCachedAccessToken(): string | null {
+  return cachedAccessToken;
+}
+
+/** Update the cached token after a one-time getSession() fallback. */
+export function setCachedAccessToken(token: string | null): void {
+  cachedAccessToken = token;
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -125,6 +156,9 @@ export type Database = {
           avatar_path: string | null;
           use_location: boolean;
           health_score: number | null;
+          conditions: string[] | null;
+          allergies: string[] | null;
+          medications: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -146,6 +180,9 @@ export type Database = {
           avatar_path?: string | null;
           use_location?: boolean;
           health_score?: number | null;
+          conditions?: string[] | null;
+          allergies?: string[] | null;
+          medications?: string[] | null;
         };
       };
       symptom_logs: {
