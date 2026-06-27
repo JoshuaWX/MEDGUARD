@@ -159,6 +159,9 @@ export type Database = {
           conditions: string[] | null;
           allergies: string[] | null;
           medications: string[] | null;
+          height_cm: number | null;
+          weight_kg: number | null;
+          cycle_tracking_enabled: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -183,6 +186,9 @@ export type Database = {
           conditions?: string[] | null;
           allergies?: string[] | null;
           medications?: string[] | null;
+          height_cm?: number | null;
+          weight_kg?: number | null;
+          cycle_tracking_enabled?: boolean | null;
         };
       };
       symptom_logs: {

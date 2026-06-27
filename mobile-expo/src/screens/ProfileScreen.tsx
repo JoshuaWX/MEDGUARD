@@ -109,6 +109,8 @@ const ProfileScreen: React.FC = () => {
   const [gender, setGender] = useState<Gender>('');
   const [age, setAge] = useState('');
   const [lga, setLga] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [prefHealthAlerts, setPrefHealthAlerts] = useState(true);
   const [prefDailyTips, setPrefDailyTips] = useState(false);
 
@@ -168,6 +170,8 @@ const ProfileScreen: React.FC = () => {
     });
     setGender((user.gender as Gender) || '');
     setAge(user.age != null ? String(user.age) : '');
+    setHeight(user.heightCm != null ? String(user.heightCm) : '');
+    setWeight(user.weightKg != null ? String(user.weightKg) : '');
     setConditions(user.conditions || []);
     setAllergies(user.allergies || []);
     setMedications(user.medications || []);
@@ -338,10 +342,14 @@ const ProfileScreen: React.FC = () => {
   const handleSaveProfile = async () => {
     try {
       const ageNum = age ? Number(age) : null;
+      const heightNum = height ? Number(height) : null;
+      const weightNum = weight ? Number(weight) : null;
       await updateProfile({
         ...formData,
         gender: gender || null,
         age: Number.isFinite(ageNum) ? ageNum : null,
+        heightCm: heightNum && Number.isFinite(heightNum) ? heightNum : null,
+        weightKg: weightNum && Number.isFinite(weightNum) ? weightNum : null,
       });
       setEditMode(false);
       toast({ tone: 'success', title: 'Profile updated', message: 'Your changes have been saved.' });
@@ -678,6 +686,31 @@ const ProfileScreen: React.FC = () => {
                           onChangeText={setLga}
                           placeholder="LGA"
                           editable={editMode}
+                          containerStyle={styles.compactInput}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.twoColRow}>
+                      <View style={styles.twoCol}>
+                        <Text style={styles.inputLabel}>{t('height_cm')}</Text>
+                        <Input
+                          value={height}
+                          onChangeText={setHeight}
+                          placeholder="cm"
+                          editable={editMode}
+                          keyboardType="number-pad"
+                          containerStyle={styles.compactInput}
+                        />
+                      </View>
+                      <View style={styles.twoCol}>
+                        <Text style={styles.inputLabel}>{t('weight_kg')}</Text>
+                        <Input
+                          value={weight}
+                          onChangeText={setWeight}
+                          placeholder="kg"
+                          editable={editMode}
+                          keyboardType="number-pad"
                           containerStyle={styles.compactInput}
                         />
                       </View>

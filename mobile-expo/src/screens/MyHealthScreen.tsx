@@ -69,11 +69,22 @@ import {
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
+import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
+import { useSteps } from '../hooks/useSteps';
 import { useLocationContext } from '../hooks/LocationContext';
+import {
+  computeBmi,
+  bmiCategory,
+  computeHealthScore,
+  scoreBand,
+  upsertDailyScore,
+  loadScoreTrend,
+  type ScorePoint,
+} from '../services/healthScore';
 import { useI18n } from '../i18n';
 import {
   Colors,
@@ -91,22 +102,6 @@ import {
 // Set to true when the feature is ready for release
 // ============================================================================
 const FEATURE_ENABLED = true;
-
-/**
- * Derive a 0-100 wellness score from the latest check-in risk level.
- * If no check-in exists yet today, defaults to neutral (75).
- *
- * PUBLIC HEALTH NOTE: This is a self-awareness indicator only,
- * NOT a clinical health metric.
- */
-function deriveWellnessScore(riskLevel: 'low' | 'moderate' | 'elevated' | null): number {
-  switch (riskLevel) {
-    case 'low':      return 92;
-    case 'moderate': return 65;
-    case 'elevated': return 40;
-    default:         return 75; // No check-in yet today
-  }
-}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -203,8 +198,27 @@ const MyHealthScreenContent: React.FC = () => {
   const [facilitiesRadiusUsed, setFacilitiesRadiusUsed] = useState<number | null>(null);
   const facilitiesRequestIdRef = useRef(0);
 
-  const healthScore = deriveWellnessScore(todayCheckin?.riskLevel ?? null);
+  // Live steps + body metrics feed the real wellness score.
+  const { steps, available: stepsAvailable } = useSteps();
+  const bmi = computeBmi(user?.heightCm ?? null, user?.weightKg ?? null);
+  const bmiCat = bmiCategory(bmi);
+  const scoreResult = computeHealthScore({
+    todayRisk: todayCheckin?.riskLevel ?? null,
+    streak: streak?.currentStreak ?? 0,
+    steps: stepsAvailable ? steps : null,
+    bmi,
+  });
+  const healthScore = scoreResult.score;
+  const band = scoreBand(healthScore);
+  const [scoreTrend, setScoreTrend] = useState<ScorePoint[]>([]);
   const displayName = user?.name || 'User';
+
+  // Persist today's score (best-effort) and refresh the trend when it changes.
+  useEffect(() => {
+    if (!user?.id || checkinLoading) return;
+    void upsertDailyScore(user.id, scoreResult);
+    loadScoreTrend(user.id).then(setScoreTrend).catch(() => {});
+  }, [user?.id, checkinLoading, healthScore]);
 
   const loadHealthFacilities = useCallback(async (latitude: number, longitude: number) => {
     const requestId = ++facilitiesRequestIdRef.current;
@@ -598,6 +612,63 @@ const MyHealthScreenContent: React.FC = () => {
             />
           </Animated.View>
 
+          {/* Today's metrics: steps + BMI */}
+          <Animated.View entering={FadeInUp.delay(230).duration(450)}>
+            <View style={styles.metricsRow}>
+              <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.metricHeader}>
+                  <Ionicons name="walk-outline" size={18} color={Colors.primary} />
+                  <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Steps today</Text>
+                </View>
+                {stepsAvailable ? (
+                  <>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>{steps.toLocaleString()}</Text>
+                    <Text style={[styles.metricSub, { color: colors.textMuted }]}>
+                      {steps >= 8000 ? 'Goal reached 🎉' : `${Math.max(0, 8000 - steps).toLocaleString()} to 8,000`}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.metricValue, { color: colors.textMuted }]}>—</Text>
+                    <Text style={[styles.metricSub, { color: colors.textMuted }]}>Step sensor unavailable</Text>
+                  </>
+                )}
+              </View>
+
+              <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.metricHeader}>
+                  <Ionicons name="body-outline" size={18} color={Colors.primary} />
+                  <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>BMI</Text>
+                </View>
+                {bmi != null ? (
+                  <>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>{bmi}</Text>
+                    <Text style={[styles.metricSub, { color: colors.textMuted, textTransform: 'capitalize' }]}>{bmiCat ?? ''}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.metricValue, { color: colors.textMuted }]}>—</Text>
+                    <Pressable onPress={() => navigation.navigate('Profile' as never)}>
+                      <Text style={[styles.metricSub, { color: Colors.primary }]}>Add height & weight</Text>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            </View>
+            {scoreTrend.length >= 2 && (
+              <View style={[styles.trendRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Wellness score · last {scoreTrend.length} days</Text>
+                <View style={styles.sparkRow}>
+                  {scoreTrend.map((p, i) => (
+                    <View key={i} style={styles.sparkCol}>
+                      <View style={[styles.sparkBar, { height: Math.max(6, (p.score / 100) * 44), backgroundColor: band.tone === 'low' ? Colors.warning : Colors.primary }]} />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </Animated.View>
+
           {/* Health Tip (card structure closer to web) */}
           <Animated.View entering={FadeInUp.delay(250).duration(450)}>
             <GlassCard style={styles.tipCard}>
@@ -962,6 +1033,32 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   // Tip card styles
+  metricsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  metricCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
+    gap: 4,
+  },
+  metricHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metricLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.xs },
+  metricValue: { fontFamily: FontFamily.bold, fontSize: FontSize['2xl'] },
+  metricSub: { fontFamily: FontFamily.regular, fontSize: FontSize.xs },
+  trendRow: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  sparkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 48 },
+  sparkCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  sparkBar: { width: '70%', borderRadius: 3 },
   tipCard: {
     marginBottom: Spacing.xl,
     borderRadius: 24,

@@ -44,6 +44,12 @@ export interface PersonalHealthSnapshot {
   todayCheckinRisk: BrainCheckinInput['riskLevel'] | null;
   /** Current daily check-in streak (consecutive days), 0 if none. */
   streak: number;
+  /** Latest persisted wellness score (0-100), or null. Context only. */
+  wellnessScore: number | null;
+  /** Steps recorded today, or null if none. Context only. */
+  stepsToday: number | null;
+  /** Body-mass index from profile height/weight, or null. Context only. */
+  bmi: number | null;
 }
 
 /**
@@ -60,10 +66,11 @@ export async function loadPersonalHealthSnapshot(
   const now = options?.now ?? new Date();
   const useLlm = options?.useLlm ?? BRAIN_LLM_SUMMARY_DEFAULT;
 
-  const [checkins, symptomLogs, streak] = await Promise.all([
+  const [checkins, symptomLogs, streak, metrics] = await Promise.all([
     loadCheckins(userClient),
     loadSymptomLogs(userClient, now),
     loadStreak(userClient),
+    loadMetrics(userClient, now),
   ]);
 
   if (checkins.length === 0 && symptomLogs.length === 0) return null;
@@ -85,6 +92,39 @@ export async function loadPersonalHealthSnapshot(
     hasCheckedInToday: todayCheckin !== null,
     todayCheckinRisk: todayCheckin?.riskLevel ?? null,
     streak,
+    wellnessScore: metrics.wellnessScore,
+    stepsToday: metrics.stepsToday,
+    bmi: metrics.bmi,
+  };
+}
+
+async function loadMetrics(
+  userClient: SupabaseClient,
+  now: Date,
+): Promise<{ wellnessScore: number | null; stepsToday: number | null; bmi: number | null }> {
+  const todayIso = toIsoDate(now);
+  const [scoreRes, stepsRes, profileRes] = await Promise.all([
+    userClient.from('health_score_daily').select('score').order('score_date', { ascending: false }).limit(1).maybeSingle(),
+    userClient.from('user_daily_activity').select('step_count').eq('activity_date', todayIso).maybeSingle(),
+    userClient.from('profiles').select('height_cm, weight_kg').maybeSingle(),
+  ]);
+
+  const score = scoreRes.data ? Number((scoreRes.data as Record<string, unknown>).score) : null;
+  const steps = stepsRes.data ? Number((stepsRes.data as Record<string, unknown>).step_count) : null;
+
+  let bmi: number | null = null;
+  const prof = profileRes.data as Record<string, unknown> | null;
+  const h = prof && typeof prof.height_cm !== 'undefined' ? Number(prof.height_cm) : NaN;
+  const w = prof && typeof prof.weight_kg !== 'undefined' ? Number(prof.weight_kg) : NaN;
+  if (Number.isFinite(h) && Number.isFinite(w) && h > 0 && w > 0) {
+    const m = h / 100;
+    bmi = Math.round((w / (m * m)) * 10) / 10;
+  }
+
+  return {
+    wellnessScore: Number.isFinite(score as number) ? (score as number) : null,
+    stepsToday: Number.isFinite(steps as number) ? (steps as number) : null,
+    bmi,
   };
 }
 

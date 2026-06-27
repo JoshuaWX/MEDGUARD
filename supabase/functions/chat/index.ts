@@ -673,6 +673,15 @@ function buildUserContext(
     if (snapshot.streak > 0) {
       health.push(`Check-in streak: ${snapshot.streak} day(s).`);
     }
+    if (typeof snapshot.wellnessScore === 'number') {
+      health.push(`Wellness score: ${snapshot.wellnessScore}/100.`);
+    }
+    if (typeof snapshot.stepsToday === 'number') {
+      health.push(`Steps today: ${snapshot.stepsToday}.`);
+    }
+    if (typeof snapshot.bmi === 'number') {
+      health.push(`BMI: ${snapshot.bmi}.`);
+    }
     if (snapshot.topSignalSummaries.length > 0) {
       health.push(`Recent health signals: ${snapshot.topSignalSummaries.join('; ')}.`);
     }
