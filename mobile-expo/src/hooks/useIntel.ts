@@ -69,6 +69,8 @@ export interface IntelV2 {
   personalBrain?: BrainResult | null;
   outbreaks: any[];
   whoAlerts: any[];
+  /** Attributed data sources actually used to build this response. */
+  sources?: Array<{ name: string; url: string; category?: string }>;
   meta: any;
 }
 

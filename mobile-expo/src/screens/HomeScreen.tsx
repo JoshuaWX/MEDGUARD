@@ -349,7 +349,7 @@ const HomeScreen: React.FC = () => {
             {/* MedGuard Brain v1: area health signal summary */}
             {intel?.brain && (
               <View style={{ marginBottom: 12 }}>
-                <BrainCard brain={intel.brain} />
+                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport')} />
               </View>
             )}
 

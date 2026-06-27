@@ -13,6 +13,7 @@ export type RootStackParamList = {
   Chatbot: undefined;
   Alerts: undefined;
   Settings: undefined;
+  BrainReport: undefined;
 };
 
 export type MainTabParamList = {

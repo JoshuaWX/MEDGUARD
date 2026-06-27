@@ -20,6 +20,12 @@ import { loadPersonalHealthSnapshot } from '../_shared/personalHealth.ts';
 
 // OpenWeather API key from environment
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
+// Server-side Google Maps Platform key for the Weather + Air Quality APIs.
+// SET AS A SUPABASE SECRET (not EXPO_PUBLIC). For MVP this may reuse the same key
+// value as the mobile Maps key, but note: a single key cannot be BOTH
+// Android-application-restricted (for the in-app map) AND used server-side here.
+// Production should use a separate server key restricted by API + caller IP.
+const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY') || '';
 const BRAIN_LLM_SUMMARY = (Deno.env.get('BRAIN_LLM_SUMMARY') || '').toLowerCase() === 'true';
 
 // ============================================================================
@@ -117,13 +123,166 @@ const NIGERIA_STATES = [
   'fct','abuja'
 ];
 
+// Map a weather/AQI provider name to a public docs/source URL for the report page.
+function sourceUrl(name: string): string {
+  switch (name) {
+    case 'Google Weather': return 'https://developers.google.com/maps/documentation/weather';
+    case 'Google Air Quality': return 'https://developers.google.com/maps/documentation/air-quality';
+    case 'OpenWeather': return 'https://openweathermap.org/';
+    case 'Open-Meteo': return 'https://open-meteo.com/';
+    case 'Open-Meteo Air Quality': return 'https://open-meteo.com/en/docs/air-quality-api';
+    default: return '';
+  }
+}
+
+// Convert a gas pollutant concentration to µg/m³ (the unit risk-engine thresholds use).
+// PM2.5/PM10 already arrive in µg/m³; gases may arrive in ppb.
+const GAS_MOLAR_MASS: Record<string, number> = { o3: 48, no2: 46, so2: 64, co: 28 };
+function gasToUgm3(code: string, value: number, units: string): number {
+  if (units === 'PARTS_PER_BILLION' && GAS_MOLAR_MASS[code]) {
+    return value * (GAS_MOLAR_MASS[code] / 24.45);
+  }
+  return value; // MICROGRAMS_PER_CUBIC_METER or unknown → pass through
+}
+
+// Google Weather API (Maps Platform). Returns current + up to 5-day forecast.
+async function fetchWeatherGoogle(lat: number, lon: number): Promise<{
+  current: WeatherData;
+  forecast: ForecastData | null;
+  source: string;
+} | null> {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+  const t0 = performance.now();
+  try {
+    const base = 'https://weather.googleapis.com/v1';
+    const common = `key=${GOOGLE_MAPS_API_KEY}&location.latitude=${lat}&location.longitude=${lon}&unitsSystem=METRIC`;
+    const [curRes, fcRes] = await Promise.all([
+      fetch(`${base}/currentConditions:lookup?${common}`),
+      fetch(`${base}/forecast/days:lookup?${common}&days=5`),
+    ]);
+    if (!curRes.ok) {
+      logIntel('fetch_weather_unavailable', { source: 'Google Weather', status: curRes.status, durationMs: elapsedMs(t0) });
+      return null;
+    }
+    type GCurrent = { temperature?: { degrees?: number }; relativeHumidity?: number; precipitation?: { qpf?: { quantity?: number } }; wind?: { speed?: { value?: number } } };
+    const cur = await curRes.json() as GCurrent;
+
+    let forecast: ForecastData | null = null;
+    if (fcRes.ok) {
+      type GForecast = { forecastDays?: Array<{ displayDate?: { year?: number; month?: number; day?: number }; maxTemperature?: { degrees?: number }; minTemperature?: { degrees?: number }; daytimeForecast?: { precipitation?: { qpf?: { quantity?: number } } }; nighttimeForecast?: { precipitation?: { qpf?: { quantity?: number } } } }> };
+      const fc = await fcRes.json() as GForecast;
+      const dates: string[] = []; const maxTemps: number[] = []; const minTemps: number[] = []; const precipitation: number[] = [];
+      for (const d of fc.forecastDays ?? []) {
+        const dd = d.displayDate;
+        dates.push(dd?.year && dd?.month && dd?.day ? `${dd.year}-${String(dd.month).padStart(2, '0')}-${String(dd.day).padStart(2, '0')}` : '');
+        maxTemps.push(d.maxTemperature?.degrees ?? 0);
+        minTemps.push(d.minTemperature?.degrees ?? 0);
+        precipitation.push((d.daytimeForecast?.precipitation?.qpf?.quantity ?? 0) + (d.nighttimeForecast?.precipitation?.qpf?.quantity ?? 0));
+      }
+      if (dates.length) forecast = { dates, maxTemps, minTemps, precipitation };
+    }
+
+    logIntel('fetch_weather_ok', { source: 'Google Weather', hasForecast: forecast !== null, durationMs: elapsedMs(t0) });
+    return {
+      current: {
+        temp: cur.temperature?.degrees ?? 0,
+        humidity: cur.relativeHumidity ?? 0,
+        precipitation: cur.precipitation?.qpf?.quantity ?? 0,
+        windSpeed: cur.wind?.speed?.value,
+      },
+      forecast,
+      source: 'Google Weather',
+    };
+  } catch (err) {
+    logIntel('fetch_weather_error', { source: 'Google Weather', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+// Google Air Quality API. Returns pollutant concentrations (µg/m³) for the
+// health-first AQI calculation in risk-engine.ts.
+async function fetchAqiGoogle(lat: number, lon: number): Promise<{ data: AQIData; source: string } | null> {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+  const t0 = performance.now();
+  try {
+    const res = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_MAPS_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: { latitude: lat, longitude: lon },
+        extraComputations: ['POLLUTANT_CONCENTRATION', 'LOCAL_AQI'],
+        languageCode: 'en',
+      }),
+    });
+    if (!res.ok) {
+      logIntel('fetch_aqi_unavailable', { source: 'Google Air Quality', status: res.status, durationMs: elapsedMs(t0) });
+      return null;
+    }
+    type GAqi = { indexes?: Array<{ code?: string; aqi?: number }>; pollutants?: Array<{ code?: string; concentration?: { value?: number; units?: string } }> };
+    const j = await res.json() as GAqi;
+    const conc: Partial<AQIData> = {};
+    for (const p of j.pollutants ?? []) {
+      const code = (p.code ?? '').toLowerCase();
+      const value = p.concentration?.value;
+      const units = p.concentration?.units ?? '';
+      if (typeof value !== 'number') continue;
+      if (code === 'pm25') conc.pm2_5 = value;
+      else if (code === 'pm10') conc.pm10 = value;
+      else if (code === 'o3') conc.o3 = gasToUgm3('o3', value, units);
+      else if (code === 'no2') conc.no2 = gasToUgm3('no2', value, units);
+      else if (code === 'so2') conc.so2 = gasToUgm3('so2', value, units);
+      else if (code === 'co') conc.co = gasToUgm3('co', value, units);
+    }
+    // Universal AQI (uaqi) is 0-100 where HIGHER is better. Map to the legacy
+    // 1-5 scale (higher = worse) for backward compatibility; the real health
+    // level is derived from pollutant concentrations in getAQIInsight().
+    const uaqi = (j.indexes ?? []).find((i) => i.code === 'uaqi')?.aqi;
+    const aqi5 = typeof uaqi === 'number'
+      ? (uaqi >= 80 ? 1 : uaqi >= 60 ? 2 : uaqi >= 40 ? 3 : uaqi >= 20 ? 4 : 5)
+      : 1;
+    logIntel('fetch_aqi_ok', { source: 'Google Air Quality', durationMs: elapsedMs(t0) });
+    return { data: { aqi: aqi5, ...conc }, source: 'Google Air Quality' };
+  } catch (err) {
+    logIntel('fetch_aqi_error', { source: 'Google Air Quality', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+// Open-Meteo Air Quality (CAMS) — free, good global coverage incl. Nigeria where
+// Google Air Quality has no data. Concentrations are already µg/m³.
+async function fetchAqiOpenMeteo(lat: number, lon: number): Promise<{ data: AQIData; source: string } | null> {
+  const t0 = performance.now();
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi&timezone=Africa%2FLagos`;
+    const res = await fetch(url);
+    if (!res.ok) { logIntel('fetch_aqi_unavailable', { source: 'Open-Meteo Air Quality', status: res.status, durationMs: elapsedMs(t0) }); return null; }
+    type R = { current?: { pm2_5?: number; pm10?: number; carbon_monoxide?: number; nitrogen_dioxide?: number; sulphur_dioxide?: number; ozone?: number; us_aqi?: number } };
+    const j = await res.json() as R;
+    const c = j.current;
+    if (!c) { logIntel('fetch_aqi_empty', { source: 'Open-Meteo Air Quality', durationMs: elapsedMs(t0) }); return null; }
+    const usAqi = c.us_aqi;
+    const aqi5 = typeof usAqi === 'number' ? (usAqi <= 50 ? 1 : usAqi <= 100 ? 2 : usAqi <= 150 ? 3 : usAqi <= 200 ? 4 : 5) : 1;
+    logIntel('fetch_aqi_ok', { source: 'Open-Meteo Air Quality', durationMs: elapsedMs(t0) });
+    return {
+      data: { aqi: aqi5, pm2_5: c.pm2_5, pm10: c.pm10, o3: c.ozone, no2: c.nitrogen_dioxide, so2: c.sulphur_dioxide, co: c.carbon_monoxide },
+      source: 'Open-Meteo Air Quality',
+    };
+  } catch (err) {
+    logIntel('fetch_aqi_error', { source: 'Open-Meteo Air Quality', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 async function fetchWeather(lat: number, lon: number): Promise<{
   current: WeatherData;
   forecast: ForecastData | null;
   source: string;
 } | null> {
   const t0 = performance.now();
-  // Try OpenWeather first, fallback to Open-Meteo
+  // Prefer Google Weather (most accurate); fall back to OpenWeather, then Open-Meteo.
+  const google = await fetchWeatherGoogle(lat, lon);
+  if (google) return google;
+  // Try OpenWeather, fallback to Open-Meteo
   if (OPENWEATHER_API_KEY) {
     try {
       // Fetch current weather, forecast, and AQI in parallel
@@ -221,88 +380,50 @@ async function fetchWeather(lat: number, lon: number): Promise<{
   }
 }
 
-// Fetch Air Quality Index from OpenWeather
-async function fetchAQI(lat: number, lon: number): Promise<AQIData | null> {
+// Fetch Air Quality. Prefer Google Air Quality; fall back to OpenWeather.
+async function fetchAQI(lat: number, lon: number): Promise<{ data: AQIData; source: string } | null> {
   const t0 = performance.now();
+
+  // Google Air Quality first (where covered), then Open-Meteo/CAMS (covers
+  // Nigeria), then OpenWeather as a last resort.
+  const google = await fetchAqiGoogle(lat, lon);
+  if (google) return google;
+
+  const openMeteo = await fetchAqiOpenMeteo(lat, lon);
+  if (openMeteo) return openMeteo;
+
   if (!OPENWEATHER_API_KEY) { logIntel('fetch_aqi_skipped', { reason: 'no_api_key' }); return null; }
-  
+
   try {
     const res = await fetch(
       `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
     );
-    
+
     if (!res.ok) { logIntel('fetch_aqi_unavailable', { source: 'OpenWeather', status: res.status, durationMs: elapsedMs(t0) }); return null; }
-    
+
     type AQIResponse = { list?: Array<{ main?: { aqi?: number }; components?: { pm2_5?: number; pm10?: number; o3?: number; no2?: number; so2?: number; co?: number } }> };
     const data = await res.json() as AQIResponse;
     const list = data.list?.[0];
-    
+
     if (!list) { logIntel('fetch_aqi_empty', { source: 'OpenWeather', durationMs: elapsedMs(t0) }); return null; }
-    
+
     logIntel('fetch_aqi_ok', { source: 'OpenWeather', durationMs: elapsedMs(t0) });
     return {
-      aqi: list.main?.aqi ?? 1,
-      pm2_5: list.components?.pm2_5,
-      pm10: list.components?.pm10,
-      o3: list.components?.o3,
-      no2: list.components?.no2,
-      so2: list.components?.so2,
-      co: list.components?.co,
+      data: {
+        aqi: list.main?.aqi ?? 1,
+        pm2_5: list.components?.pm2_5,
+        pm10: list.components?.pm10,
+        o3: list.components?.o3,
+        no2: list.components?.no2,
+        so2: list.components?.so2,
+        co: list.components?.co,
+      },
+      source: 'OpenWeather',
     };
   } catch (err) {
     logIntel('fetch_aqi_error', { source: 'OpenWeather', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
     console.error('AQI fetch error:', err);
     return null;
-  }
-}
-
-async function fetchOutbreakData() {
-  const t0 = performance.now();
-  try {
-    const [nigeriaRes, globalRes] = await Promise.all([
-      fetch('https://disease.sh/v3/covid-19/countries/nigeria'),
-      fetch('https://disease.sh/v3/covid-19/all'),
-    ]);
-
-    type OutbreakInfo = { disease: string; region: string; severity: string; cases?: number; active?: number; todayCases?: number; updated?: string; summary?: string; source: string };
-    const outbreaks: OutbreakInfo[] = [];
-
-    if (nigeriaRes.ok) {
-      type NigeriaCovidResponse = { cases?: number; active?: number; todayCases?: number; updated?: number };
-      const ng = await nigeriaRes.json() as NigeriaCovidResponse;
-      if ((ng.todayCases ?? 0) > 100 || (ng.active ?? 0) > 5000) {
-        outbreaks.push({
-          disease: 'COVID-19',
-          region: 'Nigeria',
-          severity: (ng.todayCases ?? 0) > 500 ? 'high' : 'moderate',
-          cases: ng.cases,
-          active: ng.active,
-          todayCases: ng.todayCases,
-          updated: ng.updated ? new Date(ng.updated).toISOString() : new Date().toISOString(),
-          source: 'Disease.sh / Johns Hopkins CSSE',
-        });
-      }
-    }
-
-    if (globalRes.ok) {
-      type GlobalCovidResponse = { todayCases?: number };
-      const gl = await globalRes.json() as GlobalCovidResponse;
-      if ((gl.todayCases ?? 0) > 100000) {
-        outbreaks.push({
-          disease: 'COVID-19',
-          region: 'Global',
-          severity: 'moderate',
-          summary: `Global surge: ${Number(gl.todayCases).toLocaleString()} new cases today`,
-          source: 'Disease.sh',
-        });
-      }
-    }
-
-    logIntel('fetch_outbreaks_ok', { source: 'Disease.sh', count: outbreaks.length, durationMs: elapsedMs(t0) });
-    return outbreaks;
-  } catch (err) {
-    logIntel('fetch_outbreaks_error', { source: 'Disease.sh', durationMs: elapsedMs(t0), message: err instanceof Error ? err.message : String(err) });
-    return [];
   }
 }
 
@@ -501,13 +622,18 @@ serve(async (req: Request) => {
     
     logIntel('cache_miss', { scope: 'v2', cacheEnabled: admin ? true : false, preciseLocation: usePreciseCoords });
 
-    // Fetch all data in parallel: weather, AQI, outbreaks, WHO alerts
-    const [weatherResult, aqiResult, outbreaks, whoAlerts] = await Promise.all([
+    // Fetch all data in parallel: weather, AQI, WHO official alerts
+    const [weatherResult, aqiResult, whoAlerts] = await Promise.all([
       fetchWeather(coords.lat, coords.lon),
       fetchAQI(coords.lat, coords.lon),
-      fetchOutbreakData(),
       fetchWHOAlerts(),
     ]);
+
+    // Outbreaks now come ONLY from official channels: admin-curated verified_reports
+    // (NCDC/WHO-confirmed, loaded below) plus the WHO Disease Outbreak News feed.
+    // disease.sh COVID stats were removed — they are not an official Nigerian
+    // outbreak source and the app must not imply NCDC confirmation it does not have.
+    const outbreaks: never[] = [];
 
     // Prepare weather data for risk engine
     const weatherData: WeatherData | null = weatherResult?.current ?? null;
@@ -520,7 +646,7 @@ serve(async (req: Request) => {
     }
 
     // Get AQI insights if available (health-first calculation happens inside getAQIInsight)
-    const aqiInsight = aqiResult ? getAQIInsight(aqiResult) : null;
+    const aqiInsight = aqiResult ? getAQIInsight(aqiResult.data) : null;
 
     // Get season info
     const now = new Date();
@@ -591,18 +717,18 @@ serve(async (req: Request) => {
       // AQI is computed from pollutant concentrations using "worst pollutant" approach
       // Priority: PM2.5 > PM10 > CO > NO₂ (see risk-engine.ts for details)
       airQuality: aqiResult ? {
-        aqi: aqiResult.aqi,
+        aqi: aqiResult.data.aqi,
         insight: aqiInsight,
         // Keep a lightweight pollutant object for UI convenience.
         // PM2.5/PM10 include status so the app can show health-oriented badges.
         pollutants: {
           pm2_5: aqiInsight?.pollutants?.pm2_5,
           pm10: aqiInsight?.pollutants?.pm10,
-          o3: aqiResult.o3,
-          no2: aqiResult.no2,
-          co: aqiResult.co,
+          o3: aqiResult.data.o3,
+          no2: aqiResult.data.no2,
+          co: aqiResult.data.co,
         },
-        source: 'OpenWeather',
+        source: aqiResult.source,
       } : null,
       
       // NEW: Disease risk assessment
@@ -631,21 +757,25 @@ serve(async (req: Request) => {
       outbreaks,
       whoAlerts,
       
+      // Real, attributed data sources actually used in this response. Official
+      // outbreak confirmation comes only from NCDC/WHO via verified_reports.
       sources: [
-        { name: 'NCDC Nigeria', url: 'https://ncdc.gov.ng/' },
-        { name: 'WHO Africa', url: 'https://www.afro.who.int/' },
-        { name: weatherResult?.source ?? 'OpenWeather', url: weatherResult?.source === 'OpenWeather' ? 'https://openweathermap.org/' : 'https://open-meteo.com/' },
-        { name: 'Disease.sh', url: 'https://disease.sh/' },
+        ...(weatherResult ? [{ name: weatherResult.source, url: sourceUrl(weatherResult.source), category: 'weather' }] : []),
+        ...(aqiResult ? [{ name: aqiResult.source, url: sourceUrl(aqiResult.source), category: 'air_quality' }] : []),
+        { name: 'WHO Disease Outbreak News', url: 'https://www.who.int/emergencies/disease-outbreak-news', category: 'official' },
+        { name: 'Nigeria CDC (NCDC)', url: 'https://ncdc.gov.ng/', category: 'official' },
+        { name: 'Africa CDC', url: 'https://africacdc.org/', category: 'official' },
+        { name: 'Community check-ins (anonymous)', url: '', category: 'community' },
       ],
-      
+
       meta: {
         version: 'edge-v2',
-        note: 'Enhanced intel with OpenWeather, AQI, and disease risk assessment',
+        note: 'Intel with Google Weather + Air Quality, deterministic disease-risk rules, and official-source outbreak relay',
         disclaimer: HEALTH_DISCLAIMER,
         dataFreshness: {
           weather: weatherResult ? 'live' : 'unavailable',
           aqi: aqiResult ? 'live' : 'unavailable',
-          outbreaks: outbreaks.length > 0 ? 'live' : 'none_active',
+          outbreaks: 'official_only',
           whoAlerts: whoAlerts.length > 0 ? 'live' : 'none_relevant',
           riskAssessment: riskAssessment ? 'computed' : 'unavailable',
         },

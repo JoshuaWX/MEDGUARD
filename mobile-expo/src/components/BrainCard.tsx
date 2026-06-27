@@ -31,6 +31,8 @@ interface BrainCardProps {
   compact?: boolean;
   /** Optional title override; defaults to scope-aware label. */
   title?: string;
+  /** When set, the whole card is tappable and shows a "View full report" affordance. */
+  onPress?: () => void;
 }
 
 const LEVEL_META: Record<BrainRiskLevel, { icon: string; tint: string; bg: string }> = {
@@ -39,7 +41,7 @@ const LEVEL_META: Record<BrainRiskLevel, { icon: string; tint: string; bg: strin
   Elevated: { icon: 'warning', tint: Colors.warning, bg: 'rgba(245,158,11,0.12)' },
 };
 
-const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) => {
+const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title, onPress }) => {
   const { isDark } = useTheme();
   const colors = useThemedColors(isDark);
   const [expanded, setExpanded] = useState(false);
@@ -60,6 +62,7 @@ const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) 
       entering={FadeInUp.duration(400)}
       style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
     >
+      <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>
       <View style={styles.headerRow}>
         <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
           <Ionicons name={meta.icon as keyof typeof Ionicons.glyphMap} size={18} color={meta.tint} />
@@ -136,9 +139,17 @@ const BrainCard: React.FC<BrainCardProps> = ({ brain, compact = false, title }) 
         </Pressable>
       )}
 
+      {onPress && (
+        <View style={[styles.reportRow, { borderTopColor: colors.border }]}>
+          <Text style={styles.reportText}>View full report</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+        </View>
+      )}
+
       <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
         Awareness only — not a diagnosis or confirmed outbreak.
       </Text>
+      </Pressable>
     </Animated.View>
   );
 };
@@ -180,6 +191,16 @@ const styles = StyleSheet.create({
   actionText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
   detailsButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
   detailsText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm, color: Colors.primary },
+  reportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  reportText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm, color: Colors.primary },
   disclaimer: { fontFamily: FontFamily.regular, fontSize: 11, fontStyle: 'italic', marginTop: 2 },
 });
 
