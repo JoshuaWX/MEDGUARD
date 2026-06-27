@@ -576,14 +576,23 @@ const MyHealthScreenContent: React.FC = () => {
                   />
                 </View>
               ) : (
-                // Show start button
-                <Button
-                  title={t('start_daily_checkin')}
-                  onPress={() => {
-                    setCheckinError(null);
-                    setShowCheckinForm(true);
-                  }}
-                />
+                // Inviting start state
+                <View style={styles.checkinStart}>
+                  <View style={[styles.checkinStartIcon, { backgroundColor: Colors.primaryLight }]}>
+                    <Ionicons name="clipboard-outline" size={26} color={Colors.primary} />
+                  </View>
+                  <Text style={[styles.checkinStartTitle, { color: colors.text }]}>How are you feeling today?</Text>
+                  <Text style={[styles.checkinStartSub, { color: colors.textSecondary }]}>
+                    A quick 6-question check-in keeps your health signal and streak up to date.
+                  </Text>
+                  <Button
+                    title={t('start_daily_checkin')}
+                    onPress={() => {
+                      setCheckinError(null);
+                      setShowCheckinForm(true);
+                    }}
+                  />
+                </View>
               )}
             </GlassCard>
           </Animated.View>
@@ -667,6 +676,17 @@ const MyHealthScreenContent: React.FC = () => {
                 </View>
               </View>
             )}
+
+            <Pressable
+              onPress={() => navigation.navigate('CycleTracker' as never)}
+              style={[styles.cycleEntry, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <View style={styles.metricHeader}>
+                <Ionicons name="flower-outline" size={18} color="#ec4899" />
+                <Text style={[styles.metricLabel, { color: colors.text }]}>Cycle tracker</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
           </Animated.View>
 
           {/* Health Tip (card structure closer to web) */}
@@ -1059,6 +1079,41 @@ const styles = StyleSheet.create({
   sparkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 48 },
   sparkCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   sparkBar: { width: '70%', borderRadius: 3 },
+  cycleEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
+    marginBottom: Spacing.xl,
+  },
+  checkinStart: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  checkinStartIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  checkinStartTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.lg,
+    textAlign: 'center',
+  },
+  checkinStartSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+  },
   tipCard: {
     marginBottom: Spacing.xl,
     borderRadius: 24,

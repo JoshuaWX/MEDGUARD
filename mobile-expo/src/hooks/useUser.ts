@@ -24,6 +24,9 @@ export interface UserProfile {
   conditions: string[];
   allergies: string[];
   medications: string[];
+  heightCm: number | null;
+  weightKg: number | null;
+  cycleTrackingEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +154,9 @@ export const useUser = (): UseUserReturn => {
           conditions: Array.isArray(data.conditions) ? data.conditions : [],
           allergies: Array.isArray(data.allergies) ? data.allergies : [],
           medications: Array.isArray(data.medications) ? data.medications : [],
+          heightCm: typeof data.height_cm === 'number' ? data.height_cm : (data.height_cm ? Number(data.height_cm) : null),
+          weightKg: typeof data.weight_kg === 'number' ? data.weight_kg : (data.weight_kg ? Number(data.weight_kg) : null),
+          cycleTrackingEnabled: Boolean(data.cycle_tracking_enabled),
           createdAt: data.created_at,
           updatedAt: data.updated_at,
         });
@@ -175,6 +181,9 @@ export const useUser = (): UseUserReturn => {
           conditions: [],
           allergies: [],
           medications: [],
+          heightCm: null,
+          weightKg: null,
+          cycleTrackingEnabled: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -210,6 +219,8 @@ export const useUser = (): UseUserReturn => {
       if (data.conditions !== undefined) updateData.conditions = data.conditions;
       if (data.allergies !== undefined) updateData.allergies = data.allergies;
       if (data.medications !== undefined) updateData.medications = data.medications;
+      if (data.heightCm !== undefined) updateData.height_cm = data.heightCm;
+      if (data.weightKg !== undefined) updateData.weight_kg = data.weightKg;
 
       const { error: updateError } = await supabase
         .from('profiles')

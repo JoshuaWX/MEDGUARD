@@ -50,6 +50,10 @@ export interface PersonalHealthSnapshot {
   stepsToday: number | null;
   /** Body-mass index from profile height/weight, or null. Context only. */
   bmi: number | null;
+  /** Current menstrual cycle phase if the user tracks it, else null. Private context. */
+  cyclePhase: string | null;
+  /** Days until the next estimated period, if tracked. Private context. */
+  daysUntilNextPeriod: number | null;
 }
 
 /**
@@ -95,36 +99,68 @@ export async function loadPersonalHealthSnapshot(
     wellnessScore: metrics.wellnessScore,
     stepsToday: metrics.stepsToday,
     bmi: metrics.bmi,
+    cyclePhase: metrics.cyclePhase,
+    daysUntilNextPeriod: metrics.daysUntilNextPeriod,
   };
 }
 
-async function loadMetrics(
-  userClient: SupabaseClient,
-  now: Date,
-): Promise<{ wellnessScore: number | null; stepsToday: number | null; bmi: number | null }> {
+interface MetricsResult {
+  wellnessScore: number | null;
+  stepsToday: number | null;
+  bmi: number | null;
+  cyclePhase: string | null;
+  daysUntilNextPeriod: number | null;
+}
+
+async function loadMetrics(userClient: SupabaseClient, now: Date): Promise<MetricsResult> {
   const todayIso = toIsoDate(now);
-  const [scoreRes, stepsRes, profileRes] = await Promise.all([
+  const [scoreRes, stepsRes, profileRes, cycleLogRes, cycleCfgRes] = await Promise.all([
     userClient.from('health_score_daily').select('score').order('score_date', { ascending: false }).limit(1).maybeSingle(),
     userClient.from('user_daily_activity').select('step_count').eq('activity_date', todayIso).maybeSingle(),
-    userClient.from('profiles').select('height_cm, weight_kg').maybeSingle(),
+    userClient.from('profiles').select('height_cm, weight_kg, cycle_tracking_enabled').maybeSingle(),
+    userClient.from('user_cycle_logs').select('start_date').order('start_date', { ascending: false }).limit(1).maybeSingle(),
+    userClient.from('user_cycle_settings').select('avg_cycle_length, avg_period_length').maybeSingle(),
   ]);
 
   const score = scoreRes.data ? Number((scoreRes.data as Record<string, unknown>).score) : null;
   const steps = stepsRes.data ? Number((stepsRes.data as Record<string, unknown>).step_count) : null;
 
-  let bmi: number | null = null;
   const prof = profileRes.data as Record<string, unknown> | null;
-  const h = prof && typeof prof.height_cm !== 'undefined' ? Number(prof.height_cm) : NaN;
-  const w = prof && typeof prof.weight_kg !== 'undefined' ? Number(prof.weight_kg) : NaN;
+  let bmi: number | null = null;
+  const h = prof ? Number(prof.height_cm) : NaN;
+  const w = prof ? Number(prof.weight_kg) : NaN;
   if (Number.isFinite(h) && Number.isFinite(w) && h > 0 && w > 0) {
     const m = h / 100;
     bmi = Math.round((w / (m * m)) * 10) / 10;
+  }
+
+  // Cycle context (private; only when the user tracks it and has a log).
+  let cyclePhase: string | null = null;
+  let daysUntilNextPeriod: number | null = null;
+  const cycleEnabled = Boolean(prof?.cycle_tracking_enabled);
+  const lastStart = cycleLogRes.data ? String((cycleLogRes.data as Record<string, unknown>).start_date) : null;
+  if (cycleEnabled && lastStart) {
+    const cfg = cycleCfgRes.data as Record<string, unknown> | null;
+    const cycleLen = cfg ? Number(cfg.avg_cycle_length) || 28 : 28;
+    const periodLen = cfg ? Number(cfg.avg_period_length) || 5 : 5;
+    const DAY = 86400000;
+    const dayOfCycle = Math.round((now.getTime() - Date.parse(lastStart + 'T00:00:00Z')) / DAY);
+    if (dayOfCycle >= 0 && dayOfCycle < cycleLen + 10) {
+      const ovDay = cycleLen - 14;
+      cyclePhase = dayOfCycle < periodLen ? 'menstrual'
+        : dayOfCycle < ovDay - 1 ? 'follicular'
+        : dayOfCycle <= ovDay + 1 ? 'ovulation'
+        : 'luteal';
+      daysUntilNextPeriod = cycleLen - dayOfCycle;
+    }
   }
 
   return {
     wellnessScore: Number.isFinite(score as number) ? (score as number) : null,
     stepsToday: Number.isFinite(steps as number) ? (steps as number) : null,
     bmi,
+    cyclePhase,
+    daysUntilNextPeriod,
   };
 }
 

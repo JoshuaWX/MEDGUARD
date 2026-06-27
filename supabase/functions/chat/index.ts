@@ -682,6 +682,9 @@ function buildUserContext(
     if (typeof snapshot.bmi === 'number') {
       health.push(`BMI: ${snapshot.bmi}.`);
     }
+    if (snapshot.cyclePhase) {
+      health.push(`Menstrual cycle phase: ${snapshot.cyclePhase}${typeof snapshot.daysUntilNextPeriod === 'number' ? ` (next period ~${snapshot.daysUntilNextPeriod} day(s))` : ''}.`);
+    }
     if (snapshot.topSignalSummaries.length > 0) {
       health.push(`Recent health signals: ${snapshot.topSignalSummaries.join('; ')}.`);
     }

@@ -14,6 +14,7 @@ export type RootStackParamList = {
   Alerts: undefined;
   Settings: undefined;
   BrainReport: undefined;
+  CycleTracker: undefined;
 };
 
 export type MainTabParamList = {
