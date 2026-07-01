@@ -25,3 +25,7 @@ verify_jwt = true
 
 [functions.app-version]
 verify_jwt = false
+
+# Called by the scheduler (pg_cron), guarded by NOTIFY_CRON_SECRET, not a user JWT.
+[functions.notify-area]
+verify_jwt = false

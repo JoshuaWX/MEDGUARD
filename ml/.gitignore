@@ -1,0 +1,18 @@
+# Secrets — never commit.
+.env
+
+# Generated data + models (large, reproducible). Keep the *_README.md docs.
+data/*.csv
+# keep the digitization template tracked
+!data/labels_template.csv
+# downloaded source PDFs (large, re-fetchable via ingest/download_lassa_reports.py)
+data/**/*.pdf
+data/*_pdfs/
+models/*.joblib
+models/metrics.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

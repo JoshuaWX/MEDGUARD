@@ -18,6 +18,7 @@ import {
   Pressable,
   ImageBackground,
   Platform,
+  Switch,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -48,6 +49,7 @@ import {
   DiseaseRisk,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
+import { useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
@@ -87,6 +89,13 @@ const AlertsScreen: React.FC = () => {
   } = useAlerts();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
+  const {
+    reminderEnabled,
+    communityAlertsEnabled,
+    setReminderEnabled,
+    setCommunityAlertsEnabled,
+    saving: notifSaving,
+  } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
   const [expandedRisk, setExpandedRisk] = useState<string | null>(null);
 
@@ -365,20 +374,37 @@ const AlertsScreen: React.FC = () => {
               <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('personal_reminders')}</Text>
             </View>
             <GlassCard style={styles.reminderCard}>
-              <View style={styles.reminderIcon}>
-                <LinearGradient
-                  colors={Gradients.primary.colors as unknown as [string, string]}
-                  start={Gradients.primary.start}
-                  end={Gradients.primary.end}
-                  style={styles.reminderIconBg}
-                >
-                  <BellIcon size={20} color={Colors.textLight} />
-                </LinearGradient>
+              <View style={styles.notifRow}>
+                <View style={styles.notifLeft}>
+                  <Ionicons name="alarm-outline" size={20} color={colors.primary} />
+                  <View style={styles.notifTextWrap}>
+                    <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily check-in reminder</Text>
+                    <Text style={[styles.reminderText, { color: colors.textSecondary }]}>A gentle nudge to check in on how you feel.</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={reminderEnabled}
+                  onValueChange={(v) => void setReminderEnabled(v)}
+                  disabled={notifSaving}
+                  trackColor={{ false: colors.border, true: Colors.primaryLight }}
+                  thumbColor={reminderEnabled ? Colors.primary : colors.textMuted}
+                />
               </View>
-              <View style={styles.reminderContent}>
-                <Text style={[styles.reminderMeta, { color: colors.textMuted }]}>Reminder preview</Text>
-                <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily check-in reminder</Text>
-                <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Enable reminders in Settings to receive personal health check-in notifications.</Text>
+              <View style={[styles.notifRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                <View style={styles.notifLeft}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+                  <View style={styles.notifTextWrap}>
+                    <Text style={[styles.reminderTitle, { color: colors.text }]}>Official health alerts</Text>
+                    <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Get notified when NCDC/WHO report an outbreak in your area.</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={communityAlertsEnabled}
+                  onValueChange={(v) => void setCommunityAlertsEnabled(v)}
+                  disabled={notifSaving}
+                  trackColor={{ false: colors.border, true: Colors.primaryLight }}
+                  thumbColor={communityAlertsEnabled ? Colors.primary : colors.textMuted}
+                />
               </View>
             </GlassCard>
           </View>
@@ -541,10 +567,23 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   reminderCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.base,
     borderRadius: 24,
+  },
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.base,
+    paddingVertical: Spacing.md,
+  },
+  notifLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  notifTextWrap: {
+    flex: 1,
   },
   emptyAlertCard: {
     flexDirection: 'row',

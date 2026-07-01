@@ -68,6 +68,7 @@ import {
   useFeedback,
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
+import { notifyStreakMilestone } from '../services/notifications';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../hooks/useUser';
@@ -219,6 +220,16 @@ const MyHealthScreenContent: React.FC = () => {
     void upsertDailyScore(user.id, scoreResult);
     loadScoreTrend(user.id).then(setScoreTrend).catch(() => {});
   }, [user?.id, checkinLoading, healthScore]);
+
+  // Celebrate streak milestones with a one-time local notification.
+  const lastMilestoneRef = useRef(0);
+  useEffect(() => {
+    const s = streak?.currentStreak ?? 0;
+    if (hasCheckedIn && [3, 7, 14, 30].includes(s) && lastMilestoneRef.current !== s) {
+      lastMilestoneRef.current = s;
+      void notifyStreakMilestone(s);
+    }
+  }, [hasCheckedIn, streak?.currentStreak]);
 
   const loadHealthFacilities = useCallback(async (latitude: number, longitude: number) => {
     const requestId = ++facilitiesRequestIdRef.current;

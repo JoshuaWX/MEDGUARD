@@ -63,6 +63,7 @@ import {
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { useUser } from '../hooks/useUser';
+import { useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useI18n } from '../i18n';
@@ -111,8 +112,15 @@ const ProfileScreen: React.FC = () => {
   const [lga, setLga] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
-  const [prefHealthAlerts, setPrefHealthAlerts] = useState(true);
-  const [prefDailyTips, setPrefDailyTips] = useState(false);
+
+  // Notification preferences (persisted via notification_preferences)
+  const {
+    reminderEnabled,
+    communityAlertsEnabled,
+    setReminderEnabled,
+    setCommunityAlertsEnabled,
+    saving: notifSaving,
+  } = useNotifications();
 
   // Medical info (persisted to profiles.conditions/allergies/medications)
   const [medicalModalOpen, setMedicalModalOpen] = useState(false);
@@ -740,10 +748,11 @@ const ProfileScreen: React.FC = () => {
                       <Text style={styles.prefLabel}>{t('health_alerts')}</Text>
                     </View>
                     <Switch
-                      value={prefHealthAlerts}
-                      onValueChange={setPrefHealthAlerts}
+                      value={communityAlertsEnabled}
+                      onValueChange={(v) => void setCommunityAlertsEnabled(v)}
+                      disabled={notifSaving}
                       trackColor={{ false: Colors.borderLight, true: Colors.primaryLight }}
-                      thumbColor={prefHealthAlerts ? Colors.primary : Colors.textMuted}
+                      thumbColor={communityAlertsEnabled ? Colors.primary : Colors.textMuted}
                     />
                   </View>
 
@@ -753,10 +762,11 @@ const ProfileScreen: React.FC = () => {
                       <Text style={styles.prefLabel}>{t('daily_tips')}</Text>
                     </View>
                     <Switch
-                      value={prefDailyTips}
-                      onValueChange={setPrefDailyTips}
+                      value={reminderEnabled}
+                      onValueChange={(v) => void setReminderEnabled(v)}
+                      disabled={notifSaving}
                       trackColor={{ false: Colors.borderLight, true: Colors.primaryLight }}
-                      thumbColor={prefDailyTips ? Colors.primary : Colors.textMuted}
+                      thumbColor={reminderEnabled ? Colors.primary : Colors.textMuted}
                     />
                   </View>
                 </View>

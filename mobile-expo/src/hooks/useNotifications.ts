@@ -46,14 +46,16 @@ interface UseNotificationsReturn {
   reminderEnabled: boolean;
   reminderTime: string;
   reminderTimeDisplay: string;
-  
+  communityAlertsEnabled: boolean;
+
   // Feature flag
   featureEnabled: boolean;
-  
+
   // Actions
   requestPermission: () => Promise<boolean>;
   setReminderEnabled: (enabled: boolean) => Promise<void>;
   setReminderTime: (time: string) => Promise<void>;
+  setCommunityAlertsEnabled: (enabled: boolean) => Promise<void>;
   sendTest: () => Promise<boolean>;
   refresh: () => Promise<void>;
 }
@@ -205,6 +207,32 @@ export function useNotifications(): UseNotificationsReturn {
   }, [user?.id]);
 
   /**
+   * Enable/disable official community health alerts (server push).
+   * Requesting permission also captures the push token (when FCM is configured).
+   */
+  const setCommunityAlertsEnabled = useCallback(async (enabled: boolean) => {
+    if (!user?.id) return;
+    try {
+      setSaving(true);
+      setError(null);
+      if (enabled && !permissionGranted) {
+        const granted = await requestPermission();
+        if (!granted) {
+          setError('Notifications are off. Enable them in device settings to receive alerts.');
+          return;
+        }
+      }
+      const updated = await updateNotificationPreferences(user.id, { communityAlertsEnabled: enabled });
+      setPreferences(updated);
+    } catch (err) {
+      console.error('Error updating community alerts setting:', err);
+      setError(toUserMessage(err, 'notifications'));
+    } finally {
+      setSaving(false);
+    }
+  }, [user?.id, permissionGranted, requestPermission]);
+
+  /**
    * Send test notification
    */
   const sendTest = useCallback(async () => {
@@ -250,6 +278,7 @@ export function useNotifications(): UseNotificationsReturn {
   const reminderEnabled = preferences?.checkinReminderEnabled ?? false;
   const reminderTime = preferences?.checkinReminderTime ?? '09:00:00';
   const reminderTimeDisplay = formatTimeDisplay(reminderTime);
+  const communityAlertsEnabled = preferences?.communityAlertsEnabled ?? false;
 
   return {
     loading,
@@ -261,10 +290,12 @@ export function useNotifications(): UseNotificationsReturn {
     reminderEnabled,
     reminderTime,
     reminderTimeDisplay,
+    communityAlertsEnabled,
     featureEnabled: NOTIFICATIONS_ENABLED,
     requestPermission,
     setReminderEnabled,
     setReminderTime,
+    setCommunityAlertsEnabled,
     sendTest,
     refresh,
   };

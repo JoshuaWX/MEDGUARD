@@ -370,6 +370,27 @@ export async function scheduleLocalNotification(
 }
 
 /**
+ * Fire a local streak-milestone celebration (immediate). No-op without
+ * permission. Supportive, never pressuring.
+ */
+export async function notifyStreakMilestone(days: number): Promise<void> {
+  if (!NOTIFICATIONS_ENABLED) return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: NOTIFICATION_TEMPLATES.streakMilestone.title,
+        body: NOTIFICATION_TEMPLATES.streakMilestone.body(days),
+        sound: 'default',
+        data: { type: 'streak_milestone' },
+      },
+      trigger: null,
+    });
+  } catch {
+    // permission not granted — ignore
+  }
+}
+
+/**
  * Send immediate local notification (for testing)
  */
 export async function sendTestNotification(): Promise<void> {

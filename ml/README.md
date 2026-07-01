@@ -1,0 +1,57 @@
+# MedGuard ML — environmental malaria risk forecasting
+
+Offline Python pipeline that projects **malaria** risk per Nigerian **state** ~2–4 weeks ahead,
+using the lag between rainfall/temperature/humidity and mosquito-driven transmission. The trained
+model runs as a scheduled job that writes forecasts into the Supabase `risk_forecast` table; the
+`intel` edge function reads that table and the MedGuard Brain surfaces it as a **risk projection**.
+
+> **Safety stance (locked).** Output is a *risk projection from climate + season* — **never** an
+> outbreak confirmation and **never** a diagnosis. Official outbreaks remain NCDC/WHO-only. No
+> accuracy number is claimed unless `models/metrics.json` reproduces it on a temporal hold-out.
+
+This directory is **pure offline tooling**: it does not import from or modify the Expo app or the
+edge functions. Nothing here runs in production until Phase 2 (edge integration) and Phase 3
+(scheduling), which are intentionally out of scope for this first pass.
+
+## Setup
+
+```bash
+cd ml
+python -m venv .venv
+# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # only needed for predict_and_write.py
+```
+
+## Pipeline (run in order)
+
+| Step | Command | Output |
+| --- | --- | --- |
+| 1. Weather | `python fetch_weather.py` | `data/weather_daily.csv` |
+| 2. Labels  | place your file at `data/labels.csv` (see `data/README.md`) | — |
+| 3. Features| `python build_dataset.py` | `data/features.csv` |
+| 4. Train   | `python train.py` | `models/malaria_v1.joblib`, `models/metrics.json` |
+| 5. Forecast| `python predict_and_write.py --dry-run` then without flag | rows in `risk_forecast` |
+
+Steps 1, 3 run offline. Step 4 needs labels (step 2). Step 5 needs `.env` + the `029` migration
+applied.
+
+## The honest bottleneck: labels
+
+The model is only as good as its **ground truth** — historical confirmed malaria cases per state
+per week/month. That data is **not** in this repo and must be sourced and **verified** (NCDC Weekly
+Epidemiological Report, and/or a vetted public dataset). See [`data/README.md`](data/README.md) for
+the exact schema and sourcing notes. Until a trustworthy labels file exists, `train.py` runs the
+**seasonal baseline only** and refuses to emit a model — it will not fabricate accuracy.
+
+## Design choices (grounded in comparable work)
+
+- **XGBoost** for the model — gradient-boosted trees are the workhorse for tabular climate
+  forecasting in the Nigerian Lassa/malaria literature and the EPIDEMIA (Ethiopia) lineage;
+  interpretable feature importances become the Brain's "driver factors".
+- **Lagged climate features** (`rain_lag_2w/4w/6w/8w`, rolling means) are the core predictive
+  mechanism — rain leads cases by weeks.
+- **Walk-forward / temporal validation, never a random split** — time-series leakage is the #1
+  failure mode. Every run is benchmarked against a **seasonal-climatology baseline** (per-state
+  mean by week-of-year); if XGBoost can't beat it, the baseline ships. A SARIMA baseline is a
+  natural future upgrade.
