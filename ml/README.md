@@ -36,6 +36,29 @@ cp .env.example .env   # only needed for predict_and_write.py
 Steps 1, 3 run offline. Step 4 needs labels (step 2). Step 5 needs `.env` + the `029` migration
 applied.
 
+## Lassa fever — the first working model (`lassa_pipeline.py`)
+
+Lassa is the first disease with real, trainable labels. Because NCDC Lassa sitreps only expose
+**national** weekly counts (per-state numbers are chart images), Lassa has its own self-contained
+pipeline that models nationally and **apportions** the result onto the endemic states.
+
+```bash
+python -m ingest.download_lassa_reports        # 1. fetch sitrep PDFs -> data/lassa_pdfs/
+python -m ingest.ncdc_lassa_pdf data/lassa_pdfs/   # 2. -> data/staging_lassa_national.csv
+python lassa_pipeline.py build                 # 3. national target + endemic-states climate -> features_lassa.csv
+python lassa_pipeline.py train                 # 4. XGBoost vs seasonal baseline -> lassa_v1.joblib / metrics_lassa.json
+python lassa_pipeline.py predict --dry-run     # 5. national projection apportioned to states (no write)
+python lassa_pipeline.py predict               # 5b. upsert into risk_forecast (disease='lassa'; needs .env + migration 029)
+```
+
+Design specifics: the national target is paired with a **share-weighted average of the endemic
+states' climate** (Ondo/Edo/Bauchi/… in `config.LASSA_STATE_SHARES`), not a country-wide mean.
+Prediction assigns the national risk level to the big-share states and steps it down for smaller
+ones, so a rarely-affected state is never shown as "high". Endemic weather is cached in
+`data/_endemic_weather.csv` so re-builds don't re-hit NASA POWER. On the current 2020–2026 data the
+**seasonal baseline narrowly wins** (Lassa is intensely seasonal) — so the pipeline ships the
+baseline rather than overclaim, exactly as intended.
+
 ## The honest bottleneck: labels
 
 The model is only as good as its **ground truth** — historical confirmed malaria cases per state

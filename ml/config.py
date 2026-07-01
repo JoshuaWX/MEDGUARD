@@ -57,6 +57,31 @@ DISEASES: dict[str, dict[str, str]] = {
     },
 }
 
+# --- Lassa specifics --------------------------------------------------------
+# NCDC Lassa sitreps give NATIONAL weekly counts only (per-state data is chart
+# images). We model nationally, then APPORTION the national risk onto the
+# historically-endemic states below. Shares are approximate recent cumulative
+# shares reported by NCDC (2023-2024; Ondo/Edo/Bauchi ~26/23/17%), normalized in
+# code. Update as newer cumulative splits are published; they only affect the
+# spatial display, not the (national) forecast itself. Non-listed states get no
+# Lassa forecast row (Lassa is not a concern there) — genuine new spread still
+# reaches users via the official NCDC verified_reports alert channel.
+LASSA_STATE_SHARES: dict[str, float] = {
+    "Ondo": 0.27,
+    "Edo": 0.23,
+    "Bauchi": 0.17,
+    "Taraba": 0.08,
+    "Ebonyi": 0.06,
+    "Nasarawa": 0.04,
+    "Plateau": 0.03,
+    "Benue": 0.03,
+    "Kogi": 0.03,
+    "Gombe": 0.03,
+    "Delta": 0.02,
+    "Enugu": 0.01,
+}
+LASSA_ENDEMIC_STATES = list(LASSA_STATE_SHARES.keys())
+
 # Forecast horizon: how far ahead we project (mosquito breeding + transmission
 # lag means rainfall today informs risk ~2-4 weeks out).
 FORECAST_HORIZON_DAYS = 28

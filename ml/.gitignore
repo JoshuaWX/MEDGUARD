@@ -9,7 +9,7 @@ data/*.csv
 data/**/*.pdf
 data/*_pdfs/
 models/*.joblib
-models/metrics.json
+models/*.json
 
 # Python
 __pycache__/
