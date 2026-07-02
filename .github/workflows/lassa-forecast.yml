@@ -1,0 +1,82 @@
+name: Weekly disease risk forecast
+
+# Refreshes disease risk projections in Supabase (`risk_forecast`):
+#   - Lassa  : ML tier classifier (retrained weekly from NCDC sitreps + climate)
+#   - Cholera: seasonal rainfall risk for cholera-prone states (honest, non-ML)
+#   - Malaria: per-state MAP incidence baseline + seasonal transmission risk
+#             (DHS zone fallback; data-limited, clearly labeled a risk indicator)
+#
+# SETUP (one-time): add a repository secret SUPABASE_SERVICE_ROLE_KEY
+#   (GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret).
+# Nothing else is secret — the project URL is public.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC (NCDC publishes weekly)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+concurrency:
+  group: lassa-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml
+    env:
+      SUPABASE_URL: https://cddfhyxlhtmrrtduwlqd.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      # Cache the downloaded sitrep PDFs so only NEW weeks are fetched each run.
+      - name: Restore sitrep cache
+        uses: actions/cache@v4
+        with:
+          path: ml/data/lassa_pdfs
+          key: lassa-pdfs-v1
+
+      - name: Guard — service key present
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set; refusing to run."
+            exit 1
+          fi
+
+      - name: Download new Lassa sitreps
+        run: python -m ingest.download_lassa_reports
+
+      - name: Parse sitreps -> national weekly series
+        run: python -m ingest.ncdc_lassa_pdf data/lassa_pdfs/
+
+      - name: Build features (fresh endemic climate)
+        run: |
+          rm -f data/_endemic_weather.csv   # force up-to-date NASA POWER pull
+          python lassa_pipeline.py build
+
+      - name: Train tier classifier
+        run: python lassa_pipeline.py train
+
+      - name: Lassa — predict + write to risk_forecast
+        run: python lassa_pipeline.py predict
+
+      - name: Cholera — refresh multi-source hotspots (Charnley 1971-2021)
+        run: python -m ingest.charnley_cholera
+
+      - name: Cholera — seasonal rainfall risk
+        run: python cholera_pipeline.py predict
+
+      - name: Malaria — per-state baseline from MAP (DHS fallback)
+        run: python -m ingest.map_incidence
+
+      - name: Malaria — per-state baseline + seasonal transmission risk
+        run: python malaria_baseline.py predict
