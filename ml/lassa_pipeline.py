@@ -50,6 +50,9 @@ MODEL_VERSION = "lassa_v1"
 HORIZON_WEEKS = max(1, round(FORECAST_HORIZON_DAYS / 7))
 CLIMATE = ["temp", "humidity", "precip"]
 LEVELS = ["low", "moderate", "elevated", "high"]
+# Tier thresholds (quantiles of the smoothed forward target): elevated >= p70, high >= p90.
+ELEVATED_Q = 0.70
+HIGH_Q = 0.90
 
 
 # ---------------------------------------------------------------- build -------
@@ -126,41 +129,68 @@ def build() -> pd.DataFrame:
     df["cases_lag_2"] = df["confirmed_week"].shift(2)
     df["cases_roll_4"] = df["confirmed_week"].shift(1).rolling(4).mean()
 
-    # Target: national confirmed HORIZON weeks ahead (the forward projection).
+    # Regression target (kept for reference): confirmed HORIZON weeks ahead.
     df["target"] = df["confirmed_week"].shift(-HORIZON_WEEKS)
+
+    # TIER target (the professional framing): smooth the next HORIZON-week window
+    # (mean weekly confirmed) to cut noise, then bucket against the national
+    # historical distribution — normal < p70, elevated p70-p90, high >= p90.
+    fwd = df["confirmed_week"].rolling(HORIZON_WEEKS).mean().shift(-HORIZON_WEEKS)
+    df["target_mean"] = fwd
+    thr_e = float(fwd.quantile(ELEVATED_Q))
+    thr_h = float(fwd.quantile(HIGH_Q))
+    tier = np.select([fwd >= thr_h, fwd >= thr_e], [2, 1], default=0).astype(float)
+    tier[fwd.isna().to_numpy()] = np.nan
+    df["target_tier"] = tier
+    df["elevated_bin"] = np.where(fwd.isna(), np.nan, (fwd >= thr_e).astype(float))
 
     df.to_csv(FEATURES, index=False)
     print(f"Wrote {len(df)} weekly rows -> {FEATURES} "
-          f"(horizon={HORIZON_WEEKS}w; trainable={int(df['target'].notna().sum())})")
+          f"(horizon={HORIZON_WEEKS}w; elevated>={thr_e:.1f}/wk, high>={thr_h:.1f}/wk; "
+          f"trainable={int(df['elevated_bin'].notna().sum())}, "
+          f"elevated weeks={int(np.nansum(df['elevated_bin']))})")
     return df
 
 
 # ---------------------------------------------------------------- train -------
 def _feature_cols(df: pd.DataFrame) -> list[str]:
-    drop = {"date", "confirmed_week", "target"}
+    drop = {"date", "confirmed_week", "target", "target_mean", "target_tier", "elevated_bin"}
     return [c for c in df.columns if c not in drop]
 
 
-def _season_baseline(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
+def _season_prob(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
+    """Seasonal baseline P(elevated): historical elevated-rate by week-of-year."""
     tb = train.copy()
     tb["wk"] = tb["date"].dt.isocalendar().week.astype(int)
-    by_wk = tb.groupby("wk")["target"].mean()
-    gmean = tb["target"].mean()
+    by_wk = tb.groupby("wk")["elevated_bin"].mean()
+    gmean = float(tb["elevated_bin"].mean())
     wk = test["date"].dt.isocalendar().week.astype(int)
     return wk.map(by_wk).fillna(gmean).to_numpy()
 
 
+def _new_classifier():
+    from xgboost import XGBClassifier
+    return XGBClassifier(n_estimators=350, max_depth=3, learning_rate=0.05,
+                         subsample=0.85, colsample_bytree=0.85, random_state=42,
+                         n_jobs=4, eval_metric="logloss")
+
+
+def _auc(y, p) -> float | None:
+    from sklearn.metrics import roc_auc_score
+    return float(roc_auc_score(y, p)) if len(set(y)) > 1 else None
+
+
 def train() -> None:
-    from sklearn.metrics import mean_absolute_error
+    from sklearn.metrics import accuracy_score
 
     if not FEATURES.exists():
         raise SystemExit(f"{FEATURES} not found — run `build` first.")
-    df = pd.read_csv(FEATURES, parse_dates=["date"]).dropna(subset=["target"]).reset_index(drop=True)
+    df = pd.read_csv(FEATURES, parse_dates=["date"]).dropna(subset=["elevated_bin"]).reset_index(drop=True)
+    df["elevated_bin"] = df["elevated_bin"].astype(int)
     if len(df) < 100:
         raise SystemExit(f"Only {len(df)} trainable weeks — too thin. Gather more reports.")
-
     try:
-        from xgboost import XGBRegressor
+        import xgboost  # noqa: F401
     except ImportError:
         raise SystemExit("xgboost not installed — pip install -r requirements.txt")
 
@@ -172,44 +202,54 @@ def train() -> None:
     for k in range(1, folds + 1):
         cut = k * block
         tr, te = df.iloc[:cut], df.iloc[cut:cut + block]
-        if len(tr) < 40 or te.empty:
+        if len(tr) < 40 or te.empty or tr["elevated_bin"].nunique() < 2:
             continue
         med = tr[feats].median()
-        model = XGBRegressor(n_estimators=350, max_depth=3, learning_rate=0.05,
-                             subsample=0.85, colsample_bytree=0.85, random_state=42, n_jobs=4)
-        model.fit(tr[feats].fillna(med), tr["target"])
-        xgb = mean_absolute_error(te["target"], model.predict(te[feats].fillna(med)))
-        base = mean_absolute_error(te["target"], _season_baseline(tr, te))
-        rows.append({"test_start": str(te["date"].iloc[0].date()), "n": len(te),
-                     "xgb_mae": xgb, "base_mae": base})
+        clf = _new_classifier()
+        clf.fit(tr[feats].fillna(med), tr["elevated_bin"])
+        p = clf.predict_proba(te[feats].fillna(med))[:, 1]
+        pb = _season_prob(tr, te)
+        rows.append({
+            "test_start": str(te["date"].iloc[0].date()), "n": int(len(te)),
+            "xgb_auc": _auc(te["elevated_bin"], p), "base_auc": _auc(te["elevated_bin"], pb),
+            "xgb_acc": float(accuracy_score(te["elevated_bin"], (p >= 0.5).astype(int))),
+        })
         print(f"  fold from {te['date'].iloc[0].date()} (n={len(te)}): "
-              f"XGB MAE={xgb:.2f}  baseline MAE={base:.2f}")
+              f"XGB AUC={_fmt(rows[-1]['xgb_auc'])}  baseline AUC={_fmt(rows[-1]['base_auc'])}  "
+              f"acc={rows[-1]['xgb_acc']:.2f}")
 
-    xgb_avg = float(np.mean([r["xgb_mae"] for r in rows]))
-    base_avg = float(np.mean([r["base_mae"] for r in rows]))
-    winner = "xgboost" if xgb_avg < base_avg else "baseline"
-    print(f"\nWalk-forward avg MAE — XGB={xgb_avg:.2f} baseline={base_avg:.2f} -> winner: {winner}")
+    xgb_auc = float(np.mean([r["xgb_auc"] for r in rows if r["xgb_auc"] is not None]))
+    base_auc = float(np.mean([r["base_auc"] for r in rows if r["base_auc"] is not None]))
+    acc = float(np.mean([r["xgb_acc"] for r in rows]))
+    winner = "xgboost" if xgb_auc >= base_auc else "baseline"
+    print(f"\nWalk-forward AUC — XGB={xgb_auc:.2f} baseline={base_auc:.2f} | accuracy={acc:.0%} "
+          f"-> winner: {winner}")
 
     importances: dict[str, float] = {}
     if winner == "xgboost":
         import joblib
         med = df[feats].median()
-        final = XGBRegressor(n_estimators=350, max_depth=3, learning_rate=0.05,
-                             subsample=0.85, colsample_bytree=0.85, random_state=42, n_jobs=4)
-        final.fit(df[feats].fillna(med), df["target"])
-        joblib.dump({"model": final, "features": feats, "medians": med.to_dict()}, MODEL_PATH)
+        final = _new_classifier()
+        final.fit(df[feats].fillna(med), df["elevated_bin"])
+        joblib.dump({"model": final, "features": feats, "medians": med.to_dict(),
+                     "task": "tier"}, MODEL_PATH)
         importances = dict(sorted(zip(feats, map(float, final.feature_importances_)),
                                   key=lambda kv: kv[1], reverse=True))
-        print(f"Saved model -> {MODEL_PATH}")
+        print(f"Saved classifier -> {MODEL_PATH}")
     elif MODEL_PATH.exists():
         MODEL_PATH.unlink()
 
     METRICS.write_text(json.dumps({
-        "model_version": MODEL_VERSION, "winner": winner, "n_rows": len(df),
-        "xgb_avg_mae": xgb_avg, "baseline_avg_mae": base_avg, "folds": rows,
-        "top_features": dict(list(importances.items())[:12]),
+        "model_version": MODEL_VERSION, "task": "tier", "winner": winner, "n_rows": len(df),
+        "elevated_rate": round(float(df["elevated_bin"].mean()), 3),
+        "xgb_auc": round(xgb_auc, 3), "baseline_auc": round(base_auc, 3), "accuracy": round(acc, 3),
+        "folds": rows, "top_features": dict(list(importances.items())[:12]),
     }, indent=2))
     print(f"Wrote {METRICS}")
+
+
+def _fmt(v) -> str:
+    return f"{v:.2f}" if isinstance(v, (int, float)) else "n/a"
 
 
 # -------------------------------------------------------------- predict -------
@@ -227,13 +267,13 @@ def _drivers() -> list[str]:
     return names[:3]
 
 
-def _level(value: float, q: tuple[float, float, float]) -> str:
-    p50, p75, p90 = q
-    if value >= p90:
+def _level_from_prob(p: float) -> str:
+    """Map P(elevated) to the app's 4 display levels."""
+    if p >= 0.75:
         return "high"
-    if value >= p75:
+    if p >= 0.5:
         return "elevated"
-    if value >= p50:
+    if p >= 0.25:
         return "moderate"
     return "low"
 
@@ -244,37 +284,35 @@ def _step_down(level: str, steps: int) -> str:
 
 
 def _confidence() -> float:
+    """Confidence from validated discrimination (AUC)."""
     if not METRICS.exists():
         return 0.5
-    m = json.loads(METRICS.read_text())
-    xgb, base = m.get("xgb_avg_mae"), m.get("baseline_avg_mae")
-    if xgb and base and base > 0:
-        return round(float(np.clip(0.5 + (base - xgb) / base * 0.4, 0.4, 0.85)), 2)
+    auc = json.loads(METRICS.read_text()).get("xgb_auc")
+    if isinstance(auc, (int, float)):
+        return round(float(np.clip(auc, 0.4, 0.9)), 2)
     return 0.5
+
+
+def _national_prob(df: pd.DataFrame) -> tuple[float, str]:
+    """P(elevated) for the coming window: from the classifier, else seasonal baseline."""
+    latest = df.iloc[-1]
+    if MODEL_PATH.exists():
+        import joblib
+        b = joblib.load(MODEL_PATH)
+        x = pd.DataFrame([latest[b["features"]]]).fillna(pd.Series(b["medians"]))
+        return float(b["model"].predict_proba(x)[0, 1]), MODEL_VERSION
+    wk = int((latest["date"] + timedelta(weeks=HORIZON_WEEKS)).isocalendar().week)
+    by_wk = df.assign(w=df["date"].dt.isocalendar().week.astype(int)).groupby("w")["elevated_bin"].mean()
+    return float(by_wk.get(wk, float(df["elevated_bin"].mean()))), "seasonal_baseline"
 
 
 def predict(dry_run: bool) -> None:
     if not FEATURES.exists():
         raise SystemExit(f"{FEATURES} not found — run `build` first.")
     df = pd.read_csv(FEATURES, parse_dates=["date"]).sort_values("date").reset_index(drop=True)
-    hist = df["confirmed_week"].dropna()
-    q = (float(hist.quantile(0.50)), float(hist.quantile(0.75)), float(hist.quantile(0.90)))
 
-    latest = df.iloc[-1]
-    if MODEL_PATH.exists():
-        import joblib
-        b = joblib.load(MODEL_PATH)
-        x = pd.DataFrame([latest[b["features"]]]).fillna(pd.Series(b["medians"]))
-        national_score = float(b["model"].predict(x)[0])
-        source_version = MODEL_VERSION
-    else:
-        # Baseline fallback: seasonal mean for the target week-of-year.
-        wk = int((latest["date"] + timedelta(weeks=HORIZON_WEEKS)).isocalendar().week)
-        by_wk = df.assign(w=df["date"].dt.isocalendar().week.astype(int)).groupby("w")["confirmed_week"].mean()
-        national_score = float(by_wk.get(wk, hist.mean()))
-        source_version = "seasonal_baseline"
-
-    national_level = _level(national_score, q)
+    prob, source_version = _national_prob(df)
+    national_level = _level_from_prob(prob)
     drivers = _drivers()
     now = datetime.now(timezone.utc)
     period_start = (now + timedelta(weeks=HORIZON_WEEKS)).date().isoformat()
@@ -294,39 +332,110 @@ def predict(dry_run: bool) -> None:
             "forecast_period_start": period_start,
             "forecast_horizon_days": HORIZON_WEEKS * 7,
             "projected_risk_level": level,
-            "risk_score": round(national_score * share_n, 2),
+            "risk_score": round(prob, 3),
             "confidence": _confidence(),
             "driver_factors": drivers,
             "summary": (
                 f"National Lassa fever risk is projected to be {national_level} over the next "
                 f"{HORIZON_WEEKS} weeks; {state} historically accounts for ~{round(share_n*100)}% "
-                f"of confirmed cases. This is a risk projection, not a diagnosis or confirmed outbreak."
+                f"of reported Lassa cases. This is a risk projection, not a diagnosis or a confirmed outbreak."
             ),
             "model_version": source_version,
             "generated_at": now.isoformat(),
             "valid_until": valid_until,
         })
 
-    print(f"National Lassa projection: {national_level} (score={national_score:.1f}, "
+    print(f"National Lassa projection: {national_level} (P(elevated)={prob:.2f}, "
           f"model={source_version}, conf={_confidence()})")
     if dry_run:
         print(f"[dry-run] {len(rows)} apportioned state rows:")
         for r in rows:
-            print(f"  {r['state']:<10} {r['projected_risk_level']:<9} score={r['risk_score']}")
+            print(f"  {r['state']:<10} {r['projected_risk_level']:<9} p={r['risk_score']}")
         return
 
     from predict_and_write import upsert
     upsert(rows)
 
 
+# ------------------------------------------------------------- backtest -------
+def backtest() -> None:
+    """Honest evidence for the TIER model: walk forward through history, at each
+    step predicting the elevated-risk label for weeks the model NEVER trained on,
+    and compare to what actually happened. Reports the metrics that matter for a
+    risk warning — accuracy, ROC-AUC, and precision/recall for the 'elevated'
+    class — vs the seasonal baseline. Writes data/lassa_backtest_tier.csv.
+    """
+    from sklearn.metrics import accuracy_score, precision_score, recall_score
+
+    if not FEATURES.exists():
+        raise SystemExit(f"{FEATURES} not found — run `build` first.")
+    df = pd.read_csv(FEATURES, parse_dates=["date"]).dropna(subset=["elevated_bin"]).sort_values("date").reset_index(drop=True)
+    df["elevated_bin"] = df["elevated_bin"].astype(int)
+    try:
+        import xgboost  # noqa: F401
+    except ImportError:
+        raise SystemExit("xgboost not installed — pip install -r requirements.txt")
+
+    feats = _feature_cols(df)
+    n = len(df)
+    start = max(60, n // 3)          # warm-up training window
+    step = 8                          # retrain every 8 weeks
+    preds = []
+    i = start
+    while i < n:
+        tr = df.iloc[:i]
+        te = df.iloc[i:i + step]
+        if tr["elevated_bin"].nunique() < 2:
+            i += step
+            continue
+        med = tr[feats].median()
+        clf = _new_classifier()
+        clf.fit(tr[feats].fillna(med), tr["elevated_bin"])
+        p = clf.predict_proba(te[feats].fillna(med))[:, 1]
+        pb = _season_prob(tr, te)
+        for j, (_, row) in enumerate(te.iterrows()):
+            preds.append({
+                "date": row["date"].date().isoformat(),
+                "actual_elevated": int(row["elevated_bin"]),
+                "xgb_prob": round(float(p[j]), 3),
+                "baseline_prob": round(float(pb[j]), 3),
+            })
+        i += step
+
+    bt = pd.DataFrame(preds)
+    out = DATA_DIR / "lassa_backtest_tier.csv"
+    bt.to_csv(out, index=False)
+
+    y = bt["actual_elevated"]
+    xp = (bt["xgb_prob"] >= 0.5).astype(int)
+    bp = (bt["baseline_prob"] >= 0.5).astype(int)
+    acc = accuracy_score(y, xp)
+    prec = precision_score(y, xp, zero_division=0)
+    rec = recall_score(y, xp, zero_division=0)
+    auc = _auc(y, bt["xgb_prob"])
+    base_acc = accuracy_score(y, bp)
+    base_auc = _auc(y, bt["baseline_prob"])
+
+    print(f"Tier backtest over {len(bt)} held-out weeks ({bt['date'].min()} .. {bt['date'].max()})")
+    print(f"  question: 'will the next {HORIZON_WEEKS} weeks be an ELEVATED Lassa period?' "
+          f"({y.mean()*100:.0f}% of weeks were)")
+    print(f"  accuracy:   XGBoost {acc*100:.0f}%   seasonal baseline {base_acc*100:.0f}%")
+    print(f"  ROC-AUC:    XGBoost {_fmt(auc)}     seasonal baseline {_fmt(base_auc)}")
+    print(f"  when it flags ELEVATED: precision {prec*100:.0f}% (right when it warns), "
+          f"recall {rec*100:.0f}% (caught of all elevated periods)")
+    print(f"  wrote per-week predicted-vs-actual -> {out}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["build", "train", "predict"])
+    ap.add_argument("cmd", choices=["build", "train", "predict", "backtest"])
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     if args.cmd == "build":
         build()
     elif args.cmd == "train":
         train()
+    elif args.cmd == "backtest":
+        backtest()
     else:
         predict(args.dry_run)

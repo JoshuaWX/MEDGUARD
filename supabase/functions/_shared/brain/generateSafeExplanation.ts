@@ -45,6 +45,10 @@ const ACTION_LIBRARY: Record<BrainSignal['type'], string[]> = {
     'Follow guidance from official health authorities',
     'Avoid known affected areas or exposures where advised',
   ],
+  risk_forecast: [
+    'Stay aware of seasonal health risks projected for your area',
+    'Practice regular handwashing and good hygiene',
+  ],
 };
 
 export interface ExplanationResult {

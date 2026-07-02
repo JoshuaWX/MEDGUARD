@@ -16,7 +16,8 @@ export type BrainSignalType =
   | 'aqi'
   | 'outbreak_alert'
   | 'verified_report'
-  | 'historical_pattern';
+  | 'historical_pattern'
+  | 'risk_forecast';
 
 export interface BrainSignal {
   type: BrainSignalType;

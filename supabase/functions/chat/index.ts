@@ -4,6 +4,8 @@ import { createUserClient } from '../_shared/supabase.ts';
 import { optionalEnv, requiredEnv } from '../_shared/env.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
 import { loadPersonalHealthSnapshot, type PersonalHealthSnapshot } from '../_shared/personalHealth.ts';
+import { loadRiskForecast } from '../_shared/brain/riskForecastLoader.ts';
+import type { BrainRiskForecastInput } from '../_shared/brain/types.ts';
 
 // ============================================================================
 // PERFORMANCE: Request timeout to prevent hanging connections
@@ -629,9 +631,25 @@ function normalizeList(value: string[] | string | undefined | null): string[] {
   return out;
 }
 
+// Describe what KIND of estimate each forecast is, from its model_version, so the
+// assistant frames it honestly (validated forecast vs seasonal risk vs baseline).
+function forecastKind(modelVersion: string): string {
+  const v = (modelVersion || '').toLowerCase();
+  if (v.includes('seasonal')) return 'seasonal risk';
+  if (v.includes('dhs') || v.includes('map') && v.includes('baseline')) return 'annual baseline';
+  if (v.includes('baseline')) return 'annual baseline';
+  if (v.includes('forecast') || v.startsWith('lassa')) return 'validated forecast';
+  return 'risk projection';
+}
+
+function titleCase(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
 function buildUserContext(
   profile: UserProfile | null,
   snapshot?: PersonalHealthSnapshot | null,
+  areaForecasts?: BrainRiskForecastInput[] | null,
 ): string {
   const parts: string[] = [];
 
@@ -696,6 +714,20 @@ function buildUserContext(
         `MedGuard health snapshot (personalize with this; never diagnose or confirm an outbreak):\n${health.join('\n')}`,
       );
     }
+  }
+
+  // Area disease outlook — the model-generated risk projections for the user's
+  // state. State the KIND of estimate so the assistant never overclaims (a
+  // seasonal indicator/annual baseline is not the same as a validated forecast),
+  // and never presents these as confirmed outbreaks.
+  if (areaForecasts && areaForecasts.length > 0) {
+    const lines = areaForecasts.map(
+      (f) => `${titleCase(f.disease)}: ${f.projectedRiskLevel} (${forecastKind(f.modelVersion ?? '')}).`,
+    );
+    parts.push(
+      `Area disease outlook for the user's state (risk projections, NOT confirmed outbreaks — ` +
+        `official outbreaks come only from NCDC/WHO):\n${lines.join('\n')}`,
+    );
   }
 
   return parts.join('\n');
@@ -840,6 +872,7 @@ serve(async (req: Request) => {
     let conversationId = body?.conversation_id || null;
     let previousMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
     let healthSnapshot: PersonalHealthSnapshot | null = null;
+    let areaForecasts: BrainRiskForecastInput[] = [];
 
     if (!isGuest && userId) {
       const conversationPromise = (async () => {
@@ -880,7 +913,7 @@ serve(async (req: Request) => {
       // parallel. The snapshot makes chat health-aware; failure must never
       // break chat, so it is swallowed to null.
       const area = (profile?.state || '').trim();
-      const [historyResult, snapshot] = await Promise.all([
+      const [historyResult, snapshot, forecasts] = await Promise.all([
         supabase
           .from('chat_messages')
           .select('role, content, created_at')
@@ -888,8 +921,10 @@ serve(async (req: Request) => {
           .order('created_at', { ascending: false })
           .limit(20),
         loadPersonalHealthSnapshot(supabase, area).catch(() => null),
+        area ? loadRiskForecast(supabase, area).catch(() => []) : Promise.resolve([]),
       ]);
       healthSnapshot = snapshot;
+      areaForecasts = forecasts;
 
       if (historyResult.error) throw historyResult.error;
       previousMessages = ((historyResult.data as HistoryMessage[] || [])
@@ -938,7 +973,7 @@ serve(async (req: Request) => {
     const retrievedContext = contextChunks.join('\n\n---\n\n');
 
     // Build context (fast operations)
-    const userContext = buildUserContext(profile, healthSnapshot);
+    const userContext = buildUserContext(profile, healthSnapshot, areaForecasts);
     const historyText = formatHistoryForLLM(previousMessages);
 
     const contextParts: string[] = [];

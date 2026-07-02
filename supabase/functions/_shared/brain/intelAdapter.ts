@@ -24,6 +24,7 @@ import type {
   BrainCommunityTrendInput,
   BrainTrendBaselineInput,
   BrainVerifiedReportInput,
+  BrainRiskForecastInput,
 } from './types.ts';
 
 // Loose shapes mirroring the intel-computed objects (avoid importing the whole
@@ -51,6 +52,7 @@ export interface IntelAdapterInput {
   communityTrends?: BrainCommunityTrendInput[] | null;
   trendBaseline?: BrainTrendBaselineInput[] | null;
   verifiedReports?: BrainVerifiedReportInput[] | null;
+  riskForecast?: BrainRiskForecastInput[] | null;
   now?: Date;
 }
 
@@ -134,6 +136,7 @@ export function toBrainInput(input: IntelAdapterInput): BrainBuildInput {
     communityTrends: input.communityTrends ?? null,
     trendBaseline: input.trendBaseline ?? null,
     verifiedReports: input.verifiedReports ?? null,
+    riskForecast: input.riskForecast ?? null,
     now: input.now,
   };
 }

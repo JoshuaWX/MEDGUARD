@@ -1,9 +1,19 @@
-# MedGuard ML — environmental malaria risk forecasting
+# MedGuard ML — environmental disease-risk forecasting
 
-Offline Python pipeline that projects **malaria** risk per Nigerian **state** ~2–4 weeks ahead,
-using the lag between rainfall/temperature/humidity and mosquito-driven transmission. The trained
-model runs as a scheduled job that writes forecasts into the Supabase `risk_forecast` table; the
-`intel` edge function reads that table and the MedGuard Brain surfaces it as a **risk projection**.
+Offline Python pipeline that projects disease risk per Nigerian **state** ~4 weeks ahead from
+climate. The live model is **Lassa fever** (`lassa_pipeline.py`) — a **risk-tier classifier**
+(normal / elevated / high) validated at AUC ~0.95 / ~87% accuracy on "will the next 4 weeks be an
+elevated period?". The trained model runs as a scheduled job that writes forecasts into the Supabase
+`risk_forecast` table; the `intel` edge function + the app's risk **map** read that table and
+surface it as a **risk projection**. (Malaria is data-limited — see `data/SOURCES.md`.)
+
+## Scheduling (Phase 3)
+
+`.github/workflows/lassa-forecast.yml` runs the whole chain **weekly** (Mondays) on GitHub Actions:
+download new NCDC sitreps → parse → build features (fresh climate) → retrain the tier classifier →
+`predict` (write rows). **One-time setup:** add a repo secret `SUPABASE_SERVICE_ROLE_KEY`
+(Settings → Secrets and variables → Actions). Trigger a manual run from the Actions tab to verify.
+pg_cron can't be used here — the model is Python, not Deno.
 
 > **Safety stance (locked).** Output is a *risk projection from climate + season* — **never** an
 > outbreak confirmation and **never** a diagnosis. Official outbreaks remain NCDC/WHO-only. No

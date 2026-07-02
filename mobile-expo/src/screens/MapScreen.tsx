@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import MapCanvas, { Marker, type MapCanvasHandle, type Region } from '../components/MapCanvas';
+import RiskChoropleth from '../components/RiskChoropleth';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +22,14 @@ import { ErrorBanner, FeatureBlockedScreen } from '../components';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
+import { useRiskMap, riskByState } from '../hooks/useRiskMap';
+import {
+  RISK_DISEASES,
+  RISK_LEVELS,
+  riskColor,
+  NO_DATA_FILL,
+  type RiskDisease,
+} from '../theme/riskColors';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
 import { toUserMessage } from '../services/errorMessages';
 import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
@@ -38,6 +47,10 @@ const CAN_MOUNT_NATIVE_MAP =
   Platform.OS !== 'android' || Constants.appOwnership === 'expo' || Boolean(ANDROID_MAPS_KEY);
 
 type FacilityFilter = 'all' | 'clinic' | 'pharmacy';
+type MapMode = 'facilities' | 'risk';
+const RISK_LEVEL_LABEL: Record<string, string> = {
+  low: 'Low', moderate: 'Moderate', elevated: 'Elevated', high: 'High',
+};
 
 const MapScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -54,10 +67,17 @@ const MapScreen: React.FC = () => {
 
   const mapRef = useRef<MapCanvasHandle | null>(null);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [mapMode, setMapMode] = useState<MapMode>('facilities');
+  const [selectedDisease, setSelectedDisease] = useState<RiskDisease>('lassa');
+  const [selectedState, setSelectedState] = useState<{ state: string; level: string | null; summary: string | null } | null>(null);
   const [facilityFilter, setFacilityFilter] = useState<FacilityFilter>('all');
   const [facilities, setFacilities] = useState<NearbyFacility[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<NearbyFacility | null>(null);
   const [loadingFacilities, setLoadingFacilities] = useState(false);
+
+  const { rows: riskRows, loading: riskLoading } = useRiskMap();
+  const riskLookup = useMemo(() => riskByState(riskRows, selectedDisease), [riskRows, selectedDisease]);
+  const diseasesWithData = useMemo(() => new Set(riskRows.map((r) => r.disease)), [riskRows]);
   const [error, setError] = useState<string | null>(null);
   const [facilityRadiusUsed, setFacilityRadiusUsed] = useState<number | null>(null);
   const facilityRequestIdRef = useRef(0);
@@ -198,36 +218,92 @@ const MapScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      <View style={styles.filterRow}>
-        {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => {
-          const active = f === facilityFilter;
+      <View style={styles.modeRow}>
+        {(['facilities', 'risk'] as MapMode[]).map((m) => {
+          const active = m === mapMode;
           return (
             <Pressable
-              key={f}
-              onPress={() => setFacilityFilter(f)}
-              style={[
-                styles.filterChip,
-                {
-                  backgroundColor: active ? Colors.primary : colors.surface,
-                  borderColor: active ? Colors.primary : colors.border,
-                },
-              ]}
+              key={m}
+              onPress={() => setMapMode(m)}
+              style={[styles.modeChip, { backgroundColor: active ? Colors.primary : colors.surface, borderColor: active ? Colors.primary : colors.border }]}
             >
-              <Text style={[styles.filterChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
-                {f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
+              <Ionicons
+                name={m === 'facilities' ? 'medkit-outline' : 'thermometer-outline'}
+                size={14}
+                color={active ? Colors.textLight : colors.textSecondary}
+              />
+              <Text style={[styles.modeChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
+                {m === 'facilities' ? 'Facilities' : 'Disease risk'}
               </Text>
             </Pressable>
           );
         })}
-
-        <Pressable
-          onPress={handleSearchThisArea}
-          style={[styles.searchAreaBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        >
-          <Ionicons name="search" size={16} color={colors.textSecondary} />
-          <Text style={[styles.searchAreaText, { color: colors.textSecondary }]}>Search this area</Text>
-        </Pressable>
       </View>
+
+      {mapMode === 'facilities' ? (
+        <View style={styles.filterRow}>
+          {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => {
+            const active = f === facilityFilter;
+            return (
+              <Pressable
+                key={f}
+                onPress={() => setFacilityFilter(f)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? Colors.primary : colors.surface,
+                    borderColor: active ? Colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.filterChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
+                  {f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          <Pressable
+            onPress={handleSearchThisArea}
+            style={[styles.searchAreaBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <Ionicons name="search" size={16} color={colors.textSecondary} />
+            <Text style={[styles.searchAreaText, { color: colors.textSecondary }]}>Search this area</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.filterRow}>
+          {RISK_DISEASES.map(({ key, label }) => {
+            const active = key === selectedDisease;
+            const hasData = diseasesWithData.has(key);
+            return (
+              <Pressable
+                key={key}
+                onPress={() => {
+                  setSelectedDisease(key);
+                  setSelectedState(null);
+                }}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? riskColor(key, 'elevated') : colors.surface,
+                    borderColor: active ? riskColor(key, 'elevated') : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    { color: active ? Colors.textLight : hasData ? colors.textSecondary : colors.textMuted },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       {CAN_MOUNT_NATIVE_MAP ? (
         <MapCanvas
@@ -240,16 +316,26 @@ const MapScreen: React.FC = () => {
           showsUserLocation={permissionStatus === 'granted'}
           showsMyLocationButton={false}
         >
-          {facilities.map((facility) => (
-            <Marker
-              key={facility.id}
-              coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
-              title={facility.name}
-              description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
-              pinColor={facilityColor(facility.kind)}
-              onPress={() => setSelectedFacility(facility)}
+          {mapMode === 'risk' ? (
+            <RiskChoropleth
+              disease={selectedDisease}
+              lookup={riskLookup}
+              onSelect={(state, row) =>
+                setSelectedState({ state, level: row?.level ?? null, summary: row?.summary ?? null })
+              }
             />
-          ))}
+          ) : (
+            facilities.map((facility) => (
+              <Marker
+                key={facility.id}
+                coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
+                title={facility.name}
+                description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
+                pinColor={facilityColor(facility.kind)}
+                onPress={() => setSelectedFacility(facility)}
+              />
+            ))
+          )}
         </MapCanvas>
       ) : (
         <View style={[styles.mapUnavailable, { backgroundColor: colors.background }]}>
@@ -260,8 +346,57 @@ const MapScreen: React.FC = () => {
         </View>
       )}
 
-      <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}> 
-        {loadingFacilities ? (
+      {mapMode === 'risk' && CAN_MOUNT_NATIVE_MAP ? (
+        <View style={[styles.legend, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.legendTitle, { color: colors.text }]}>
+            {RISK_DISEASES.find((d) => d.key === selectedDisease)?.label} risk
+          </Text>
+          {RISK_LEVELS.map((lvl) => (
+            <View key={lvl} style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: riskColor(selectedDisease, lvl) }]} />
+              <Text style={[styles.legendText, { color: colors.textSecondary }]}>{RISK_LEVEL_LABEL[lvl]}</Text>
+            </View>
+          ))}
+          <View style={styles.legendRow}>
+            <View style={[styles.legendSwatch, { backgroundColor: NO_DATA_FILL }]} />
+            <Text style={[styles.legendText, { color: colors.textMuted }]}>No forecast</Text>
+          </View>
+        </View>
+      ) : null}
+
+      <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}>
+        {mapMode === 'risk' ? (
+          <>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Disease risk projection</Text>
+            {riskLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading risk projections...</Text>
+              </View>
+            ) : selectedState ? (
+              <View style={[styles.selectedCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={styles.riskDetailHead}>
+                  <View style={[styles.legendSwatch, { backgroundColor: riskColor(selectedDisease, (selectedState.level as any) ?? null) }]} />
+                  <Text style={[styles.selectedName, { color: colors.text }]}>
+                    {selectedState.state.replace(/\b\w/g, (c) => c.toUpperCase())} · {selectedState.level ? RISK_LEVEL_LABEL[selectedState.level] : 'No forecast'}
+                  </Text>
+                </View>
+                <Text style={[styles.selectedMeta, { color: colors.textSecondary }]} numberOfLines={4}>
+                  {selectedState.summary
+                    || (riskLookup.size === 0
+                      ? 'No forecast has been published for this disease yet.'
+                      : 'No active forecast for this state.')}
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {riskLookup.size === 0
+                  ? 'No forecast published for this disease yet. Lassa fever is available first.'
+                  : 'Tap a colored state to see its projected risk. Colors are a risk projection, not a confirmed outbreak.'}
+              </Text>
+            )}
+          </>
+        ) : loadingFacilities ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading nearby facilities...</Text>
@@ -358,6 +493,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.sm,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.sm,
+  },
+  modeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.xs,
+    ...Shadows.sm,
+  },
+  modeChipText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+  },
+  legend: {
+    position: 'absolute',
+    top: 172,
+    right: Spacing.base,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: 4,
+    ...Shadows.md,
+  },
+  legendTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.xs,
+    marginBottom: 2,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendSwatch: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+  },
+  legendText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+  },
+  riskDetailHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
   filterRow: {
     flexDirection: 'row',

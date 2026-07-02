@@ -20,7 +20,8 @@ export type SignalType =
   | "aqi"
   | "outbreak_alert"
   | "verified_report"
-  | "historical_pattern";
+  | "historical_pattern"
+  | "risk_forecast";
 
 /**
  * A single normalized signal contributing to the area/community risk picture.
@@ -185,6 +186,26 @@ export interface BrainVerifiedReportInput {
   expiresAt?: string | null;
 }
 
+/**
+ * A forward-looking, model-generated RISK PROJECTION for a state+disease
+ * (from the offline ml/ pipeline via the `risk_forecast` table). Surfaced as a
+ * PROJECTION signal — never an outbreak confirmation or diagnosis.
+ */
+export interface BrainRiskForecastInput {
+  disease: string;
+  projectedRiskLevel: "low" | "moderate" | "elevated" | "high";
+  riskScore?: number | null;
+  /** Model confidence, 0..1. */
+  confidence?: number | null;
+  driverFactors?: string[];
+  /** Approved projection-framed summary written by the pipeline. */
+  summary?: string | null;
+  modelVersion?: string;
+  forecastPeriodStart?: string | null;
+  horizonDays?: number | null;
+  validUntil?: string | null;
+}
+
 /** Full input bundle for buildBrain orchestration. */
 export interface BrainBuildInput {
   area: string;
@@ -204,6 +225,8 @@ export interface BrainBuildInput {
   communityTrends?: BrainCommunityTrendInput[] | null;
   trendBaseline?: BrainTrendBaselineInput[] | null;
   verifiedReports?: BrainVerifiedReportInput[] | null;
+  /** Model-generated risk projections for this state (e.g. Lassa). */
+  riskForecast?: BrainRiskForecastInput[] | null;
   /** Reference time for freshness/decay math; defaults to now. */
   now?: Date;
 }

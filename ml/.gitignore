@@ -8,6 +8,8 @@ data/*.csv
 # downloaded source PDFs (large, re-fetchable via ingest/download_lassa_reports.py)
 data/**/*.pdf
 data/*_pdfs/
+# downloaded rasters (MAP incidence GeoTIFF, re-fetchable via ingest/map_incidence.py)
+data/*.tif
 models/*.joblib
 models/*.json
 

@@ -11,6 +11,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# Load ml/.env here (before reading any env var below) so every entry point picks
+# up SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY regardless of import order.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
 # --- Paths -------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"

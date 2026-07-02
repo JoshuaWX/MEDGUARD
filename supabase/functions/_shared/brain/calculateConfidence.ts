@@ -17,7 +17,7 @@ const FRESHNESS_SCORE: Record<NonNullable<BrainSignal['freshness']>, number> = {
   unknown: 0.4,
 };
 
-const CREDIBLE_TYPES: BrainSignal['type'][] = ['verified_report', 'outbreak_alert', 'symptom_trend', 'historical_pattern'];
+const CREDIBLE_TYPES: BrainSignal['type'][] = ['verified_report', 'outbreak_alert', 'symptom_trend', 'historical_pattern', 'risk_forecast'];
 
 export interface ConfidenceResult {
   confidence: BrainConfidence;

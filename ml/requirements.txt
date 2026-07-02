@@ -8,3 +8,4 @@ requests>=2.31           # NASA POWER + Supabase REST
 pdfplumber>=0.11         # parse NCDC Lassa situation-report PDFs (ingest/)
 python-dotenv>=1.0       # load ml/.env (git-ignored)
 joblib>=1.3              # persist the trained model
+rasterio>=1.3            # sample Malaria Atlas Project incidence raster (ingest/map_incidence.py)

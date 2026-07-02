@@ -16,6 +16,7 @@ import { buildBrainAsync } from '../_shared/brain/buildBrain.ts';
 import { toBrainInput } from '../_shared/brain/intelAdapter.ts';
 import { loadTrendBaseline } from '../_shared/brain/trendBaseline.ts';
 import { loadVerifiedReports } from '../_shared/brain/verifiedReportsLoader.ts';
+import { loadRiskForecast } from '../_shared/brain/riskForecastLoader.ts';
 import { loadPersonalHealthSnapshot } from '../_shared/personalHealth.ts';
 
 // OpenWeather API key from environment
@@ -657,9 +658,10 @@ serve(async (req: Request) => {
     // The area brain is safe to share and is stored in the shared cache.
     // Phase 4 + 5: aggregated symptom-trend baseline and verified reports.
     // Both best-effort; return [] if unavailable so the Brain still builds.
-    const [trendBaseline, verifiedReports] = await Promise.all([
+    const [trendBaseline, verifiedReports, riskForecast] = await Promise.all([
       loadTrendBaseline(admin, stateNormalized, null),
       loadVerifiedReports(admin, stateNormalized),
+      loadRiskForecast(admin, stateNormalized),
     ]);
     let brain = null as Awaited<ReturnType<typeof buildBrainAsync>> | null;
     try {
@@ -676,6 +678,7 @@ serve(async (req: Request) => {
           whoAlerts,
           trendBaseline,
           verifiedReports,
+          riskForecast,
           now,
         }),
         { useLlm: BRAIN_LLM_SUMMARY },
@@ -762,6 +765,7 @@ serve(async (req: Request) => {
       sources: [
         ...(weatherResult ? [{ name: weatherResult.source, url: sourceUrl(weatherResult.source), category: 'weather' }] : []),
         ...(aqiResult ? [{ name: aqiResult.source, url: sourceUrl(aqiResult.source), category: 'air_quality' }] : []),
+        ...(riskForecast.length > 0 ? [{ name: 'MedGuard forecast model (NCDC data + climate)', url: 'https://ncdc.gov.ng/diseases/sitreps', category: 'model' }] : []),
         { name: 'WHO Disease Outbreak News', url: 'https://www.who.int/emergencies/disease-outbreak-news', category: 'official' },
         { name: 'Nigeria CDC (NCDC)', url: 'https://ncdc.gov.ng/', category: 'official' },
         { name: 'Africa CDC', url: 'https://africacdc.org/', category: 'official' },
@@ -778,6 +782,7 @@ serve(async (req: Request) => {
           outbreaks: 'official_only',
           whoAlerts: whoAlerts.length > 0 ? 'live' : 'none_relevant',
           riskAssessment: riskAssessment ? 'computed' : 'unavailable',
+          riskForecast: riskForecast.length > 0 ? 'recent' : 'unavailable',
         },
       },
     };

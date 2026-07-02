@@ -24,6 +24,8 @@ const TYPE_MULTIPLIER: Record<BrainSignal['type'], number> = {
   weather: 0.9,
   aqi: 0.8,
   historical_pattern: 1.1,
+  // A model projection is informative but must not dominate confirmed signals.
+  risk_forecast: 1.0,
 };
 
 export interface RiskScoreResult {

@@ -1,6 +1,8 @@
 import React, { forwardRef } from 'react';
 import NativeMapView, {
   Marker,
+  Polygon,
+  Geojson,
   type MapViewProps,
   type Region,
 } from 'react-native-maps';
@@ -17,5 +19,5 @@ const MapCanvas = forwardRef<MapCanvasHandle, MapViewProps>((props, ref) => (
 
 MapCanvas.displayName = 'MapCanvas';
 
-export { Marker };
+export { Marker, Polygon, Geojson };
 export default MapCanvas;

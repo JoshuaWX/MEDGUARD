@@ -73,7 +73,7 @@ export async function loadPersonalHealthSnapshot(
   const [checkins, symptomLogs, streak, metrics] = await Promise.all([
     loadCheckins(userClient),
     loadSymptomLogs(userClient, now),
-    loadStreak(userClient),
+    loadStreak(userClient, now),
     loadMetrics(userClient, now),
   ]);
 
@@ -115,14 +115,23 @@ interface MetricsResult {
 async function loadMetrics(userClient: SupabaseClient, now: Date): Promise<MetricsResult> {
   const todayIso = toIsoDate(now);
   const [scoreRes, stepsRes, profileRes, cycleLogRes, cycleCfgRes] = await Promise.all([
-    userClient.from('health_score_daily').select('score').order('score_date', { ascending: false }).limit(1).maybeSingle(),
+    userClient.from('health_score_daily').select('score, score_date').order('score_date', { ascending: false }).limit(1).maybeSingle(),
     userClient.from('user_daily_activity').select('step_count').eq('activity_date', todayIso).maybeSingle(),
     userClient.from('profiles').select('height_cm, weight_kg, cycle_tracking_enabled').maybeSingle(),
     userClient.from('user_cycle_logs').select('start_date').order('start_date', { ascending: false }).limit(1).maybeSingle(),
     userClient.from('user_cycle_settings').select('avg_cycle_length, avg_period_length').maybeSingle(),
   ]);
 
-  const score = scoreRes.data ? Number((scoreRes.data as Record<string, unknown>).score) : null;
+  // Only treat the wellness score as "current" if it is at most ~2 days old, so
+  // the chatbot never cites a stale score as today's.
+  let score: number | null = null;
+  if (scoreRes.data) {
+    const row = scoreRes.data as Record<string, unknown>;
+    const val = Number(row.score);
+    const scoreDate = typeof row.score_date === 'string' ? Date.parse(row.score_date + 'T00:00:00Z') : NaN;
+    const ageDays = Number.isFinite(scoreDate) ? (now.getTime() - scoreDate) / 86400000 : Infinity;
+    if (Number.isFinite(val) && ageDays <= 2) score = val;
+  }
   const steps = stepsRes.data ? Number((stepsRes.data as Record<string, unknown>).step_count) : null;
 
   const prof = profileRes.data as Record<string, unknown> | null;
@@ -164,14 +173,24 @@ async function loadMetrics(userClient: SupabaseClient, now: Date): Promise<Metri
   };
 }
 
-async function loadStreak(userClient: SupabaseClient): Promise<number> {
+async function loadStreak(userClient: SupabaseClient, now: Date): Promise<number> {
   const { data, error } = await userClient
     .from('health_streaks')
-    .select('current_streak')
+    .select('current_streak, last_checkin_date')
     .maybeSingle();
   if (error || !data) return 0;
-  const value = (data as Record<string, unknown>).current_streak;
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const row = data as Record<string, unknown>;
+  const value = row.current_streak;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 0;
+
+  // The stored streak only resets on the NEXT check-in, so a missed day leaves it
+  // stale. Treat it as broken unless the last check-in was today or yesterday
+  // (matches the mobile validation in services/healthCheckin.ts).
+  const lastDate = typeof row.last_checkin_date === 'string' ? row.last_checkin_date : null;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isCurrent = lastDate === toIsoDate(now) || lastDate === toIsoDate(yesterday);
+  return isCurrent ? value : 0;
 }
 
 async function loadCheckins(userClient: SupabaseClient): Promise<BrainCheckinInput[]> {

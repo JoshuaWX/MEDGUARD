@@ -16,6 +16,7 @@ import { analyzeSymptomTrends } from './analyzeSymptomTrends.ts';
 import { analyzeCheckins } from './analyzeCheckins.ts';
 import { analyzeSymptomLogs } from './analyzeSymptomLogs.ts';
 import { analyzeVerifiedReports } from './analyzeVerifiedReports.ts';
+import { analyzeRiskForecast } from './analyzeRiskForecast.ts';
 
 export function collectSignals(input: BrainBuildInput): BrainSignal[] {
   const now = input.now ?? new Date();
@@ -26,6 +27,7 @@ export function collectSignals(input: BrainBuildInput): BrainSignal[] {
   signals.push(...analyzeOutbreakAlerts(input.outbreaks, input.whoAlerts));
   signals.push(...analyzeSymptomTrends(input.communityTrends, input.trendBaseline));
   signals.push(...analyzeVerifiedReports(input.verifiedReports, now));
+  signals.push(...analyzeRiskForecast(input.riskForecast));
 
   // Personal signals only for the personal scope (authenticated callers).
   if (input.scope === 'personal') {

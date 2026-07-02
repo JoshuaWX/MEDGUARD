@@ -40,6 +40,7 @@ const SIGNAL_LABEL: Record<BrainSignalType, string> = {
   outbreak_alert: 'Official alert',
   verified_report: 'Verified report',
   historical_pattern: 'Historical pattern',
+  risk_forecast: 'Risk forecast',
 };
 
 const SEVERITY_TINT: Record<string, string> = {

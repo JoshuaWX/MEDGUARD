@@ -54,7 +54,7 @@ def discover(cat: int) -> list[tuple[int, int | None, str]]:
     return rows
 
 
-def download(cat: int, out_dir: Path, limit: int | None) -> None:
+def download(cat: int, out_dir: Path, limit: int | None, prefix: str = "lassa") -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = discover(cat)
     if not rows:
@@ -68,7 +68,7 @@ def download(cat: int, out_dir: Path, limit: int | None) -> None:
 
     got = skipped = failed = 0
     for week, year, url in rows:
-        name = f"lassa_{year or 'NA'}_wk{week:02d}.pdf"
+        name = f"{prefix}_{year or 'NA'}_wk{week:02d}.pdf"
         dest = out_dir / name
         if dest.exists():
             skipped += 1
@@ -89,13 +89,13 @@ def download(cat: int, out_dir: Path, limit: int | None) -> None:
             failed += 1
 
     print(f"\nDone. downloaded={got} skipped(existing)={skipped} failed={failed} -> {out_dir}")
-    print("Next: python -m ingest.ncdc_lassa_pdf " + str(out_dir))
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cat", type=int, default=5, help="NCDC sitrep category (5=Lassa, 6=meningitis)")
+    ap.add_argument("--cat", type=int, default=5, help="NCDC sitrep category (5=Lassa, 6=meningitis, 7=cholera)")
     ap.add_argument("--out", default=str(DATA_DIR / "lassa_pdfs"))
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--prefix", default="lassa", help="output filename prefix (e.g. cholera)")
     args = ap.parse_args()
-    download(args.cat, Path(args.out), args.limit)
+    download(args.cat, Path(args.out), args.limit, args.prefix)
