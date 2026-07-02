@@ -3,11 +3,12 @@
  */
 
 import React from 'react';
-import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
 
 import { RootStackParamList } from './types';
+import { navigationRef, useNotificationRouting } from '../services/notificationRouting';
 import TabNavigator from './TabNavigator';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import SignInScreen from '../screens/SignInScreen';
@@ -24,8 +25,11 @@ import { ResetPasswordModal } from '../components';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function RootNavigator() {
-  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const { user, initialized, loading, pendingRecovery, updatePassword, clearRecovery } = useAuth();
+
+  // Route notification taps to the right screen once the user is signed in.
+  useNotificationRouting(Boolean(user?.id));
+
   const lastRoutedRef = React.useRef<string>('');
   const hasShownWelcomeThisRunRef = React.useRef(false);
   const navReadyRef = React.useRef(false);

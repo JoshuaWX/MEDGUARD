@@ -6,6 +6,16 @@
  *
  * Mapping: Low / Moderate / Elevated. "Elevated" corresponds to the existing
  * risk-engine "high" where the app needs a single level.
+ *
+ * CALIBRATION (scenario-based, see __tests__/calibration.test.ts). There is no
+ * labelled real-outcome dataset, so behaviour is pinned to expert-expected
+ * outcomes across representative scenarios. Two guardrails codify the app's
+ * safety stance on top of the weighted sum:
+ *   - CONFIRMED-HIGH FLOOR: a high-severity OFFICIAL signal (verified_report or
+ *     outbreak_alert) means the area is at least Elevated, regardless of the sum.
+ *   - PROJECTION CAP: if the only non-low signals are model `risk_forecast`
+ *     projections, hold at most Moderate — a projection must never self-confirm
+ *     an Elevated area ("projection ≠ confirmation").
  */
 
 import type { BrainSignal, BrainRiskLevel } from './types.ts';
@@ -48,11 +58,22 @@ export function calculateRiskScore(signals: BrainSignal[]): RiskScoreResult {
   }
 
   // Independent-agreement boost: multiple medium/high signals reinforce.
-  const strong = signals.filter((s) => s.severity !== 'low').length;
+  const nonLow = signals.filter((s) => s.severity !== 'low');
+  const strong = nonLow.length;
   if (strong >= 3) score *= 1.15;
   else if (strong >= 2) score *= 1.07;
 
-  const riskLevel: BrainRiskLevel = score >= 8 ? 'Elevated' : score >= 3.5 ? 'Moderate' : 'Low';
+  let riskLevel: BrainRiskLevel = score >= 8 ? 'Elevated' : score >= 3.5 ? 'Moderate' : 'Low';
+
+  // Confirmed-high floor: an official high-severity report elevates the area.
+  const hasConfirmedHigh = signals.some(
+    (s) => (s.type === 'verified_report' || s.type === 'outbreak_alert') && s.severity === 'high',
+  );
+  if (hasConfirmedHigh) riskLevel = 'Elevated';
+
+  // Projection cap: a lone (or several) model projection(s) can't self-confirm.
+  const onlyForecastDrives = nonLow.length > 0 && nonLow.every((s) => s.type === 'risk_forecast');
+  if (onlyForecastDrives && riskLevel === 'Elevated') riskLevel = 'Moderate';
 
   const topContributors = signals
     .slice()

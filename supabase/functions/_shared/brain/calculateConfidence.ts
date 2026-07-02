@@ -6,6 +6,10 @@
  *  - freshness of data
  *  - number of independent signal TYPES agreeing
  *  - source credibility (verified/outbreak vs contextual weather/aqi)
+ *
+ * CALIBRATION: pinned by __tests__/calibration.test.ts. A STALE-DATA CAP holds
+ * confidence at Low when the average freshness is stale (avg < 0.4) — old data
+ * should never read as confident no matter how many signals corroborate.
  */
 
 import type { BrainSignal, BrainConfidence } from './types.ts';
@@ -46,7 +50,11 @@ export function calculateConfidence(signals: BrainSignal[]): ConfidenceResult {
 
   const score = round2(0.3 * volume + 0.25 * freshness + 0.25 * agreement + 0.2 * credible);
 
-  const confidence: BrainConfidence = score >= 0.7 ? 'High' : score >= 0.45 ? 'Medium' : 'Low';
+  // Stale-data cap: if the evidence is, on average, stale, confidence is Low
+  // regardless of the computed score (old signals shouldn't read as confident).
+  const confidence: BrainConfidence = freshness < 0.4
+    ? 'Low'
+    : score >= 0.7 ? 'High' : score >= 0.45 ? 'Medium' : 'Low';
   return { confidence, score };
 }
 

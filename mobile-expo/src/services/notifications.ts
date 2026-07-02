@@ -91,6 +91,13 @@ export async function registerForPushNotifications(): Promise<string | null> {
   // Local scheduled notifications work without this
   try {
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    // No real EAS project id yet → remote push isn't provisioned. Skip quietly;
+    // local scheduled notifications still work. (Replace the placeholder in
+    // app.json via `eas init` to enable server-sent push.)
+    if (!projectId || projectId === 'REPLACE_WITH_EAS_PROJECT_ID') {
+      console.log('[Notifications] EAS projectId not set; skipping push token (local notifications still work).');
+      return null;
+    }
     const token = await Notifications.getExpoPushTokenAsync({
       projectId,
     });

@@ -31,6 +31,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Modal,
   ImageBackground,
   TextInput,
   RefreshControl,
@@ -82,6 +83,8 @@ import {
   bmiCategory,
   computeHealthScore,
   scoreBand,
+  smoothScore,
+  explainHealthScore,
   upsertDailyScore,
   loadScoreTrend,
   type ScorePoint,
@@ -221,8 +224,13 @@ const MyHealthScreenContent: React.FC = () => {
     bmi,
   });
   const healthScore = scoreResult.score;
-  const band = scoreBand(healthScore);
   const [scoreTrend, setScoreTrend] = useState<ScorePoint[]>([]);
+  const [showScoreInfo, setShowScoreInfo] = useState(false);
+  // Headline number is smoothed against the recent trend so it doesn't whipsaw;
+  // the raw daily score is still what we persist for history.
+  const displayScore = smoothScore(healthScore, scoreTrend);
+  const band = scoreBand(displayScore);
+  const scoreFactors = explainHealthScore(scoreResult);
   const displayName = user?.name || 'User';
 
   // Persist today's score (best-effort) and refresh the trend when it changes.
@@ -403,7 +411,7 @@ const MyHealthScreenContent: React.FC = () => {
   const gradientColors = isDark
     ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
     : Gradients.background.colors as unknown as [string, string, string];
-  const scoreColor = getScoreColor(healthScore);
+  const scoreColor = getScoreColor(displayScore);
 
   // Tip of the day — rotates deterministically by date.
   const tipOfDay = HEALTH_TIPS[Math.floor(Date.now() / 86_400_000) % HEALTH_TIPS.length];
@@ -466,13 +474,22 @@ const MyHealthScreenContent: React.FC = () => {
                 style={styles.scoreCard}
               >
                 <Text style={styles.scoreMeta}>{t('health_score_label')}</Text>
-                <Text style={styles.scoreValue}>{healthScore}</Text>
+                <Text style={styles.scoreValue}>{displayScore}</Text>
                 <View style={[styles.scoreStatusPill, { backgroundColor: scoreColor }]}>
                   <Text style={styles.scoreStatusText}>
                     {todayCheckin?.riskLevel ? todayCheckin.riskLevel.toUpperCase() : 'BASELINE'}
                   </Text>
                 </View>
                 <Text style={styles.scoreDesc}>{t('health_score_desc')}</Text>
+                <Pressable
+                  onPress={() => setShowScoreInfo(true)}
+                  style={styles.scoreWhyBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="information-circle-outline" size={15} color={Colors.textLight} />
+                  <Text style={styles.scoreWhyText}>Why this score?</Text>
+                </Pressable>
               </LinearGradient>
             </View>
           </ImageBackground>
@@ -839,6 +856,55 @@ const MyHealthScreenContent: React.FC = () => {
             </View>
           </Animated.View>
         </ScrollView>
+
+        {/* "Why this score?" breakdown */}
+        <Modal
+          visible={showScoreInfo}
+          transparent
+          statusBarTranslucent
+          animationType="fade"
+          onRequestClose={() => setShowScoreInfo(false)}
+        >
+          <Pressable style={styles.scoreInfoBackdrop} onPress={() => setShowScoreInfo(false)}>
+            <Pressable
+              style={[styles.scoreInfoCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, paddingBottom: insets.bottom + Spacing.xl }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.scoreInfoHeader}>
+                <Text style={[styles.scoreInfoTitle, { color: colors.text }]}>Why this score?</Text>
+                <Text style={[styles.scoreInfoScore, { color: scoreColor }]}>{displayScore}</Text>
+              </View>
+              <Text style={[styles.scoreInfoSub, { color: colors.textSecondary }]}>
+                A wellness habits indicator (not a medical measure). Starts at 100 and adjusts for:
+              </Text>
+
+              <View style={styles.scoreInfoList}>
+                {scoreFactors.map((f) => (
+                  <View key={f.key} style={styles.scoreInfoRow}>
+                    <Ionicons
+                      name={f.tone === 'positive' ? 'arrow-up-circle' : f.tone === 'negative' ? 'arrow-down-circle' : 'remove-circle'}
+                      size={18}
+                      color={f.tone === 'positive' ? Colors.emerald : f.tone === 'negative' ? Colors.danger : colors.textMuted}
+                    />
+                    <Text style={[styles.scoreInfoLabel, { color: colors.text }]}>{f.label}</Text>
+                    <Text
+                      style={[
+                        styles.scoreInfoDelta,
+                        { color: f.tone === 'positive' ? Colors.emerald : f.tone === 'negative' ? Colors.danger : colors.textMuted },
+                      ]}
+                    >
+                      {f.delta > 0 ? `+${f.delta}` : f.delta < 0 ? `${f.delta}` : '0'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={[styles.scoreInfoNote, { color: colors.textMuted }]}>
+                The headline number is smoothed over recent days, so a single off day won't crash it.
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -1021,6 +1087,77 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.xs,
     color: Colors.textLight,
+  },
+  scoreWhyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: Spacing.sm,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.whiteAlpha20,
+  },
+  scoreWhyText: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    color: Colors.textLight,
+  },
+  scoreInfoBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(3,15,20,0.64)',
+    justifyContent: 'flex-end',
+  },
+  scoreInfoCard: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+  },
+  scoreInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scoreInfoTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.xl,
+  },
+  scoreInfoScore: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize['2xl'],
+  },
+  scoreInfoSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.base,
+  },
+  scoreInfoList: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  scoreInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  scoreInfoLabel: {
+    flex: 1,
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.sm,
+  },
+  scoreInfoDelta: {
+    fontFamily: FontFamily.bold,
+    fontSize: FontSize.sm,
+  },
+  scoreInfoNote: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    fontStyle: 'italic',
+    lineHeight: 17,
   },
   // Check-in styles
   checkinCard: {

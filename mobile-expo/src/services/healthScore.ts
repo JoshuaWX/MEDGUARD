@@ -5,12 +5,14 @@
  * formula is deterministic and explainable so the user (and the Brain/chat) can
  * see exactly why the number is what it is.
  *
- * Components (start at 100):
- *   - Today's check-in risk:  low 0 · moderate -20 · elevated -40 · none -10
+ * Components (start at 100) — deltas kept GENTLE so a single off day doesn't
+ * crater the number:
+ *   - Today's check-in:       low 0 · moderate -12 · elevated -25 · none -8
  *   - Check-in streak:        +min(streak, 8)
  *   - Steps today (if known): >=8000 +5 · 5000-7999 +2 · <3000 -3
  *   - BMI band (if known):    normal 0 · overweight -3 · obese -8 · underweight -5
- * Clamped to 0-100.
+ * Clamped to 0-100. For display, `smoothScore()` blends today's raw score with
+ * the recent trend so the headline number doesn't whipsaw day to day.
  */
 
 import { supabase } from './supabase';
@@ -25,9 +27,26 @@ export interface HealthScoreInput {
   bmi?: number | null;
 }
 
+export type FactorTone = 'positive' | 'negative' | 'neutral';
+
+/** One human-readable contributor to the score, for the "why?" breakdown. */
+export interface HealthScoreFactor {
+  key: string;
+  label: string;
+  delta: number;
+  tone: FactorTone;
+}
+
 export interface HealthScoreResult {
   score: number;
+  /** Numeric deltas keyed by factor (persisted for history/debugging). */
   breakdown: Record<string, number>;
+  /** Labelled contributors for the explainability UI. */
+  factors: HealthScoreFactor[];
+}
+
+function toneOf(delta: number): FactorTone {
+  return delta > 0 ? 'positive' : delta < 0 ? 'negative' : 'neutral';
 }
 
 export function computeBmi(heightCm?: number | null, weightKg?: number | null): number | null {
@@ -47,34 +66,77 @@ export function bmiCategory(bmi: number | null): BmiCategory | null {
 
 export function computeHealthScore(input: HealthScoreInput): HealthScoreResult {
   const breakdown: Record<string, number> = {};
+  const factors: HealthScoreFactor[] = [];
   let score = 100;
 
+  const add = (key: string, delta: number, label: string) => {
+    breakdown[key] = delta;
+    score += delta;
+    factors.push({ key, label, delta, tone: toneOf(delta) });
+  };
+
+  // Today's check-in — gentle penalties; a missed day is a small nudge, not illness.
   const riskDelta = input.todayRisk === 'low' ? 0
-    : input.todayRisk === 'moderate' ? -20
-    : input.todayRisk === 'elevated' ? -40
-    : -10; // no check-in today
-  breakdown.checkin = riskDelta;
-  score += riskDelta;
+    : input.todayRisk === 'moderate' ? -12
+    : input.todayRisk === 'elevated' ? -25
+    : -8; // no check-in today
+  const checkinLabel = input.todayRisk === 'low' ? 'Checked in — feeling well'
+    : input.todayRisk === 'moderate' ? 'Check-in noted mild symptoms'
+    : input.todayRisk === 'elevated' ? 'Check-in noted symptoms'
+    : 'No check-in today';
+  add('checkin', riskDelta, checkinLabel);
 
   const streakBonus = Math.min(Math.max(input.streak ?? 0, 0), 8);
-  breakdown.streak = streakBonus;
-  score += streakBonus;
+  if (streakBonus > 0) {
+    add('streak', streakBonus, `${input.streak}-day check-in streak`);
+  }
 
   if (typeof input.steps === 'number') {
     const stepDelta = input.steps >= 8000 ? 5 : input.steps >= 5000 ? 2 : input.steps < 3000 ? -3 : 0;
-    breakdown.steps = stepDelta;
-    score += stepDelta;
+    const stepLabel = input.steps >= 8000 ? '8k+ steps today'
+      : input.steps >= 5000 ? '5k+ steps today'
+      : input.steps < 3000 ? 'Low activity today'
+      : 'Some activity today';
+    add('steps', stepDelta, stepLabel);
   }
 
   if (typeof input.bmi === 'number') {
     const cat = bmiCategory(input.bmi);
     const bmiDelta = cat === 'normal' ? 0 : cat === 'overweight' ? -3 : cat === 'obese' ? -8 : cat === 'underweight' ? -5 : 0;
-    breakdown.bmi = bmiDelta;
-    score += bmiDelta;
+    const bmiLabel = cat === 'normal' ? 'BMI in healthy range'
+      : cat === 'overweight' ? 'BMI above healthy range'
+      : cat === 'obese' ? 'BMI well above healthy range'
+      : cat === 'underweight' ? 'BMI below healthy range'
+      : 'BMI recorded';
+    add('bmi', bmiDelta, bmiLabel);
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  return { score, breakdown };
+  return { score, breakdown, factors };
+}
+
+/**
+ * Blend today's raw score with the recent trend so the headline number is
+ * stable (0.6 today / 0.4 recent average). Returns the raw score when there's
+ * no history yet. Pure + clamped.
+ */
+export function smoothScore(raw: number, trend: ScorePoint[]): number {
+  if (!Array.isArray(trend) || trend.length === 0) return raw;
+  const valid = trend.map((p) => p.score).filter((n) => Number.isFinite(n));
+  if (valid.length === 0) return raw;
+  const avg = valid.reduce((a, n) => a + n, 0) / valid.length;
+  return Math.max(0, Math.min(100, Math.round(0.6 * raw + 0.4 * avg)));
+}
+
+/**
+ * Ordered, human-readable explanation of a score: biggest drags first, then
+ * boosts, then neutral notes. Drives the "Why this score?" breakdown.
+ */
+export function explainHealthScore(result: HealthScoreResult): HealthScoreFactor[] {
+  const rank = (t: FactorTone) => (t === 'negative' ? 0 : t === 'positive' ? 1 : 2);
+  return [...(result.factors ?? [])].sort(
+    (a, b) => rank(a.tone) - rank(b.tone) || Math.abs(b.delta) - Math.abs(a.delta),
+  );
 }
 
 /** Band label for the score, for UI tone. */
