@@ -3,6 +3,8 @@
  */
 
 export { default as GlassCard } from './GlassCard';
+export { default as Card, type CardVariant } from './Card';
+export { default as ScreenHeader } from './ScreenHeader';
 export { default as Button } from './Button';
 export { default as Input } from './Input';
 export { default as FloatingShape } from './FloatingShape';
@@ -11,6 +13,10 @@ export { default as Avatar } from './Avatar';
 export { default as SkeletonLoader } from './SkeletonLoader';
 export { default as ScreenLoader } from './ScreenLoader';
 export { default as PermissionsPrimerModal } from './PermissionsPrimerModal';
+export { default as Icon, type IconName } from './Icon';
+export { default as LevelMeter } from './LevelMeter';
+export { default as HomeHeroArt } from './HomeHeroArt';
+export { default as ScoreRing } from './ScoreRing';
 export { default as AlertCard } from './AlertCard';
 export { default as SymptomButton } from './SymptomButton';
 export { default as MoonIcon } from './MoonIcon';

@@ -14,6 +14,13 @@ export const BorderRadius = {
   '2xl': 32,  // rounded-2xl
   '3xl': 48,  // rounded-3xl
   full: 9999, // rounded-full
+
+  // "Calm Clinical" component standards — calmer, more precise than the scale
+  // above. Prefer these in primitives for consistency.
+  input: 14,
+  card: 20,
+  sheet: 28,
+  pill: 9999,
 } as const;
 
 export type BorderRadiusKey = keyof typeof BorderRadius;

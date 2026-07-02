@@ -1,6 +1,9 @@
 /**
- * Button Component
- * Recreates all button variants with animations from web
+ * Button — "Calm Clinical" system.
+ *
+ * Solid, confident primary (deep teal, soft branded lift), plus quiet
+ * secondary / outline / ghost / google variants. One accent, used with
+ * restraint. Gentle spring press. API unchanged.
  */
 
 import React, { useCallback } from 'react';
@@ -17,8 +20,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, BorderRadius, Spacing, Shadows, FontFamily, useThemedColors } from '../../theme';
+import { BorderRadius, Colors, Spacing, Shadows, FontFamily, LetterSpacing, useThemedColors } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -53,69 +55,16 @@ const Button: React.FC<ButtonProps> = ({
   const { isDark } = useTheme();
   const themed = useThemedColors(isDark);
   const scale = useSharedValue(1);
-  const translateY = useSharedValue(0);
 
   const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.97, { damping: 16, stiffness: 260 });
-    translateY.value = withSpring(1, { damping: 16, stiffness: 260 });
+    scale.value = withSpring(0.97, { damping: 18, stiffness: 280 });
   }, []);
-
   const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, { damping: 16, stiffness: 260 });
-    translateY.value = withSpring(0, { damping: 16, stiffness: 260 });
+    scale.value = withSpring(1, { damping: 18, stiffness: 280 });
   }, []);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: scale.value },
-      { translateY: translateY.value },
-    ],
-  }));
-
-  const buttonStyles = getButtonStyles(variant, { isDark, themed });
-  const textColor = getTextColor(variant, { themed });
-
-  const content = (
-    <>
-      {loading ? (
-        <ActivityIndicator color={textColor} size="small" />
-      ) : (
-        <>
-          {icon && iconPosition === 'left' && icon}
-          <Text style={[styles.text, { color: textColor }, textStyle]}>{title}</Text>
-          {icon && iconPosition === 'right' && icon}
-        </>
-      )}
-    </>
-  );
-
-  if (variant === 'primary') {
-    return (
-      <AnimatedPressable
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={disabled || loading}
-        style={[
-          styles.base,
-          fullWidth && styles.fullWidth,
-          animatedStyle,
-          Shadows.primary,
-          disabled && styles.disabled,
-          style,
-        ]}
-      >
-        <LinearGradient
-          colors={[themed.emerald, themed.primary, themed.primaryDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradient, styles.contentRow]}
-        >
-          {content}
-        </LinearGradient>
-      </AnimatedPressable>
-    );
-  }
+  const { container, textColor } = getVariantStyles(variant, { isDark, themed });
 
   return (
     <AnimatedPressable
@@ -125,86 +74,65 @@ const Button: React.FC<ButtonProps> = ({
       disabled={disabled || loading}
       style={[
         styles.base,
+        styles.contentRow,
         fullWidth && styles.fullWidth,
-        buttonStyles,
+        container,
+        variant === 'primary' && Shadows.primary,
         animatedStyle,
         disabled && styles.disabled,
         style,
       ]}
     >
-      <Animated.View style={styles.contentRow}>{content}</Animated.View>
+      {loading ? (
+        <ActivityIndicator color={textColor} size="small" />
+      ) : (
+        <>
+          {icon && iconPosition === 'left' && icon}
+          <Text style={[styles.text, { color: textColor }, textStyle]}>{title}</Text>
+          {icon && iconPosition === 'right' && icon}
+        </>
+      )}
     </AnimatedPressable>
   );
 };
 
-function getTextColor(variant: ButtonVariant, ctx: { themed: ReturnType<typeof useThemedColors> }): string {
-  switch (variant) {
-    case 'primary':
-      return Colors.textLight;
-    case 'secondary':
-      return Colors.textLight;
-    case 'outline':
-    case 'google':
-      return ctx.themed.text;
-    case 'ghost':
-      return ctx.themed.textSecondary;
-    default:
-      return Colors.textLight;
-  }
-}
-
-function getButtonStyles(
+function getVariantStyles(
   variant: ButtonVariant,
-  ctx: { isDark: boolean; themed: ReturnType<typeof useThemedColors> }
-): ViewStyle {
-  const themedBackground = () => (ctx.isDark ? Colors.blackAlpha20 : Colors.whiteAlpha20);
-  const themedSurface = () => ctx.themed.surface;
-  const themedBorder = () => ctx.themed.border;
-
+  ctx: { isDark: boolean; themed: ReturnType<typeof useThemedColors> },
+): { container: ViewStyle; textColor: string } {
+  const { themed } = ctx;
   switch (variant) {
     case 'secondary':
       return {
-        backgroundColor: themedBackground(),
-        borderWidth: 1,
-        borderColor: ctx.isDark ? Colors.whiteAlpha10 : Colors.whiteAlpha30,
+        container: { backgroundColor: themed.primaryTint, borderWidth: StyleSheet.hairlineWidth, borderColor: themed.primaryTint },
+        textColor: themed.primary,
       };
     case 'outline':
       return {
-        backgroundColor: themedSurface(),
-        borderWidth: 1,
-        borderColor: themedBorder(),
+        container: { backgroundColor: themed.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: themed.border },
+        textColor: themed.text,
       };
     case 'ghost':
-      return {
-        backgroundColor: Colors.transparent,
-      };
+      return { container: { backgroundColor: Colors.transparent }, textColor: themed.textSecondary };
     case 'google':
       return {
-        backgroundColor: themedSurface(),
-        borderWidth: 1,
-        borderColor: themedBorder(),
-        ...Shadows.base,
+        container: { backgroundColor: themed.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: themed.border, ...Shadows.sm },
+        textColor: themed.text,
       };
+    case 'primary':
     default:
-      return {};
+      return { container: { backgroundColor: themed.primary }, textColor: Colors.textLight };
   }
 }
 
 const styles = StyleSheet.create({
   base: {
-    height: Spacing.inputHeight,
-    borderRadius: BorderRadius.lg,
+    height: 54,
+    borderRadius: BorderRadius.input,
     overflow: 'hidden',
   },
-  fullWidth: {
-    width: '100%',
-  },
-  gradient: {
-    flex: 1,
-    borderRadius: BorderRadius.lg,
-  },
+  fullWidth: { width: '100%' },
   contentRow: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -212,13 +140,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
   },
   text: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.semibold,
     fontSize: 16,
-    letterSpacing: 0,
+    letterSpacing: LetterSpacing.wide,
   },
-  disabled: {
-    opacity: 0.5,
-  },
+  disabled: { opacity: 0.45 },
 });
 
 export default Button;

@@ -53,6 +53,9 @@ import { useNavigation } from '@react-navigation/native';
 
 import {
   GlassCard,
+  Card,
+  Icon,
+  ScoreRing,
   Button,
   HeartIcon,
   ShieldIcon,
@@ -439,61 +442,41 @@ const MyHealthScreenContent: React.FC = () => {
       style={styles.container}
     >
       <View style={styles.page}>
-        {/* Hero Header (matches myhealth.html) */}
-        <Animated.View entering={FadeInUp.delay(100).duration(450)}>
-          <ImageBackground
-            source={{ uri: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=800&q=80' }}
-            style={[styles.header, { paddingTop: insets.top + Spacing.base }]}
-            imageStyle={styles.headerImage}
-          >
-            <LinearGradient
-              colors={Gradients.healthHeader.colors as unknown as [string, string, string]}
-              start={Gradients.healthHeader.start}
-              end={Gradients.healthHeader.end}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.headerOverlay} />
-
-            <View style={styles.headerTopRow}>
-              <Text style={styles.headerTitle}>{t('my_health')}</Text>
-              <View style={styles.userChip}>
-                <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
-                <View style={styles.userAvatarWrap}>
-                  <Avatar source={user?.avatarUrl} size={44} />
-                </View>
-              </View>
+        {/* Header */}
+        <View style={[styles.hHeader, { paddingTop: insets.top + Spacing.base }]}>
+          <View style={styles.hTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.hOverline, { color: colors.textMuted }]}>MY HEALTH</Text>
+              <Text style={[styles.hTitle, { color: colors.text }]} numberOfLines={1}>
+                Hi, {displayName.split(' ')[0]}
+              </Text>
             </View>
+            <Avatar source={user?.avatarUrl} size={46} />
+          </View>
 
-            {/* Wellness Score Card */}
-            <View style={styles.scoreWrap}>
-              <Animated.View style={[styles.scorePulseRing, pulseStyle]} />
-              <LinearGradient
-                colors={isDark ? ['#0f3b46', '#0d6b73'] : ['#0f8b8d', '#11b4d4']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.scoreCard}
-              >
-                <Text style={styles.scoreMeta}>{t('health_score_label')}</Text>
-                <Text style={styles.scoreValue}>{displayScore}</Text>
-                <View style={[styles.scoreStatusPill, { backgroundColor: scoreColor }]}>
-                  <Text style={styles.scoreStatusText}>
+          {/* Wellness score */}
+          <Animated.View entering={FadeInUp.delay(100).duration(450)}>
+            <Card variant="elevated" style={styles.wScoreCard}>
+              <ScoreRing value={displayScore} size={118} strokeWidth={11} color={scoreColor}>
+                <Text style={[styles.wRingValue, { color: colors.text }]}>{displayScore}</Text>
+                <Text style={[styles.wRingMax, { color: colors.textMuted }]}>/ 100</Text>
+              </ScoreRing>
+              <View style={styles.wInfo}>
+                <Text style={[styles.wLabel, { color: colors.textMuted }]}>{t('health_score_label').toUpperCase()}</Text>
+                <Text style={[styles.wBand, { color: colors.text }]}>{band.label}</Text>
+                <View style={[styles.wPill, { backgroundColor: `${scoreColor}1F` }]}>
+                  <Text style={[styles.wPillText, { color: scoreColor }]}>
                     {todayCheckin?.riskLevel ? todayCheckin.riskLevel.toUpperCase() : 'BASELINE'}
                   </Text>
                 </View>
-                <Text style={styles.scoreDesc}>{t('health_score_desc')}</Text>
-                <Pressable
-                  onPress={() => setShowScoreInfo(true)}
-                  style={styles.scoreWhyBtn}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="information-circle-outline" size={15} color={Colors.textLight} />
-                  <Text style={styles.scoreWhyText}>Why this score?</Text>
+                <Pressable onPress={() => setShowScoreInfo(true)} style={styles.wWhyBtn} hitSlop={8} accessibilityRole="button">
+                  <Icon name="info" size={14} color={colors.primary} />
+                  <Text style={[styles.wWhyText, { color: colors.primary }]}>Why this score?</Text>
                 </Pressable>
-              </LinearGradient>
-            </View>
-          </ImageBackground>
-        </Animated.View>
+              </View>
+            </Card>
+          </Animated.View>
+        </View>
 
         <ScrollView
           style={styles.scrollView}
@@ -986,6 +969,63 @@ const styles = StyleSheet.create({
     maxWidth: 448,
     alignSelf: 'center',
   },
+  hHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.base,
+    gap: Spacing.lg,
+  },
+  hTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.base,
+  },
+  hOverline: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.overline,
+    letterSpacing: 1.2,
+  },
+  hTitle: {
+    fontFamily: FontFamily.displayBold,
+    fontSize: FontSize['2xl'],
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  wScoreCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+  },
+  wRingValue: {
+    fontFamily: FontFamily.displayBold,
+    fontSize: FontSize['3xl'],
+    letterSpacing: -0.6,
+  },
+  wRingMax: {
+    fontFamily: FontFamily.medium,
+    fontSize: FontSize.xs,
+    marginTop: -2,
+  },
+  wInfo: { flex: 1, gap: 5 },
+  wLabel: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.overline,
+    letterSpacing: 1.2,
+  },
+  wBand: {
+    fontFamily: FontFamily.display,
+    fontSize: FontSize.xl,
+    letterSpacing: -0.2,
+  },
+  wPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.pill,
+  },
+  wPillText: { fontFamily: FontFamily.bold, fontSize: FontSize.xs, letterSpacing: 0.3 },
+  wWhyBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  wWhyText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
   scrollView: {
     flex: 1,
   },

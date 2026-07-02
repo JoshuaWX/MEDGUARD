@@ -4,65 +4,66 @@
 
 export { Colors, LightColors, DarkColors, useThemedColors, type ColorKey } from './colors';
 export { Spacing, type SpacingKey } from './spacing';
-export { FontFamily, FontSize, LineHeight, FontWeight, TextStyles } from './typography';
+export { FontFamily, FontSize, LineHeight, LetterSpacing, FontWeight, TextStyles } from './typography';
 export { BorderRadius, type BorderRadiusKey } from './borderRadius';
 export { Shadows, type ShadowKey } from './shadows';
 export { Duration, Delay, CustomEasing } from './animations';
 
-// Gradient definitions for LinearGradient component
+// Gradient definitions ("Calm Clinical" — deep teal accent, near-flat backgrounds).
+// Gradients are used sparingly now; backgrounds are effectively flat neutrals.
 export const Gradients = {
   primary: {
-    colors: ['#11b4d4', '#0d8fa9'],
+    colors: ['#0E8A9C', '#0B7C8C', '#086876'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   primaryVertical: {
-    colors: ['#11b4d4', '#0d8fa9'],
+    colors: ['#0E8A9C', '#086876'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
   welcomeHero: {
-    colors: ['rgba(17, 180, 212, 0.9)', 'rgba(13, 143, 169, 0.78)', 'rgba(246, 248, 248, 0.96)'],
+    colors: ['#0B7C8C', '#086876', '#065663'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
   signinHero: {
-    colors: ['rgba(17, 180, 212, 0.92)', 'rgba(13, 143, 169, 0.82)'],
+    colors: ['#0B7C8C', '#086876'],
     start: { x: 0, y: 0 },
     end: { x: 0, y: 1 },
   },
   alertsHero: {
-    colors: ['rgba(17, 180, 212, 0.9)', 'rgba(239, 68, 68, 0.8)'],
+    colors: ['#0B7C8C', '#0A5F6C'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   healthHeader: {
-    colors: ['#11b4d4', '#0d8fa9', '#0a6f84'],
+    colors: ['#0E8A9C', '#0B7C8C', '#086876'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   fab: {
-    colors: ['#11b4d4', '#0d8fa9'],
+    colors: ['#0E8A9C', '#086876'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   amber: {
-    colors: ['#fbbf24', '#f97316'],
+    colors: ['#E0952B', '#C77A0A'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   danger: {
-    colors: ['#ef4444', '#dc2626'],
+    colors: ['#E24A4A', '#DC3B3B'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   background: {
-    colors: ['#f8fafc', 'rgba(236, 254, 255, 0.5)', 'rgba(240, 253, 250, 0.3)'],
+    colors: ['#F7F9FA', '#F2F6F7', '#FFFFFF'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
   backgroundDark: {
-    colors: ['#0f1419', '#152028', '#1a2632'],
+    colors: ['#0A0F13', '#0C141A', '#101A20'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },

@@ -33,6 +33,9 @@ export default function App() {
     'Inter-Medium': require('./assets/fonts/Inter_24pt-Medium.ttf'),
     'Inter-SemiBold': require('./assets/fonts/Inter_24pt-SemiBold.ttf'),
     'Inter-Bold': require('./assets/fonts/Inter_24pt-Bold.ttf'),
+    // Display / heading face — Schibsted Grotesk (static instances)
+    'SchibstedGrotesk-SemiBold': require('./assets/fonts/SchibstedGrotesk-SemiBold.ttf'),
+    'SchibstedGrotesk-Bold': require('./assets/fonts/SchibstedGrotesk-Bold.ttf'),
   });
 
   useEffect(() => {

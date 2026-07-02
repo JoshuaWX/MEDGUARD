@@ -1,35 +1,40 @@
 /**
- * MedGuard Theme - Colors
- * Preserves exact color palette from web application with light/dark mode support
+ * MedGuard Theme — Colors ("Calm Clinical" premium system)
+ *
+ * Deeper, more premium teal + true neutral ramps and muted semantics. Light and
+ * dark are tuned independently (dark uses a brighter primary so it reads on the
+ * deep surfaces). Export SHAPES are unchanged (LightColors / DarkColors / Colors
+ * / useThemedColors) so the whole app keeps compiling; values are evolved and a
+ * few tokens (surfaceSunken, borderStrong, outline, primaryTint) are added.
  */
 
-// Base color palette (theme-independent)
+// Base color palette (theme-independent brand + status + alphas)
 const BaseColors = {
-  // Primary brand colors
-  primary: '#11b4d4',
-  primaryLight: 'rgba(17, 180, 212, 0.2)',
-  primaryDark: '#0d8fa9',
-  
-  // Secondary/Accent
-  emerald: '#10b981',
-  emeraldLight: 'rgba(16, 185, 129, 0.2)',
-  cyan: '#06b6d4',
-  
-  // Status colors (same in both themes)
-  success: '#10b981',
-  successLight: '#d1fae5',
-  warning: '#f59e0b',
-  warningLight: '#fef3c7',
-  danger: '#ef4444',
-  dangerLight: '#fee2e2',
-  info: '#3b82f6',
-  infoLight: '#dbeafe',
-  
-  // Alert severity colors
-  alertUrgent: '#ef4444',
-  alertCaution: '#f59e0b',
-  alertInfo: '#10b981',
-  
+  // Primary brand — deep premium teal
+  primary: '#0B7C8C',
+  primaryLight: 'rgba(11, 124, 140, 0.12)',
+  primaryDark: '#086876',
+
+  // Secondary / accent
+  emerald: '#159E7A',
+  emeraldLight: 'rgba(21, 158, 122, 0.14)',
+  cyan: '#22B8C9',
+
+  // Status colors (muted, not neon)
+  success: '#159E7A',
+  successLight: '#DCF2EB',
+  warning: '#C77A0A',
+  warningLight: '#FBEEDA',
+  danger: '#DC3B3B',
+  dangerLight: '#FBE3E3',
+  info: '#2E6FE0',
+  infoLight: '#E1EAFB',
+
+  // Alert severity
+  alertUrgent: '#DC3B3B',
+  alertCaution: '#C77A0A',
+  alertInfo: '#159E7A',
+
   // Transparent variants
   transparent: 'transparent',
   whiteAlpha10: 'rgba(255, 255, 255, 0.1)',
@@ -44,158 +49,147 @@ const BaseColors = {
   blackAlpha50: 'rgba(0, 0, 0, 0.5)',
 } as const;
 
-// Light theme colors
+// Light theme — airy neutrals, flat surfaces, soft depth
 export const LightColors = {
   ...BaseColors,
-  // Background colors
-  background: '#f3f8f9',
-  surface: '#ffffff',
-  surfaceElevated: '#fbfefe', // Cards and modals
-  
-  // Gradient backgrounds
-  gradientFrom: '#eefbfc',
-  gradientVia: 'rgba(236, 253, 245, 0.78)',
-  gradientTo: '#ffffff',
-  
-  // Text colors
-  text: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#94a3b8',
-  textInverse: '#ffffff',
-  
-  // Border colors
-  border: '#dbe8ea',
-  borderLight: '#edf5f6',
-  
-  // Glass effect colors
+  // Backgrounds & surfaces
+  background: '#F7F9FA',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  surfaceSunken: '#EEF2F4',
+
+  // Kept for API compatibility; near-flat now (we de-gradient)
+  gradientFrom: '#F7F9FA',
+  gradientVia: '#F2F6F7',
+  gradientTo: '#FFFFFF',
+
+  // Text
+  text: '#0C1519',
+  textSecondary: '#55636B',
+  textMuted: '#8C99A0',
+  textInverse: '#FFFFFF',
+
+  // Lines
+  border: '#E6EBEE',
+  borderLight: '#EEF2F4',
+  borderStrong: '#D6DEE2',
+  outline: '#E6EBEE',
+  divider: '#E6EBEE',
+
+  // Accent tint (surfaces/pills)
+  primaryTint: '#E4F3F5',
+
+  // Glass (legacy; primitives now prefer flat surfaces)
   glass: 'rgba(255, 255, 255, 0.9)',
-  glassOverlay: 'rgba(255, 255, 255, 0.2)',
-  
-  // Shadow colors
-  shadow: 'rgba(15, 118, 110, 0.12)',
-  shadowPrimary: 'rgba(17, 180, 212, 0.28)',
-  
-  // Overlay colors
-  overlay: 'rgba(255, 255, 255, 0.5)',
-  
-  // Light theme specific
-  cardBackground: '#ffffff',
-  inputBackground: '#f7fbfb',
-  divider: '#dbe8ea',
+  glassOverlay: 'rgba(11, 124, 140, 0.06)',
+
+  // Shadows
+  shadow: 'rgba(12, 21, 25, 0.10)',
+  shadowPrimary: 'rgba(11, 124, 140, 0.22)',
+
+  // Overlay + inputs
+  overlay: 'rgba(9, 15, 19, 0.45)',
+  cardBackground: '#FFFFFF',
+  inputBackground: '#F3F6F7',
 } as const;
 
-// Dark theme colors - Island Dark Theme
-// A sophisticated dark theme with subtle teal undertones, inspired by tropical island nights
+// Dark theme — deep ink with teal undertone; brighter primary to pop
 export const DarkColors = {
   ...BaseColors,
-  // Background colors - deep ocean blues with teal hints
-  background: '#07131a',
-  surface: '#0d2029',
-  surfaceElevated: '#122c36',
-  
-  // Gradient backgrounds - subtle island night vibes
-  gradientFrom: '#07131a',
-  gradientVia: '#0a232c',
-  gradientTo: '#10323a',
-  
-  // Text colors - crisp and readable
-  text: '#f6fbfc',
-  textSecondary: '#b7c8d1',
-  textMuted: '#78909c',
-  textInverse: '#07131a',
-  
-  // Border colors - subtle definition
-  border: '#1f4652',
-  borderLight: '#2b5965',
-  
-  // Glass effect colors - frosted glass aesthetic
-  glass: 'rgba(13, 32, 41, 0.94)',
-  glassOverlay: 'rgba(17, 180, 212, 0.1)',
-  
-  // Shadow colors
-  shadow: 'rgba(0, 0, 0, 0.48)',
-  shadowPrimary: 'rgba(17, 180, 212, 0.28)',
-  
-  // Overlay colors
-  overlay: 'rgba(7, 19, 26, 0.76)',
-  
-  // Island dark specific
-  cardBackground: '#122c36',
-  inputBackground: '#0a1c24',
-  divider: '#1f4652',
+  primary: '#22B8C9',
+  primaryLight: 'rgba(34, 184, 201, 0.16)',
+  primaryDark: '#0B7C8C',
+
+  background: '#0A0F13',
+  surface: '#141D23',
+  surfaceElevated: '#1A242B',
+  surfaceSunken: '#0E151A',
+
+  gradientFrom: '#0A0F13',
+  gradientVia: '#0C141A',
+  gradientTo: '#101A20',
+
+  text: '#ECF2F4',
+  textSecondary: '#A6B4BC',
+  textMuted: '#6E7E87',
+  textInverse: '#07131A',
+
+  border: '#24313A',
+  borderLight: '#2C3B45',
+  borderStrong: '#33434D',
+  outline: '#24313A',
+  divider: '#24313A',
+
+  primaryTint: 'rgba(34, 184, 201, 0.14)',
+
+  glass: 'rgba(20, 29, 35, 0.94)',
+  glassOverlay: 'rgba(34, 184, 201, 0.10)',
+
+  shadow: 'rgba(0, 0, 0, 0.55)',
+  shadowPrimary: 'rgba(34, 184, 201, 0.24)',
+
+  overlay: 'rgba(5, 9, 12, 0.70)',
+  cardBackground: '#141D23',
+  inputBackground: '#0E151A',
 } as const;
 
-// Legacy export for backward compatibility (uses light theme by default)
-// NOTE: Use useThemedColors() hook in components for dynamic theme support
+// Legacy static export (light values). Prefer useTheme().colors in components.
 export const Colors = {
-  // Primary brand colors
-  primary: '#11b4d4',
-  primaryLight: 'rgba(17, 180, 212, 0.2)',
-  primaryDark: '#0d8fa9',
-  
-  // Secondary/Accent
-  emerald: '#10b981',
-  emeraldLight: 'rgba(16, 185, 129, 0.2)',
-  cyan: '#06b6d4',
-  
-  // Background colors
-  backgroundLight: '#f3f8f9',
-  backgroundDark: '#07131a',
-  
-  // Surface colors
-  surfaceLight: '#ffffff',
-  surfaceDark: '#0d2029',
-  
-  // Gradient backgrounds (from Tailwind config)
-  gradientFromLight: '#eefbfc',
-  gradientViaLight: 'rgba(236, 253, 245, 0.78)',
-  gradientToLight: '#ffffff',
-  
-  gradientFromDark: '#07131a',
-  gradientViaDark: '#0a232c',
-  gradientToDark: '#10323a',
-  
-  // Text colors
-  textPrimary: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#94a3b8',
-  textLight: '#ffffff',
-  textDark: '#f9fafb',
-  
-  // Status colors
-  success: '#10b981',
-  successLight: '#d1fae5',
-  warning: '#f59e0b',
-  warningLight: '#fef3c7',
-  danger: '#ef4444',
-  dangerLight: '#fee2e2',
-  info: '#3b82f6',
-  infoLight: '#dbeafe',
-  
-  // Alert severity colors
-  alertUrgent: '#ef4444',
-  alertCaution: '#f59e0b',
-  alertInfo: '#10b981',
-  
-  // Border colors
-  borderLight: '#dbe8ea',
-  borderDark: '#1f4652',
-  
-  // Glass effect colors
+  primary: '#0B7C8C',
+  primaryLight: 'rgba(11, 124, 140, 0.12)',
+  primaryDark: '#086876',
+
+  emerald: '#159E7A',
+  emeraldLight: 'rgba(21, 158, 122, 0.14)',
+  cyan: '#22B8C9',
+
+  backgroundLight: '#F7F9FA',
+  backgroundDark: '#0A0F13',
+
+  surfaceLight: '#FFFFFF',
+  surfaceDark: '#141D23',
+
+  gradientFromLight: '#F7F9FA',
+  gradientViaLight: '#F2F6F7',
+  gradientToLight: '#FFFFFF',
+
+  gradientFromDark: '#0A0F13',
+  gradientViaDark: '#0C141A',
+  gradientToDark: '#101A20',
+
+  textPrimary: '#0C1519',
+  textSecondary: '#55636B',
+  textMuted: '#8C99A0',
+  textLight: '#FFFFFF',
+  textDark: '#ECF2F4',
+
+  success: '#159E7A',
+  successLight: '#DCF2EB',
+  warning: '#C77A0A',
+  warningLight: '#FBEEDA',
+  danger: '#DC3B3B',
+  dangerLight: '#FBE3E3',
+  info: '#2E6FE0',
+  infoLight: '#E1EAFB',
+
+  alertUrgent: '#DC3B3B',
+  alertCaution: '#C77A0A',
+  alertInfo: '#159E7A',
+
+  borderLight: '#E6EBEE',
+  borderDark: '#24313A',
+
   glassLight: 'rgba(255, 255, 255, 0.9)',
-  glassDark: 'rgba(13, 32, 41, 0.94)',
-  glassOverlay: 'rgba(255, 255, 255, 0.2)',
-  
-  // Shadow colors
-  shadowLight: 'rgba(15, 118, 110, 0.12)',
-  shadowDark: 'rgba(0, 0, 0, 0.48)',
-  shadowPrimary: 'rgba(17, 180, 212, 0.28)',
-  
-  // Overlay colors
+  glassDark: 'rgba(20, 29, 35, 0.94)',
+  glassOverlay: 'rgba(11, 124, 140, 0.06)',
+
+  shadowLight: 'rgba(12, 21, 25, 0.10)',
+  shadowDark: 'rgba(0, 0, 0, 0.55)',
+  shadowPrimary: 'rgba(11, 124, 140, 0.22)',
+
   overlayLight: 'rgba(255, 255, 255, 0.5)',
-  overlayDark: 'rgba(0, 0, 0, 0.5)',
-  
-  // Transparent variants
+  overlayDark: 'rgba(5, 9, 12, 0.70)',
+
   transparent: 'transparent',
   whiteAlpha10: 'rgba(255, 255, 255, 0.1)',
   whiteAlpha20: 'rgba(255, 255, 255, 0.2)',
@@ -212,10 +206,9 @@ export const Colors = {
 export type ColorKey = keyof typeof Colors;
 
 /**
- * Hook to get themed colors based on current theme mode
- * Usage: const colors = useThemedColors();
+ * Hook to get themed colors based on current theme mode.
+ * Usage: const colors = useThemedColors(isDark);
  */
 export const useThemedColors = (isDark: boolean) => {
   return isDark ? DarkColors : LightColors;
 };
-

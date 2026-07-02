@@ -1,27 +1,16 @@
 /**
- * MedGuard Tab Navigator
- * Preserves exact bottom navigation from web
- * Optimized for low-end Android devices
- * 
- * ANDROID FIXES (responsiveness):
- * - Uses safe area insets to avoid overlap with Android gesture navigation bar
- * - Removed fixed heights, uses flexbox for proper layout
- * - Tab bar properly positioned above system navigation
+ * MedGuard Tab Navigator — "Calm Clinical" bottom bar.
+ *
+ * Clean, floating, solid surface with a hairline border + soft shadow (no heavy
+ * blur/gradient pills). Lucide icons; the active tab reads via a soft tinted
+ * icon chip + primary label.
  */
 
 import React, { memo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
-// ANDROID FIX: Import useSafeAreaInsets to respect bottom navigation bar
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  interpolateColor,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Polyline, Polygon, Line, Circle } from 'react-native-svg';
+import { Home, Map as MapIcon, HeartPulse, User, type LucideIcon } from 'lucide-react-native';
 
 import { MainTabParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
@@ -33,180 +22,53 @@ import { Colors, BorderRadius, FontSize, FontFamily, Shadows } from '../../theme
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-// Detect low-end Android devices (API level < 28 = Android 9)
-const isLowEndDevice = Platform.OS === 'android' && Platform.Version < 28;
-
-// Icon components matching web SVGs exactly
-const HomeIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
-  <Svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <Polyline points="9 22 9 12 15 12 15 22" />
-  </Svg>
-));
-
-const MapIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
-  <Svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <Polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-    <Line x1={8} y1={2} x2={8} y2={18} />
-    <Line x1={16} y1={6} x2={16} y2={22} />
-  </Svg>
-));
-
-const HealthIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
-  <Svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-  </Svg>
-));
-
-const ProfileIcon = memo(({ focused, isDark }: { focused: boolean; isDark: boolean }) => (
-  <Svg
-    width={20}
-    height={20}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={focused ? Colors.textLight : (isDark ? '#9ca3af' : Colors.textSecondary)}
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <Circle cx={12} cy={7} r={4} />
-  </Svg>
-));
-
-interface TabIconWrapperProps {
-  focused: boolean;
-  children: React.ReactNode;
-}
-
-const TabIconWrapper: React.FC<TabIconWrapperProps> = memo(({ focused, children }) => {
-  const animatedStyle = useAnimatedStyle(() => {
-    'worklet';
-    // Disable spring animation on low-end devices
-    const scaleValue = isLowEndDevice ? 1 : withSpring(focused ? 1 : 1, { damping: 15 });
-    return {
-      transform: [{ scale: scaleValue }],
-    };
-  });
-
+const TabIcon = memo(({ Cmp, focused, color }: { Cmp: LucideIcon; focused: boolean; color: string }) => {
+  const { colors } = useTheme();
   return (
-    <Animated.View style={[styles.iconWrapper, animatedStyle]}>
-      {focused ? (
-        <LinearGradient
-          colors={[Colors.primary, Colors.emerald]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.iconWrapperActive}
-        >
-          {children}
-        </LinearGradient>
-      ) : (
-        <View style={styles.iconWrapperInactive}>{children}</View>
-      )}
-    </Animated.View>
-  );
-});
-
-// Tab bar background component - uses solid background on low-end devices instead of expensive blur
-const TabBarBackground = memo(({ isDark }: { isDark: boolean }) => {
-  if (isLowEndDevice) {
-    // Use solid background on low-end devices to avoid expensive blur effect
-    return (
-      <View style={[StyleSheet.absoluteFill, styles.tabBarBg, { 
-        backgroundColor: isDark ? 'rgba(13, 32, 41, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-        borderColor: isDark ? '#1f4652' : '#dbe8ea',
-      }]} />
-    );
-  }
-  return (
-    <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
-      <View style={[styles.tabBarBg, { 
-        backgroundColor: isDark ? 'rgba(13, 32, 41, 0.92)' : 'rgba(255,255,255,0.92)',
-        borderColor: isDark ? '#1f4652' : '#dbe8ea',
-      }]} />
-    </BlurView>
+    <View style={[styles.iconChip, focused && { backgroundColor: colors.primaryTint }]}>
+      <Cmp size={21} color={color} strokeWidth={focused ? 2.1 : 1.8} />
+    </View>
   );
 });
 
 function TabNavigator() {
   const { isDark, colors } = useTheme();
-  // ANDROID FIX: Get safe area insets to properly position tab bar above gesture navigation
   const insets = useSafeAreaInsets();
-  
-  // ANDROID FIX: Calculate dynamic bottom margin to respect system navigation bar
-  // This prevents the tab bar from overlapping with Android's gesture navigation
   const tabBarBottomMargin = Math.max(insets.bottom, 12);
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        // ANDROID FIX: Use dynamic positioning based on safe area insets
         tabBarStyle: [
           styles.tabBar,
           {
-            // Position tab bar above system navigation with proper margin
             bottom: tabBarBottomMargin,
-            // ANDROID FIX: Ensure minimum height but allow flexbox to handle content
-            minHeight: 72,
-            paddingTop: 8,
-            paddingBottom: 8,
+            height: 64,
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+            shadowColor: isDark ? '#000' : colors.shadow,
           },
         ],
-        tabBarBackground: () => <TabBarBackground isDark={isDark} />,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: isDark ? '#9ca3af' : Colors.textSecondary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarItemStyle: styles.tabItem,
+        tabBarIconStyle: styles.tabIcon,
       }}
     >
       <Tab.Screen
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrapper focused={focused}>
-              <HomeIcon focused={focused} isDark={isDark} />
-            </TabIconWrapper>
-          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon Cmp={Home} focused={focused} color={color} />,
         }}
       />
       <Tab.Screen
         name="Map"
         component={MapScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrapper focused={focused}>
-              <MapIcon focused={focused} isDark={isDark} />
-            </TabIconWrapper>
-          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon Cmp={MapIcon} focused={focused} color={color} />,
         }}
       />
       <Tab.Screen
@@ -214,22 +76,14 @@ function TabNavigator() {
         component={MyHealthScreen}
         options={{
           tabBarLabel: 'Health',
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrapper focused={focused}>
-              <HealthIcon focused={focused} isDark={isDark} />
-            </TabIconWrapper>
-          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon Cmp={HeartPulse} focused={focused} color={color} />,
         }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIconWrapper focused={focused}>
-              <ProfileIcon focused={focused} isDark={isDark} />
-            </TabIconWrapper>
-          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon Cmp={User} focused={focused} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -239,51 +93,39 @@ function TabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    // ANDROID FIX: bottom is now set dynamically via screenOptions based on safe area insets
-    left: 14,
-    right: 14,
-    // ANDROID FIX: Use minHeight instead of fixed height for flexibility on different screen sizes
-    minHeight: 64,
-    borderRadius: 24,
+    left: 16,
+    right: 16,
+    height: 64,
+    borderRadius: BorderRadius.card,
     borderTopWidth: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    // Symmetric padding keeps the icon+label column vertically centered.
+    paddingTop: 10,
+    paddingBottom: 10,
     elevation: 0,
-    backgroundColor: 'transparent',
     ...Shadows.md,
   },
-  tabBarBg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.whiteAlpha90,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
   tabItem: {
-    paddingVertical: 2,
-  },
-  iconWrapper: {
-    alignItems: 'center',
+    height: 64,
+    paddingVertical: 0,
     justifyContent: 'center',
   },
-  iconWrapperActive: {
-    width: 46,
-    height: 34,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+  tabIcon: {
+    marginTop: 0,
   },
-  iconWrapperInactive: {
-    width: 46,
-    height: 34,
+  iconChip: {
+    width: 44,
+    height: 28,
+    borderRadius: BorderRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabLabel: {
     fontFamily: FontFamily.medium,
-    fontSize: FontSize.xs,
+    fontSize: FontSize.overline,
     marginTop: 3,
-    letterSpacing: 0,
+    marginBottom: 0,
+    letterSpacing: 0.2,
   },
 });
 

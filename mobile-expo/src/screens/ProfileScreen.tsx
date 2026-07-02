@@ -60,6 +60,7 @@ import {
   UserIcon,
   FeatureBlockedScreen,
   ScreenLoader,
+  Icon,
   useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -484,60 +485,40 @@ const ProfileScreen: React.FC = () => {
           removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
         >
-          {/* Hero */}
-          <Animated.View entering={FadeIn.duration(500)}>
-            <ImageBackground source={{ uri: HERO_BG_URI }} style={styles.hero} imageStyle={styles.heroImage}>
-              <LinearGradient
-                colors={primaryColors}
-                start={Gradients.primary.start}
-                end={Gradients.primary.end}
-                style={[StyleSheet.absoluteFill, styles.heroOverlay]}
-              />
+          {/* Header */}
+          <Animated.View entering={FadeIn.duration(400)} style={[styles.profHeader, { paddingTop: insets.top + Spacing.sm }]}>
+            <View style={styles.profTopRow}>
+              <Pressable onPress={handleBack} style={[styles.profIconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} hitSlop={10}>
+                <Icon name="chevron-left" size={22} color={colors.text} />
+              </Pressable>
+              <Text style={[styles.profHeaderTitle, { color: colors.text }]}>{t('my_profile')}</Text>
+              <Pressable onPress={handleSignOut} style={[styles.profSignOut, { borderColor: colors.border, backgroundColor: colors.surface }]} hitSlop={10}>
+                <Text style={[styles.profSignOutText, { color: colors.danger }]}>{t('sign_out')}</Text>
+              </Pressable>
+            </View>
 
-              <Animated.View style={[styles.floatingShape1, floatStyle1]}>
-                <FloatingShape color={Colors.whiteAlpha20} size={80} />
-              </Animated.View>
-              <Animated.View style={[styles.floatingShape2, floatStyle2]}>
-                <FloatingShape color={Colors.whiteAlpha20} size={48} />
-              </Animated.View>
-              <Animated.View style={[styles.floatingShape3, floatStyle1]}>
-                <FloatingShape color={Colors.whiteAlpha10} size={32} />
-              </Animated.View>
-
-              <View style={[styles.heroTopRow, { paddingTop: insets.top + Spacing.base }]}>
-                <Pressable onPress={handleBack} style={styles.heroIconBtn} hitSlop={10}>
-                  <ArrowBackIcon size={24} color={Colors.textLight} />
+            <View style={styles.profIdentity}>
+              <View style={styles.avatarContainer}>
+                <Pressable
+                  onPress={() => setAvatarPreviewOpen(true)}
+                  disabled={!user?.avatarUrl}
+                  style={[styles.profAvatarRing, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  hitSlop={10}
+                >
+                  <Avatar source={user?.avatarUrl} size={92} />
                 </Pressable>
-                <Text style={styles.heroTitle}>{t('my_profile')}</Text>
-                <Pressable onPress={handleSignOut} style={styles.signOutPill} hitSlop={10}>
-                  <Text style={styles.signOutText}>{t('sign_out')}</Text>
+                <Pressable
+                  onPress={handleAvatarPress}
+                  style={[styles.profAvatarEditBtn, { backgroundColor: colors.primary, borderColor: colors.surface }, avatarUploading && styles.avatarEditBtnDisabled]}
+                  hitSlop={10}
+                  disabled={avatarUploading}
+                >
+                  <Icon name="camera" size={16} color={Colors.textLight} />
                 </Pressable>
               </View>
-
-              <View style={styles.heroProfile}>
-                <View style={styles.avatarContainer}>
-                  <Animated.View style={[styles.avatarPulse, avatarPulseStyle]} />
-                  <Pressable
-                    onPress={() => setAvatarPreviewOpen(true)}
-                    disabled={!user?.avatarUrl}
-                    style={styles.avatarRing}
-                    hitSlop={10}
-                  >
-                    <Avatar source={user?.avatarUrl} size={96} />
-                  </Pressable>
-                  <Pressable 
-                    onPress={handleAvatarPress} 
-                    style={[styles.avatarEditBtn, avatarUploading && styles.avatarEditBtnDisabled]} 
-                    hitSlop={10}
-                    disabled={avatarUploading}
-                  >
-                    <CameraIcon size={18} color={avatarUploading ? Colors.textSecondary : Colors.primary} />
-                  </Pressable>
-                </View>
-                <Text style={styles.userName}>{user?.name || 'Loading…'}</Text>
-                <Text style={styles.userSub}>{user?.email || ''}</Text>
-              </View>
-            </ImageBackground>
+              <Text style={[styles.profName, { color: colors.text }]}>{user?.name || 'Loading…'}</Text>
+              <Text style={[styles.profEmail, { color: colors.textSecondary }]}>{user?.email || ''}</Text>
+            </View>
           </Animated.View>
 
           <Modal
@@ -930,6 +911,64 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: Spacing.xl,
   },
+  profHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    gap: Spacing.xl,
+  },
+  profTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  profIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  profHeaderTitle: {
+    fontFamily: FontFamily.display,
+    fontSize: FontSize.lg,
+    letterSpacing: -0.2,
+  },
+  profSignOut: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  profSignOutText: { fontFamily: FontFamily.semibold, fontSize: FontSize.xs },
+  profIdentity: { alignItems: 'center', gap: 4 },
+  profAvatarRing: {
+    width: 104,
+    height: 104,
+    borderRadius: 32,
+    padding: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  profAvatarEditBtn: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  profName: {
+    fontFamily: FontFamily.displayBold,
+    fontSize: FontSize['2xl'],
+    letterSpacing: -0.3,
+    marginTop: Spacing.md,
+  },
+  profEmail: { fontFamily: FontFamily.regular, fontSize: FontSize.sm },
   hero: {
     borderBottomLeftRadius: 34,
     borderBottomRightRadius: 34,

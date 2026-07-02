@@ -46,6 +46,7 @@ export interface ThemeColors {
   background: string;
   surface: string;
   surfaceElevated: string;
+  surfaceSunken: string;
   gradientFrom: string;
   gradientVia: string;
   gradientTo: string;
@@ -55,6 +56,9 @@ export interface ThemeColors {
   textInverse: string;
   border: string;
   borderLight: string;
+  borderStrong: string;
+  outline: string;
+  primaryTint: string;
   glass: string;
   glassOverlay: string;
   shadow: string;

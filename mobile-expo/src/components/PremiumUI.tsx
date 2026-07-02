@@ -32,26 +32,13 @@ export function PremiumCard({
       style={[
         styles.card,
         {
-          backgroundColor: isDark ? colors.surfaceElevated : colors.surface,
-          borderColor: accent ? `${colors.primary}38` : colors.border,
-          shadowColor: isDark ? '#000' : '#0f766e',
+          backgroundColor: accent ? colors.primaryTint : colors.surface,
+          borderColor: accent ? (isDark ? colors.border : colors.primaryTint) : colors.border,
+          shadowColor: isDark ? '#000' : colors.shadow,
         },
         style,
       ]}
     >
-      {accent && (
-        <LinearGradient
-          pointerEvents="none"
-          colors={
-            isDark
-              ? ['rgba(17,180,212,0.2)', 'rgba(16,185,129,0.08)', 'rgba(255,255,255,0.02)']
-              : ['rgba(17,180,212,0.14)', 'rgba(16,185,129,0.08)', 'rgba(255,255,255,0.75)']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
       <View style={styles.cardContent}>{children}</View>
     </View>
   );
@@ -257,13 +244,13 @@ export function ForceUpdateView({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
+    borderRadius: BorderRadius.card,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   cardContent: {
     padding: Spacing.lg,
@@ -289,8 +276,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.lg,
+    letterSpacing: -0.2,
   },
   sectionSubtitle: {
     fontFamily: FontFamily.regular,
@@ -318,8 +306,9 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
   },
   metricValue: {
-    fontFamily: FontFamily.bold,
-    fontSize: 22,
+    fontFamily: FontFamily.displayBold,
+    fontSize: 24,
+    letterSpacing: -0.4,
     marginTop: 4,
   },
   metricHint: {
