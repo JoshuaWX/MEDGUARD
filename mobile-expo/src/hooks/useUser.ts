@@ -15,6 +15,7 @@ export interface UserProfile {
   name: string | null;
   email: string | null;
   state: string | null;
+  lga: string | null;
   gender: string | null;
   age: number | null;
   avatarUrl: string | null;
@@ -46,13 +47,26 @@ export const useUser = (): UseUserReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const attemptedBootstrapRef = useRef(false);
+  // Tracks which auth id the profile currently in `user` belongs to. Used to
+  // drop a previous/placeholder profile the instant the signed-in user changes,
+  // so stale details never flash on screen while the new profile loads.
+  const loadedForIdRef = useRef<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
     if (!authUser?.id) {
       setUser(null);
       setLoading(false);
       attemptedBootstrapRef.current = false;
+      loadedForIdRef.current = null;
       return;
+    }
+
+    // If the current profile in state belongs to a different (or no) user,
+    // clear it immediately so the UI shows a loading state rather than the
+    // wrong person's details until the fresh profile arrives.
+    if (loadedForIdRef.current !== authUser.id) {
+      setUser(null);
+      attemptedBootstrapRef.current = false;
     }
 
     try {
@@ -140,11 +154,13 @@ export const useUser = (): UseUserReturn => {
           }
         }
 
+        loadedForIdRef.current = authUser.id;
         setUser({
           id: data.id,
           name: data.name ?? data.full_name ?? null,
           email: data.email ?? authUser.email ?? null,
           state: data.state,
+          lga: data.lga ?? null,
           gender: data.gender ?? null,
           age: typeof data.age === 'number' ? data.age : null,
           avatarUrl: resolvedAvatarUrl,
@@ -167,11 +183,13 @@ export const useUser = (): UseUserReturn => {
           const n = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : NaN);
           return Number.isFinite(n) ? n : null;
         };
+        loadedForIdRef.current = authUser.id;
         setUser({
           id: authUser.id,
           name: meta.full_name || meta.name || null,
           email: authUser.email ?? null,
           state: meta.state ?? null,
+          lga: meta.lga ?? null,
           gender: meta.gender ?? null,
           age: toNum(meta.age),
           avatarUrl: null,
@@ -212,6 +230,7 @@ export const useUser = (): UseUserReturn => {
         updateData.full_name = data.name;
       }
       if (data.state !== undefined) updateData.state = data.state;
+      if (data.lga !== undefined) updateData.lga = data.lga;
       if (data.gender !== undefined) updateData.gender = data.gender;
       if (data.age !== undefined) updateData.age = data.age;
       if (data.useLocation !== undefined) updateData.use_location = data.useLocation;

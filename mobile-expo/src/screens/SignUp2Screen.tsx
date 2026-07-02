@@ -21,9 +21,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../navigation/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button, GlassCard, ArrowRightIcon } from '../components';
+import { PERMISSIONS_PRIMED_KEY } from '../components/PermissionsPrimerModal';
 import { useUser } from '../hooks/useUser';
 import { useAuth } from '../hooks/useAuth';
+import { useLocationContext } from '../hooks/LocationContext';
+import { useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
 import {
@@ -66,17 +70,32 @@ const SignUp2Screen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { completeOnboarding, loading } = useAuth();
+  const { requestPermission: requestLocationPermission } = useLocationContext();
+  const { requestPermission: requestNotificationPermission } = useNotifications();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
   const [notifications, setNotifications] = useState(true);
+  const [finishing, setFinishing] = useState(false);
   const firstName = user?.name?.split(' ')[0] || 'there';
   const location = user?.state || 'your area';
 
   const handleFinish = async () => {
+    setFinishing(true);
     try {
+      // Ask for the core permissions in context, before entering the app.
+      // Location powers area alerts + nearby clinics; notifications (if opted
+      // in) deliver outbreak alerts and check-in reminders. Failures are
+      // non-blocking — the user can still grant them later from Settings.
+      await requestLocationPermission().catch(() => false);
+      if (notifications) {
+        await requestNotificationPermission().catch(() => false);
+      }
+      // Onboarding already primed permissions — don't re-prompt on Home.
+      await AsyncStorage.setItem(PERMISSIONS_PRIMED_KEY, '1').catch(() => undefined);
       await completeOnboarding();
     } finally {
+      setFinishing(false);
       navigation.reset({
         index: 0,
         routes: [{ name: 'MainTabs' }],
@@ -160,7 +179,7 @@ const SignUp2Screen: React.FC = () => {
           <Button
             title={t('finish_setup')}
             onPress={handleFinish}
-            loading={loading}
+            loading={loading || finishing}
             icon={<ArrowRightIcon size={20} color={Colors.textLight} />}
           />
         </View>

@@ -31,7 +31,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Image,
   ImageBackground,
   TextInput,
   RefreshControl,
@@ -65,6 +64,7 @@ import {
   StreakBadge,
   CommunityTrendCard,
   ErrorBanner,
+  ScreenLoader,
   useFeedback,
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
@@ -121,6 +121,17 @@ function formatDistance(distanceMeters: number): string {
   return `${(distanceMeters / 1000).toFixed(distanceMeters < 10000 ? 1 : 0)} km`;
 }
 
+// Rotating pool of general wellness tips. All are always-true guidance (no
+// fabricated "personalized" claim); one is shown per day so the card is not
+// permanently static. Keys resolve via i18n (English fallback for other langs).
+const HEALTH_TIPS = [
+  { key: 'stay_hydrated', icon: 'water-outline', tint: '#0ea5e9' },
+  { key: 'hand_hygiene', icon: 'hand-left-outline', tint: '#10b981' },
+  { key: 'mosquito', icon: 'bug-outline', tint: '#8b5cf6' },
+  { key: 'rest', icon: 'moon-outline', tint: '#6366f1' },
+  { key: 'food_safety', icon: 'restaurant-outline', tint: '#f59e0b' },
+] as const;
+
 const MyHealthScreen: React.FC = () => {
   const { t } = useI18n();
   const { isGuest } = useAuthGate();
@@ -162,7 +173,7 @@ const MyHealthScreen: React.FC = () => {
 const MyHealthScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const { toast } = useFeedback();
@@ -393,6 +404,24 @@ const MyHealthScreenContent: React.FC = () => {
     ? [colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string]
     : Gradients.background.colors as unknown as [string, string, string];
   const scoreColor = getScoreColor(healthScore);
+
+  // Tip of the day — rotates deterministically by date.
+  const tipOfDay = HEALTH_TIPS[Math.floor(Date.now() / 86_400_000) % HEALTH_TIPS.length];
+
+  // Wait for the signed-in user's profile before rendering the hero, so we
+  // never flash a placeholder/previous name or avatar.
+  if (userLoading && !user) {
+    return (
+      <LinearGradient
+        colors={gradientColors}
+        start={Gradients.background.start}
+        end={Gradients.background.end}
+        style={styles.container}
+      >
+        <ScreenLoader label="Loading your health…" />
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -717,16 +746,15 @@ const MyHealthScreenContent: React.FC = () => {
                 <Text style={[styles.tipHeaderTitle, { color: colors.text }]}>{t('todays_health_tip')}</Text>
               </View>
               <View style={styles.tipRow}>
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1559839914-17aae19cec71?auto=format&fit=crop&w=200&q=80' }}
-                  style={styles.tipImage}
-                />
+                <View style={[styles.tipIconTile, { backgroundColor: tipOfDay.tint + '1A' }]}>
+                  <Ionicons name={tipOfDay.icon as keyof typeof Ionicons.glyphMap} size={30} color={tipOfDay.tint} />
+                </View>
                 <View style={styles.tipContent}>
-                  <Text style={[styles.tipTitle, { color: colors.text }]}>{t('tip_stay_hydrated_title')}</Text>
+                  <Text style={[styles.tipTitle, { color: colors.text }]}>{t(`tip_${tipOfDay.key}_title`)}</Text>
                   <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                    {t('tip_stay_hydrated_body')}
+                    {t(`tip_${tipOfDay.key}_body`)}
                   </Text>
-                  <Text style={[styles.tipHint, { color: colors.primary }]}>{t('tip_stay_hydrated_hint')}</Text>
+                  <Text style={[styles.tipHint, { color: colors.primary }]}>{t(`tip_${tipOfDay.key}_hint`)}</Text>
                 </View>
               </View>
             </GlassCard>
@@ -852,10 +880,13 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
       style={animatedStyle}
     >
       <GlassCard style={styles.clinicCard}>
-        <Image
-          source={{ uri: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=200&q=80' }}
-          style={styles.clinicImage}
-        />
+        <View style={[styles.clinicIconTile, { backgroundColor: colors.primaryLight }]}>
+          <Ionicons
+            name={status === 'Pharmacy' ? 'medical' : 'medkit'}
+            size={26}
+            color={colors.primary}
+          />
+        </View>
         <View style={styles.clinicContent}>
           <Text style={[styles.clinicName, { color: colors.text }]}>{name}</Text>
           <View style={styles.clinicAddress}>
@@ -864,8 +895,8 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
           </View>
           <View style={styles.clinicMeta}>
             <Text style={[styles.clinicDistance, { color: colors.primary }]}>{distance}</Text>
-            <View style={[styles.statusBadge, styles.statusOpen]}>
-              <Text style={[styles.statusText, styles.statusTextOpen]}>
+            <View style={[styles.statusBadge, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.statusText, { color: colors.primary }]}>
                 {status}
               </Text>
             </View>
@@ -1160,11 +1191,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.base,
   },
-  tipImage: {
+  tipIconTile: {
     width: 80,
     height: 80,
     borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tipContent: {
     flex: 1,
@@ -1265,11 +1297,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderRadius: 22,
   },
-  clinicImage: {
+  clinicIconTile: {
     width: 56,
     height: 56,
     borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   clinicContent: {
     flex: 1,

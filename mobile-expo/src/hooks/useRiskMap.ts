@@ -15,6 +15,19 @@ export interface RiskRow {
   score: number | null;
   confidence: number | null;
   summary: string | null;
+  modelVersion: string | null;
+}
+
+/**
+ * Human-honest label for what kind of estimate a forecast row is, derived from
+ * its model_version. Keeps the app from overstating unvalidated indicators.
+ */
+export function forecastKind(modelVersion: string | null): string {
+  const v = (modelVersion || '').toLowerCase();
+  if (v.includes('seasonal')) return 'Seasonal risk';
+  if (v.includes('baseline') || v.includes('map_')) return 'Baseline risk';
+  if (v) return 'Model forecast';
+  return 'Risk estimate';
 }
 
 const LEVELS: RiskLevel[] = ['low', 'moderate', 'elevated', 'high'];
@@ -35,7 +48,7 @@ export function useRiskMap() {
     try {
       const { data, error: err } = await supabase
         .from('risk_forecast')
-        .select('state, disease, projected_risk_level, risk_score, confidence, summary, valid_until, generated_at')
+        .select('state, disease, projected_risk_level, risk_score, confidence, summary, model_version, valid_until, generated_at')
         .gt('valid_until', new Date().toISOString())
         .order('generated_at', { ascending: false });
 
@@ -58,6 +71,7 @@ export function useRiskMap() {
           score: typeof r.risk_score === 'number' ? r.risk_score : null,
           confidence: typeof r.confidence === 'number' ? r.confidence : null,
           summary: r.summary ? String(r.summary) : null,
+          modelVersion: r.model_version ? String(r.model_version) : null,
         });
       }
       setRows(out);

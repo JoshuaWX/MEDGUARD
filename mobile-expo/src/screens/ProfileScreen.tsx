@@ -59,6 +59,7 @@ import {
   SettingsIcon,
   UserIcon,
   FeatureBlockedScreen,
+  ScreenLoader,
   useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -178,6 +179,7 @@ const ProfileScreen: React.FC = () => {
     });
     setGender((user.gender as Gender) || '');
     setAge(user.age != null ? String(user.age) : '');
+    setLga(user.lga || '');
     setHeight(user.heightCm != null ? String(user.heightCm) : '');
     setWeight(user.weightKg != null ? String(user.weightKg) : '');
     setConditions(user.conditions || []);
@@ -354,6 +356,7 @@ const ProfileScreen: React.FC = () => {
       const weightNum = weight ? Number(weight) : null;
       await updateProfile({
         ...formData,
+        lga: lga.trim() || null,
         gender: gender || null,
         age: Number.isFinite(ageNum) ? ageNum : null,
         heightCm: heightNum && Number.isFinite(heightNum) ? heightNum : null,
@@ -438,6 +441,22 @@ const ProfileScreen: React.FC = () => {
         buttonText="Go Back"
         showHomeButton={true}
       />
+    );
+  }
+
+  // While the profile is loading for the first time, show a loading screen
+  // rather than rendering the hero with placeholder/stale details. Once `user`
+  // is populated, subsequent saves (which also toggle `loading`) keep the UI.
+  if (loading && !user) {
+    return (
+      <LinearGradient
+        colors={gradientBgColors}
+        start={Gradients.background.start}
+        end={Gradients.background.end}
+        style={styles.container}
+      >
+        <ScreenLoader label="Loading your profile…" />
+      </LinearGradient>
     );
   }
 

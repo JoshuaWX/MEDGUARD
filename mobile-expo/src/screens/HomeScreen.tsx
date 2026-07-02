@@ -36,11 +36,14 @@ import {
   SkeletonLoader,
   FloatingActionButton,
   BrainCard,
+  DiseaseOutlookCard,
+  PermissionsPrimerModal,
 } from '../components';
 import { EnvironmentModal } from '../components/EnvironmentModal';
 
 import { useUser } from '../hooks/useUser';
 import { useIntel } from '../hooks/useIntel';
+import { useRiskMap } from '../hooks/useRiskMap';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
@@ -80,6 +83,7 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
+  const { rows: riskRows, loading: riskLoading } = useRiskMap();
   const {
     geocoded,
     refreshLocation,
@@ -206,9 +210,9 @@ const HomeScreen: React.FC = () => {
               </View>
 
               <View style={styles.headerActions}>
-                <Pressable 
+                <Pressable
                   style={[styles.locationChip, { backgroundColor: colors.surface }]}
-                  onPress={() => {}}
+                  onPress={() => (permissionStatus === 'granted' ? refreshLocation() : handleEnableLocation())}
                 >
                   <Ionicons name="location" size={14} color={Colors.primary} />
                   <Text style={[styles.locationText, { color: colors.text }]} numberOfLines={1}>
@@ -353,6 +357,16 @@ const HomeScreen: React.FC = () => {
               </View>
             )}
 
+            {/* Model disease-risk outlook for the user's state (honest labels). */}
+            <View style={{ marginBottom: 12 }}>
+              <DiseaseOutlookCard
+                state={intel?.location?.state || geocoded?.state || user?.state}
+                rows={riskRows}
+                loading={riskLoading}
+                onOpenMap={() => (navigation as any).navigate('Map')}
+              />
+            </View>
+
             {/* Disease Risks Section */}
             {activeRisks.length > 0 && (
               <>
@@ -450,12 +464,15 @@ const HomeScreen: React.FC = () => {
       <FloatingActionButton onPress={() => navigation.navigate('Chatbot')} />
 
       {/* Environment Details Modal */}
-      <EnvironmentModal 
-        visible={modalVisible} 
-        onClose={() => setModalVisible(false)} 
+      <EnvironmentModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
         data={intel}
         initialTab={modalTab}
       />
+
+      {/* One-time prompt for the core permissions the app needs. */}
+      <PermissionsPrimerModal />
     </LinearGradient>
   );
 };
