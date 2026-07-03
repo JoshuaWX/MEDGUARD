@@ -23,18 +23,16 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
 import {
-  Colors,
   BorderRadius,
   Spacing,
   Shadows,
   FontFamily,
   FontSize,
-  useThemedColors,
 } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
 import { getStreakMessage } from '../services/healthCheckin';
+import Icon, { type IconName } from './Icon';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -57,13 +55,13 @@ const NEXT_MILESTONE = (s: number) => {
   return 30;
 };
 
-/** Professional icon + accent color for streak tier */
-function getStreakTier(streak: number): { icon: string; color: string } {
-  if (streak >= 30) return { icon: 'trophy', color: '#f59e0b' };
-  if (streak >= 14) return { icon: 'flame', color: '#ef4444' };
-  if (streak >= 7) return { icon: 'star', color: Colors.primary };
-  if (streak >= 3) return { icon: 'flash', color: '#8b5cf6' };
-  return { icon: 'fitness', color: '#10b981' };
+/** Lucide icon + accent color for streak tier (hues read on light + dark). */
+function getStreakTier(streak: number): { icon: IconName; color: string } {
+  if (streak >= 30) return { icon: 'award', color: '#E0A32C' };
+  if (streak >= 14) return { icon: 'flame', color: '#E4574C' };
+  if (streak >= 7) return { icon: 'star', color: '#1FA9BC' };
+  if (streak >= 3) return { icon: 'zap', color: '#8B7BE8' };
+  return { icon: 'activity', color: '#2FB187' };
 }
 
 const StreakBadge: React.FC<StreakBadgeProps> = ({
@@ -71,8 +69,7 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
   longestStreak,
   compact = false,
 }) => {
-  const { isDark } = useTheme();
-  const themed = useThemedColors(isDark);
+  const { isDark, colors: themed } = useTheme();
   const message = getStreakMessage(currentStreak);
   const { icon: iconName, color: accent } = getStreakTier(currentStreak);
 
@@ -105,7 +102,7 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
             },
           ]}
         >
-          <Ionicons name={iconName as any} size={14} color={accent} />
+          <Icon name={iconName} size={14} color={accent} />
           <Text style={[styles.chipCount, { color: accent }]}>{currentStreak}</Text>
           <Text style={[styles.chipLabel, { color: themed.textSecondary }]}>
             day{currentStreak !== 1 ? 's' : ''}
@@ -129,7 +126,7 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
               cx={RING_SIZE / 2}
               cy={RING_SIZE / 2}
               r={RADIUS}
-              stroke={isDark ? Colors.whiteAlpha10 : '#e5e7eb'}
+              stroke={themed.surfaceSunken}
               strokeWidth={STROKE_WIDTH}
               fill="none"
             />
@@ -155,7 +152,7 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
         {/* Text area */}
         <View style={styles.textArea}>
           <View style={styles.streakTitleRow}>
-            <Ionicons name={iconName as any} size={20} color={accent} />
+            <Icon name={iconName} size={20} color={accent} />
             <Text style={[styles.message, { color: themed.text }]}>{message}</Text>
           </View>
           <Text style={[styles.milestoneHint, { color: themed.textSecondary }]}>
@@ -169,7 +166,7 @@ const StreakBadge: React.FC<StreakBadgeProps> = ({
       {/* Personal best — normal flow, no overlap */}
       {longestStreak !== undefined && longestStreak > currentStreak && (
         <View style={[styles.bestRow, { borderTopColor: themed.border }]}>
-          <Ionicons name="trophy-outline" size={14} color={themed.textMuted} />
+          <Icon name="award" size={14} color={themed.textMuted} />
           <Text style={[styles.bestText, { color: themed.textMuted }]}>
             Personal best: {longestStreak} days
           </Text>

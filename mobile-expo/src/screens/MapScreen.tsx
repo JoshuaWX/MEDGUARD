@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -17,7 +18,7 @@ import MapCanvas, { Marker, type MapCanvasHandle, type Region } from '../compone
 import RiskChoropleth from '../components/RiskChoropleth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ErrorBanner, FeatureBlockedScreen, Icon, Chip, SegmentedControl } from '../components';
+import { ErrorBanner, FeatureBlockedScreen, Icon, Chip } from '../components';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
@@ -217,108 +218,132 @@ const MapScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      <View style={styles.modeRow}>
-        <SegmentedControl
-          variant="solid"
-          segments={[
-            { key: 'facilities', label: 'Clinics & pharmacies', icon: 'stethoscope' },
-            { key: 'risk', label: 'Disease risk', icon: 'activity' },
-          ]}
-          value={mapMode}
-          onChange={(k) => setMapMode(k as MapMode)}
-        />
-      </View>
-
-      {mapMode === 'facilities' ? (
-        <View style={styles.filterRow}>
-          {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => (
-            <Chip
-              key={f}
-              label={f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
-              active={f === facilityFilter}
-              onPress={() => setFacilityFilter(f)}
-            />
-          ))}
-          <Chip label="Search this area" icon="search" onPress={handleSearchThisArea} style={styles.searchChip} />
-        </View>
-      ) : (
-        <View style={styles.filterRow}>
-          {RISK_DISEASES.map(({ key, label }) => (
-            <Chip
-              key={key}
-              label={label}
-              active={key === selectedDisease}
-              muted={!diseasesWithData.has(key)}
-              color={riskColor(key, 'elevated')}
-              onPress={() => {
-                setSelectedDisease(key);
-                setSelectedState(null);
-              }}
-            />
-          ))}
-        </View>
-      )}
-
-      {mapMode === 'risk' && (
-        <View style={styles.legendBar}>
-          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>Low</Text>
-          <View style={styles.legendSwatches}>
-            {RISK_LEVELS.map((lvl) => (
-              <View key={lvl} style={[styles.legendBarSwatch, { backgroundColor: riskColor(selectedDisease, lvl) }]} />
-            ))}
-          </View>
-          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>High</Text>
-          <View style={[styles.legendDivider, { backgroundColor: colors.border }]} />
-          <View style={[styles.legendDot, { backgroundColor: NO_DATA_FILL }]} />
-          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>No forecast</Text>
-        </View>
-      )}
-
-      {CAN_MOUNT_NATIVE_MAP ? (
-        <MapCanvas
-          ref={(r) => {
-            mapRef.current = r;
-          }}
-          style={styles.map}
-          region={region}
-          onRegionChangeComplete={setRegion}
-          showsUserLocation={permissionStatus === 'granted'}
-          showsMyLocationButton={false}
-        >
-          {mapMode === 'risk' ? (
-            <RiskChoropleth
-              disease={selectedDisease}
-              lookup={riskLookup}
-              onSelect={(state, row) =>
-                setSelectedState({ state, level: row?.level ?? null, summary: row?.summary ?? null })
-              }
-            />
-          ) : (
-            facilities.map((facility) => (
-              <Marker
-                key={facility.id}
-                coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
-                title={facility.name}
-                description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
-                pinColor={facilityColor(facility.kind)}
-                onPress={() => setSelectedFacility(facility)}
+      <View style={styles.mapWrap}>
+        {CAN_MOUNT_NATIVE_MAP ? (
+          <MapCanvas
+            ref={(r) => {
+              mapRef.current = r;
+            }}
+            style={styles.map}
+            region={region}
+            onRegionChangeComplete={setRegion}
+            showsUserLocation={permissionStatus === 'granted'}
+            showsMyLocationButton={false}
+          >
+            {mapMode === 'risk' ? (
+              <RiskChoropleth
+                disease={selectedDisease}
+                lookup={riskLookup}
+                onSelect={(state, row) =>
+                  setSelectedState({ state, level: row?.level ?? null, summary: row?.summary ?? null })
+                }
               />
-            ))
-          )}
-        </MapCanvas>
-      ) : (
-        <View style={[styles.mapUnavailable, { backgroundColor: colors.background }]}>
-          <ErrorBanner
-            title="Map unavailable"
-            message="The map is not configured in this build. Please install an updated MedGuard build."
-          />
+            ) : (
+              facilities.map((facility) => (
+                <Marker
+                  key={facility.id}
+                  coordinate={{ latitude: facility.latitude, longitude: facility.longitude }}
+                  title={facility.name}
+                  description={facility.address || `${Math.round(facility.distanceMeters)}m away`}
+                  pinColor={facilityColor(facility.kind)}
+                  onPress={() => setSelectedFacility(facility)}
+                />
+              ))
+            )}
+          </MapCanvas>
+        ) : (
+          <View style={[styles.mapUnavailable, { backgroundColor: colors.background }]}>
+            <ErrorBanner
+              title="Map unavailable"
+              message="The map is not configured in this build. Please install an updated MedGuard build."
+            />
+          </View>
+        )}
+
+        {/* Floating controls that sit ON the map (Maps-app style) */}
+        <View style={[styles.floatingTop, { top: Spacing.sm }]} pointerEvents="box-none">
+          <View style={[styles.toggle, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {(['facilities', 'risk'] as MapMode[]).map((m) => {
+              const active = mapMode === m;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => setMapMode(m)}
+                  style={[styles.toggleHalf, active && { backgroundColor: colors.primary }]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={m === 'facilities' ? 'Show clinics and pharmacies' : 'Show disease risk map'}
+                >
+                  <Icon
+                    name={m === 'facilities' ? 'stethoscope' : 'activity'}
+                    size={18}
+                    color={active ? Colors.textLight : colors.textSecondary}
+                    strokeWidth={active ? 2.3 : 1.9}
+                  />
+                  <Text
+                    style={[styles.toggleLabel, { color: active ? Colors.textLight : colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {m === 'facilities' ? 'Clinics' : 'Disease risk'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+            style={styles.filterScrollWrap}
+          >
+            {mapMode === 'facilities' ? (
+              <>
+                {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => (
+                  <Chip
+                    key={f}
+                    label={f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
+                    active={f === facilityFilter}
+                    onPress={() => setFacilityFilter(f)}
+                  />
+                ))}
+                <Chip label="Search this area" icon="search" onPress={handleSearchThisArea} />
+              </>
+            ) : (
+              RISK_DISEASES.map(({ key, label }) => (
+                <Chip
+                  key={key}
+                  label={label}
+                  active={key === selectedDisease}
+                  muted={!diseasesWithData.has(key)}
+                  color={riskColor(key, 'elevated')}
+                  onPress={() => {
+                    setSelectedDisease(key);
+                    setSelectedState(null);
+                  }}
+                />
+              ))
+            )}
+          </ScrollView>
         </View>
-      )}
+      </View>
 
       <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}>
         {mapMode === 'risk' ? (
           <>
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Disease risk projection</Text>
+            <View style={styles.legendBar}>
+              <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>Low</Text>
+              <View style={styles.legendSwatches}>
+                {RISK_LEVELS.map((lvl) => (
+                  <View key={lvl} style={[styles.legendBarSwatch, { backgroundColor: riskColor(selectedDisease, lvl) }]} />
+                ))}
+              </View>
+              <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>High</Text>
+              <View style={[styles.legendDivider, { backgroundColor: colors.border }]} />
+              <View style={[styles.legendDot, { backgroundColor: NO_DATA_FILL }]} />
+              <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>No forecast</Text>
+            </View>
             {riskLoading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={colors.primary} />
@@ -446,46 +471,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  modeRow: {
+  mapWrap: {
+    flex: 1,
+    position: 'relative',
+  },
+  floatingTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  toggle: {
     flexDirection: 'row',
+    borderRadius: BorderRadius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 4,
+    gap: 4,
+    ...Shadows.lg,
+  },
+  toggleHalf: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 11,
+    borderRadius: BorderRadius.pill,
+    minWidth: 128,
+  },
+  toggleLabel: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.sm,
+  },
+  filterScrollWrap: {
+    alignSelf: 'stretch',
+    flexGrow: 0,
+  },
+  filterScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.sm,
-  },
-  modeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.xs,
-    ...Shadows.sm,
-  },
-  modeChipText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.xs,
-  },
-  legend: {
-    position: 'absolute',
-    top: 172,
-    right: Spacing.base,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    gap: 4,
-    ...Shadows.md,
-  },
-  legendTitle: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.xs,
-    marginBottom: 2,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   legendSwatch: {
     width: 12,
@@ -496,8 +523,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   legendSwatches: { flexDirection: 'row', gap: 3 },
   legendBarSwatch: { width: 16, height: 8, borderRadius: 2 },

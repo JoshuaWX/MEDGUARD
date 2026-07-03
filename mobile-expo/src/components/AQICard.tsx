@@ -5,10 +5,9 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, BorderRadius, Spacing, Shadows, FontFamily, FontSize, useThemedColors } from '../../theme';
+import { BorderRadius, Spacing, Shadows, FontFamily, FontSize, useThemedColors } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
+import Icon, { type IconName } from './Icon';
 
 export type AQILevel = 'good' | 'fair' | 'moderate' | 'poor' | 'very_poor';
 
@@ -48,41 +47,15 @@ interface AQICardProps {
 }
 
 const aqiConfig: Record<AQILevel, {
-  colors: readonly [string, string];
-  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  icon: IconName;
   label: string;
-  textColor: string;
 }> = {
-  good: {
-    colors: ['#10b981', '#059669'],
-    icon: 'leaf-outline',
-    label: 'Good',
-    textColor: '#059669',
-  },
-  fair: {
-    colors: ['#22c55e', '#16a34a'],
-    icon: 'sunny-outline',
-    label: 'Fair',
-    textColor: '#16a34a',
-  },
-  moderate: {
-    colors: ['#f59e0b', '#d97706'],
-    icon: 'partly-sunny-outline',
-    label: 'Moderate',
-    textColor: '#d97706',
-  },
-  poor: {
-    colors: ['#ef4444', '#dc2626'],
-    icon: 'cloud-outline',
-    label: 'Poor',
-    textColor: '#dc2626',
-  },
-  very_poor: {
-    colors: ['#7c3aed', '#6d28d9'],
-    icon: 'warning-outline',
-    label: 'Very Poor',
-    textColor: '#6d28d9',
-  },
+  good: { color: '#2FB187', icon: 'leaf', label: 'Good' },
+  fair: { color: '#4FA85F', icon: 'sun', label: 'Fair' },
+  moderate: { color: '#E0A32C', icon: 'cloud', label: 'Moderate' },
+  poor: { color: '#E4574C', icon: 'wind', label: 'Poor' },
+  very_poor: { color: '#8B7BE8', icon: 'alert-triangle', label: 'Very Poor' },
 };
 
 const AQICard: React.FC<AQICardProps> = ({
@@ -99,28 +72,23 @@ const AQICard: React.FC<AQICardProps> = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: isDark ? themed.surface : '#ffffff' },
-        Shadows.card,
+        { backgroundColor: themed.surface, borderColor: themed.border },
+        Shadows.sm,
         style,
       ]}
     >
       {/* Header with AQI Value */}
       <View style={styles.header}>
         <View style={styles.aqiSection}>
-          <LinearGradient
-            colors={config.colors}
-            style={styles.aqiCircle}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Ionicons name={config.icon} size={compact ? 20 : 28} color="white" />
+          <View style={[styles.aqiCircle, { backgroundColor: config.color }]}>
+            <Icon name={config.icon} size={compact ? 20 : 28} color="#fff" />
             <Text style={styles.aqiLabel}>{compact ? config.label : 'Air Quality'}</Text>
-          </LinearGradient>
+          </View>
         </View>
 
         <View style={styles.infoSection}>
           <View style={styles.levelRow}>
-            <Text style={[styles.levelText, { color: config.textColor }]}>
+            <Text style={[styles.levelText, { color: config.color }]}>
               {config.label}
             </Text>
           </View>
@@ -141,7 +109,7 @@ const AQICard: React.FC<AQICardProps> = ({
               Pollutant Levels
             </Text>
             {insight.dominantPollutant && (
-              <Text style={[styles.dominantLabel, { color: config.textColor }]}>
+              <Text style={[styles.dominantLabel, { color: config.color }]}>
                 Primary: {insight.dominantPollutant}
               </Text>
             )}
@@ -209,12 +177,9 @@ const AQICard: React.FC<AQICardProps> = ({
           </Text>
           {insight.recommendations.slice(0, 3).map((rec, idx) => (
             <View key={idx} style={styles.recommendationRow}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={Colors.primary}
-                style={styles.recIcon}
-              />
+              <View style={styles.recIcon}>
+                <Icon name="check-circle" size={16} color={themed.primary} />
+              </View>
               <Text style={[styles.recommendationText, { color: themed.textSecondary }]}>
                 {rec}
               </Text>
@@ -225,8 +190,8 @@ const AQICard: React.FC<AQICardProps> = ({
 
       {/* Sensitive Groups Warning (if applicable) */}
       {!compact && insight.sensitiveGroups.length > 0 && (
-        <View style={[styles.warningBox, { backgroundColor: `${Colors.warning}15` }]}>
-          <Ionicons name="people-outline" size={16} color={Colors.warning} />
+        <View style={[styles.warningBox, { backgroundColor: themed.warningLight }]}>
+          <Icon name="users" size={16} color={themed.warning} />
           <Text style={[styles.warningText, { color: themed.textSecondary }]}>
             <Text style={{ fontFamily: FontFamily.semibold }}>Sensitive groups: </Text>
             {insight.sensitiveGroups.join(', ')}
@@ -248,11 +213,11 @@ interface PollutantBadgeProps {
 }
 
 const statusColors: Record<string, string> = {
-  Good: '#10b981',
-  Fair: '#22c55e',
-  Moderate: '#f59e0b',
-  Poor: '#ef4444',
-  Hazardous: '#7c3aed',
+  Good: '#2FB187',
+  Fair: '#4FA85F',
+  Moderate: '#E0A32C',
+  Poor: '#E4574C',
+  Hazardous: '#8B7BE8',
 };
 
 const PollutantBadge: React.FC<PollutantBadgeProps> = ({ label, value, status, unit, themed, isPrimary }) => {
@@ -281,7 +246,8 @@ const PollutantBadge: React.FC<PollutantBadgeProps> = ({ label, value, status, u
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.card,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.md,
     overflow: 'hidden',
   },

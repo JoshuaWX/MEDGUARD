@@ -12,7 +12,6 @@ import {
   ViewStyle,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors, BorderRadius, Spacing, FontFamily, FontSize, Duration, useThemedColors } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
+import Icon from './Icon';
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
@@ -75,9 +75,9 @@ const Input: React.FC<InputProps> = ({
       [0, 1],
       [isDark ? themed.inputBackground : themed.inputBackground, isDark ? themed.surfaceElevated : themed.surface]
     ),
-    borderColor: interpolateColor(focusAnim.value, [0, 1], [themed.border, Colors.primary]),
+    borderColor: interpolateColor(focusAnim.value, [0, 1], [themed.border, themed.primary]),
     borderWidth: 1,
-    shadowColor: Colors.primary,
+    shadowColor: themed.primary,
     shadowOpacity: focusAnim.value * 0.16,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -121,11 +121,7 @@ const Input: React.FC<InputProps> = ({
           }
         >
           {enablePasswordToggle ? (
-            <Ionicons
-              name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-              size={22}
-              color={themed.textMuted}
-            />
+            <Icon name={passwordVisible ? 'eye-off' : 'eye'} size={22} color={themed.textMuted} />
           ) : (
             rightIcon
           )}
@@ -138,7 +134,7 @@ const Input: React.FC<InputProps> = ({
 const styles = StyleSheet.create({
   container: {
     height: Spacing.inputHeight,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.input,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceLight,

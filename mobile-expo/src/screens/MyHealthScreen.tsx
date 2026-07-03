@@ -55,6 +55,7 @@ import {
   GlassCard,
   Card,
   Icon,
+  type IconName,
   ScoreRing,
   Button,
   HeartIcon,
@@ -113,13 +114,13 @@ const FEATURE_ENABLED = true;
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Daily check-in questions (Yes/No format)
-const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; icon: string; iconColor: string }> = [
-  { key: 'hasFever', question: 'checkin_fever', icon: 'thermometer-outline', iconColor: '#ef4444' },
-  { key: 'hasHeadache', question: 'checkin_headache', icon: 'pulse-outline', iconColor: '#8b5cf6' },
-  { key: 'hasFatigue', question: 'checkin_fatigue', icon: 'moon-outline', iconColor: '#6366f1' },
-  { key: 'hasDigestiveIssues', question: 'checkin_digestive', icon: 'nutrition-outline', iconColor: '#f59e0b' },
-  { key: 'hasWaterExposure', question: 'checkin_water_exposure', icon: 'water-outline', iconColor: '#0ea5e9' },
-  { key: 'hasSickContact', question: 'checkin_sick_contact', icon: 'people-outline', iconColor: '#ec4899' },
+const CHECKIN_QUESTIONS: Array<{ key: keyof CheckinAnswers; question: string; icon: IconName; iconColor: string }> = [
+  { key: 'hasFever', question: 'checkin_fever', icon: 'thermometer', iconColor: '#E4574C' },
+  { key: 'hasHeadache', question: 'checkin_headache', icon: 'activity', iconColor: '#8B7BE8' },
+  { key: 'hasFatigue', question: 'checkin_fatigue', icon: 'moon', iconColor: '#6C74E0' },
+  { key: 'hasDigestiveIssues', question: 'checkin_digestive', icon: 'leaf', iconColor: '#D89235' },
+  { key: 'hasWaterExposure', question: 'checkin_water_exposure', icon: 'droplet', iconColor: '#3AA5E0' },
+  { key: 'hasSickContact', question: 'checkin_sick_contact', icon: 'users', iconColor: '#DB6BA6' },
 ];
 
 function formatDistance(distanceMeters: number): string {

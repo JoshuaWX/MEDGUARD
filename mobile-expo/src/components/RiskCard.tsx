@@ -9,12 +9,10 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  interpolateColor,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, BorderRadius, Spacing, Shadows, FontFamily, FontSize, useThemedColors } from '../../theme';
+import { BorderRadius, Spacing, Shadows, FontFamily, FontSize } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
+import Icon, { type IconName } from './Icon';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -39,36 +37,18 @@ interface RiskCardProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const riskConfig = {
-  high: {
-    colors: ['#ef4444', '#dc2626'] as const,
-    bgColor: 'rgba(239, 68, 68, 0.1)',
-    borderColor: '#ef4444',
-    icon: 'warning' as const,
-    label: 'HIGH RISK',
-  },
-  medium: {
-    colors: ['#f59e0b', '#d97706'] as const,
-    bgColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: '#f59e0b',
-    icon: 'alert-circle' as const,
-    label: 'MODERATE',
-  },
-  low: {
-    colors: ['#10b981', '#059669'] as const,
-    bgColor: 'rgba(16, 185, 129, 0.1)',
-    borderColor: '#10b981',
-    icon: 'checkmark-circle' as const,
-    label: 'LOW RISK',
-  },
+const riskMeta: Record<RiskLevel, { icon: IconName; label: string }> = {
+  high: { icon: 'alert-triangle', label: 'HIGH RISK' },
+  medium: { icon: 'alert-circle', label: 'MODERATE' },
+  low: { icon: 'check-circle', label: 'LOW RISK' },
 };
 
-const diseaseIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  'Malaria': 'bug-outline',
-  'Cholera': 'water-outline',
-  'Typhoid': 'restaurant-outline',
-  'Meningitis': 'fitness-outline',
-  'Lassa Fever': 'paw-outline',
+const diseaseIcons: Record<string, IconName> = {
+  Malaria: 'bug',
+  Cholera: 'droplet',
+  Typhoid: 'utensils',
+  Meningitis: 'activity',
+  'Lassa Fever': 'thermometer',
 };
 
 const RiskCard: React.FC<RiskCardProps> = ({
@@ -77,11 +57,14 @@ const RiskCard: React.FC<RiskCardProps> = ({
   style,
   expanded = false,
 }) => {
-  const { isDark } = useTheme();
-  const themed = useThemedColors(isDark);
+  const { colors: themed } = useTheme();
   const scale = useSharedValue(1);
-  const config = riskConfig[risk.riskLevel];
-  const diseaseIcon = diseaseIcons[risk.disease] || 'medical-outline';
+  const meta = riskMeta[risk.riskLevel];
+  const accent =
+    risk.riskLevel === 'high' ? themed.danger : risk.riskLevel === 'medium' ? themed.warning : themed.success;
+  const accentTint =
+    risk.riskLevel === 'high' ? themed.dangerLight : risk.riskLevel === 'medium' ? themed.warningLight : themed.successLight;
+  const diseaseIcon: IconName = diseaseIcons[risk.disease] || 'heart-pulse';
 
   const handlePressIn = () => {
     scale.value = withSpring(0.98, { damping: 15 });
@@ -106,43 +89,39 @@ const RiskCard: React.FC<RiskCardProps> = ({
         style={[
           styles.container,
           {
-            backgroundColor: isDark ? themed.surface : '#ffffff',
-            borderColor: config.borderColor,
+            backgroundColor: themed.surface,
+            borderColor: themed.border,
+            borderLeftColor: accent,
           },
-          Shadows.card,
+          Shadows.sm,
         ]}
       >
-        {/* Risk Level Indicator Bar */}
-        <LinearGradient
-          colors={config.colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.riskBar}
-        />
+        {/* Risk level accent strip */}
+        <View style={[styles.riskBar, { backgroundColor: accent }]} />
 
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.diseaseInfo}>
-              <View style={[styles.iconCircle, { backgroundColor: config.bgColor }]}>
-                <Ionicons name={diseaseIcon} size={20} color={config.borderColor} />
+              <View style={[styles.iconCircle, { backgroundColor: accentTint }]}>
+                <Icon name={diseaseIcon} size={20} color={accent} />
               </View>
               <View style={styles.titleContainer}>
                 <Text style={[styles.diseaseName, { color: themed.text }]}>
                   {risk.disease}
                 </Text>
-                <View style={[styles.riskBadge, { backgroundColor: config.bgColor }]}>
-                  <Ionicons name={config.icon} size={12} color={config.borderColor} />
-                  <Text style={[styles.riskLabel, { color: config.borderColor }]}>
-                    {config.label}
+                <View style={[styles.riskBadge, { backgroundColor: accentTint }]}>
+                  <Icon name={meta.icon} size={12} color={accent} />
+                  <Text style={[styles.riskLabel, { color: accent }]}>
+                    {meta.label}
                   </Text>
                 </View>
               </View>
             </View>
-            
+
             {risk.confidence === 'high' && (
               <View style={styles.confidenceBadge}>
-                <Ionicons name="shield-checkmark" size={14} color={Colors.primary} />
+                <Icon name="shield-check" size={14} color={themed.primary} />
               </View>
             )}
           </View>
@@ -162,12 +141,7 @@ const RiskCard: React.FC<RiskCardProps> = ({
                 <View style={styles.additionalReasons}>
                   {risk.reasons.slice(1).map((reason, idx) => (
                     <View key={idx} style={styles.reasonRow}>
-                      <Ionicons
-                        name="ellipse"
-                        size={6}
-                        color={themed.textSecondary}
-                        style={styles.bulletIcon}
-                      />
+                      <View style={[styles.bulletDot, { backgroundColor: themed.textMuted }]} />
                       <Text style={[styles.reasonText, { color: themed.textSecondary }]}>
                         {reason}
                       </Text>
@@ -184,12 +158,9 @@ const RiskCard: React.FC<RiskCardProps> = ({
                   </Text>
                   {risk.actions.slice(0, 3).map((action, idx) => (
                     <View key={idx} style={styles.actionRow}>
-                      <Ionicons
-                        name="checkmark-circle-outline"
-                        size={16}
-                        color={Colors.success}
-                        style={styles.actionIcon}
-                      />
+                      <View style={styles.actionIcon}>
+                        <Icon name="check-circle" size={16} color={themed.success} />
+                      </View>
                       <Text style={[styles.actionText, { color: themed.textSecondary }]}>
                         {action}
                       </Text>
@@ -210,10 +181,10 @@ const RiskCard: React.FC<RiskCardProps> = ({
           {/* Expand indicator */}
           {!expanded && (risk.reasons.length > 1 || risk.actions.length > 0) && (
             <View style={styles.expandHint}>
-              <Text style={[styles.expandText, { color: Colors.primary }]}>
+              <Text style={[styles.expandText, { color: themed.primary }]}>
                 Tap for details
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+              <Icon name="chevron-right" size={14} color={themed.primary} />
             </View>
           )}
         </View>
@@ -224,7 +195,8 @@ const RiskCard: React.FC<RiskCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.card,
+    borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 4,
     overflow: 'hidden',
   },
@@ -292,9 +264,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 4,
   },
-  bulletIcon: {
-    marginTop: 6,
-    marginRight: Spacing.xs,
+  bulletDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginTop: 7,
+    marginRight: Spacing.sm,
   },
   reasonText: {
     flex: 1,

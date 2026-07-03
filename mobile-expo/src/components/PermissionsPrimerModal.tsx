@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Icon, { type IconName } from './Icon';
 
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -91,15 +91,15 @@ const PermissionsPrimerModal: React.FC = () => {
 
   if (!visible) return null;
 
-  const items: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; body: string; show: boolean }> = [
+  const items: Array<{ icon: IconName; title: string; body: string; show: boolean }> = [
     {
-      icon: 'location',
+      icon: 'map-pin',
       title: 'Location',
       body: 'Personalises disease alerts for your state and finds clinics and pharmacies near you.',
       show: needsLocation,
     },
     {
-      icon: 'notifications',
+      icon: 'bell',
       title: 'Notifications',
       body: 'Sends outbreak alerts for your area and gentle daily check-in reminders.',
       show: needsNotifications,
@@ -119,8 +119,8 @@ const PermissionsPrimerModal: React.FC = () => {
             },
           ]}
         >
-          <View style={styles.headerIcon}>
-            <Ionicons name="shield-checkmark" size={26} color={Colors.primary} />
+          <View style={[styles.headerIcon, { backgroundColor: colors.primaryTint }]}>
+            <Icon name="shield-check" size={26} color={colors.primary} />
           </View>
           <Text style={[styles.title, { color: colors.text }]}>Stay protected</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -130,8 +130,8 @@ const PermissionsPrimerModal: React.FC = () => {
           <View style={styles.list}>
             {items.filter((i) => i.show).map((item) => (
               <View key={item.title} style={styles.row}>
-                <View style={[styles.rowIcon, { backgroundColor: 'rgba(17,180,212,0.12)' }]}>
-                  <Ionicons name={item.icon} size={20} color={Colors.primary} />
+                <View style={[styles.rowIcon, { backgroundColor: colors.primaryTint }]}>
+                  <Icon name={item.icon} size={20} color={colors.primary} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={[styles.rowTitle, { color: colors.text }]}>{item.title}</Text>
@@ -144,7 +144,7 @@ const PermissionsPrimerModal: React.FC = () => {
           <Pressable
             onPress={handleEnable}
             disabled={busy}
-            style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+            style={[styles.primaryBtn, { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
             accessibilityRole="button"
           >
             <Text style={styles.primaryBtnText}>{busy ? 'Requesting…' : 'Allow access'}</Text>

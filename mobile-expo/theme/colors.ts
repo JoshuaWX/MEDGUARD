@@ -93,44 +93,67 @@ export const LightColors = {
   inputBackground: '#F3F6F7',
 } as const;
 
-// Dark theme — deep ink with teal undertone; brighter primary to pop
+// Dark theme — deep ink with a cool teal undertone. Tuned like a premium dark
+// UI (Linear/Oura): a near-black base, a clear 3-step elevation ladder, borders
+// that carry the structure (dark mode leans on borders, not shadows), softened
+// off-white text, a brighter primary, and semantics/tints re-tuned for dark
+// (the light pastel *Light tints from BaseColors are overridden to alpha here).
 export const DarkColors = {
   ...BaseColors,
-  primary: '#22B8C9',
-  primaryLight: 'rgba(34, 184, 201, 0.16)',
+  primary: '#2CC3D4',
+  primaryLight: 'rgba(44, 195, 212, 0.16)',
   primaryDark: '#0B7C8C',
 
-  background: '#0A0F13',
-  surface: '#141D23',
-  surfaceElevated: '#1A242B',
-  surfaceSunken: '#0E151A',
+  // Elevation ladder — each step reads as one surface higher.
+  background: '#090D11',
+  surface: '#131C22',
+  surfaceElevated: '#1B262E',
+  surfaceSunken: '#0D141A',
 
-  gradientFrom: '#0A0F13',
+  gradientFrom: '#090D11',
   gradientVia: '#0C141A',
-  gradientTo: '#101A20',
+  gradientTo: '#111C23',
 
-  text: '#ECF2F4',
-  textSecondary: '#A6B4BC',
-  textMuted: '#6E7E87',
-  textInverse: '#07131A',
+  // Softened off-white so long text isn't harsh on the deep base.
+  text: '#EAF1F3',
+  textSecondary: '#9FAEB7',
+  textMuted: '#64757F',
+  textInverse: '#06121A',
 
-  border: '#24313A',
-  borderLight: '#2C3B45',
-  borderStrong: '#33434D',
-  outline: '#24313A',
-  divider: '#24313A',
+  // Borders do the structural work in dark; a touch more visible + a clear
+  // "strong" step for emphasis/dividers on elevated surfaces.
+  border: '#26333D',
+  borderLight: '#2F3E48',
+  borderStrong: '#3B4C57',
+  outline: '#2F3E48',
+  divider: '#222F38',
 
-  primaryTint: 'rgba(34, 184, 201, 0.14)',
+  primaryTint: 'rgba(44, 195, 212, 0.15)',
 
-  glass: 'rgba(20, 29, 35, 0.94)',
-  glassOverlay: 'rgba(34, 184, 201, 0.10)',
+  // Semantics — brightened so they read as color (not mud) on dark surfaces.
+  success: '#2FC091',
+  successLight: 'rgba(47, 192, 145, 0.16)',
+  warning: '#E7A33A',
+  warningLight: 'rgba(231, 163, 58, 0.16)',
+  danger: '#F16A63',
+  dangerLight: 'rgba(241, 106, 99, 0.16)',
+  info: '#5E93F0',
+  infoLight: 'rgba(94, 147, 240, 0.16)',
+  emerald: '#2FC091',
+  emeraldLight: 'rgba(47, 192, 145, 0.16)',
+  alertUrgent: '#F16A63',
+  alertCaution: '#E7A33A',
+  alertInfo: '#2FC091',
+
+  glass: 'rgba(19, 28, 34, 0.94)',
+  glassOverlay: 'rgba(44, 195, 212, 0.10)',
 
   shadow: 'rgba(0, 0, 0, 0.55)',
-  shadowPrimary: 'rgba(34, 184, 201, 0.24)',
+  shadowPrimary: 'rgba(44, 195, 212, 0.24)',
 
-  overlay: 'rgba(5, 9, 12, 0.70)',
-  cardBackground: '#141D23',
-  inputBackground: '#0E151A',
+  overlay: 'rgba(4, 8, 11, 0.72)',
+  cardBackground: '#131C22',
+  inputBackground: '#0D141A',
 } as const;
 
 // Legacy static export (light values). Prefer useTheme().colors in components.
