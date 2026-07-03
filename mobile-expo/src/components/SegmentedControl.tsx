@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { BorderRadius, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
+import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
 import Icon, { type IconName } from './Icon';
 
@@ -22,30 +22,39 @@ interface SegmentedControlProps {
   segments: Segment[];
   value: string;
   onChange: (key: string) => void;
+  /**
+   * 'raised' (default): active segment lifts as a surface pill.
+   * 'solid': active segment fills with the brand color (white label) — bolder,
+   * for a primary view switch that must read as obviously tappable.
+   */
+  variant?: 'raised' | 'solid';
   style?: ViewStyle;
 }
 
-const SegmentedControl: React.FC<SegmentedControlProps> = ({ segments, value, onChange, style }) => {
+const SegmentedControl: React.FC<SegmentedControlProps> = ({ segments, value, onChange, variant = 'raised', style }) => {
   const { isDark, colors } = useTheme();
+  const solid = variant === 'solid';
   return (
     <View style={[styles.track, { backgroundColor: colors.surfaceSunken }, style]}>
       {segments.map((seg) => {
         const active = seg.key === value;
+        const activeBg = solid ? colors.primary : colors.surface;
+        const activeText = solid ? Colors.textLight : colors.text;
+        const iconColor = active ? (solid ? Colors.textLight : colors.primary) : colors.textSecondary;
         return (
           <Pressable
             key={seg.key}
             onPress={() => onChange(seg.key)}
             style={[
               styles.segment,
-              active && [styles.segmentActive, { backgroundColor: colors.surface, shadowColor: isDark ? '#000' : colors.shadow }],
+              active && [styles.segmentActive, { backgroundColor: activeBg, shadowColor: solid ? colors.primary : isDark ? '#000' : colors.shadow }],
+              active && solid && styles.segmentSolid,
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            {seg.icon && (
-              <Icon name={seg.icon} size={15} color={active ? colors.primary : colors.textSecondary} />
-            )}
-            <Text style={[styles.label, { color: active ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+            {seg.icon && <Icon name={seg.icon} size={16} color={iconColor} strokeWidth={active ? 2.1 : 1.8} />}
+            <Text style={[styles.label, { color: active ? activeText : colors.textSecondary }]} numberOfLines={1}>
               {seg.label}
             </Text>
           </Pressable>
@@ -67,12 +76,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
+    gap: 7,
+    paddingVertical: 11,
     borderRadius: BorderRadius.base,
   },
   segmentActive: {
     ...Shadows.sm,
+  },
+  segmentSolid: {
+    ...Shadows.primary,
   },
   label: {
     fontFamily: FontFamily.semibold,

@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { ErrorBanner, GlassCard, ArrowBackIcon, MoonIcon, ThemeModeSelector, useFeedback } from '../components';
+import { ErrorBanner, GlassCard, MoonIcon, ThemeModeSelector, Icon, useFeedback } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -117,21 +117,18 @@ const SettingsScreen: React.FC = () => {
     : Gradients.primaryVertical.colors as unknown as [string, string];
 
   return (
-    <LinearGradient
-      colors={gradientColors}
-      start={Gradients.primaryVertical.start}
-      end={Gradients.primaryVertical.end}
-      style={styles.gradient}
-    >
+    <View style={[styles.gradient, { backgroundColor: colors.background }]}>
       <View style={styles.page}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10}>
-            <ArrowBackIcon size={24} color={isDark ? colors.text : Colors.textLight} />
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={[styles.headerBtn, styles.headerTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            hitSlop={10}
+          >
+            <Icon name="chevron-left" size={22} color={colors.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: isDark ? colors.text : Colors.textLight }]}>
-            {t('settings_support')}
-          </Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings_support')}</Text>
           <View style={styles.headerBtn} />
         </View>
 
@@ -269,7 +266,9 @@ const SettingsScreen: React.FC = () => {
                     onPress={() => void setLang(code)}
                     style={[
                       styles.chip,
-                      active ? styles.chipActive : { backgroundColor: isDark ? colors.surface : Colors.whiteAlpha90 },
+                      active
+                        ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                        : { backgroundColor: colors.surface, borderColor: colors.border },
                     ]}
                   >
                     <Text
@@ -306,13 +305,13 @@ const SettingsScreen: React.FC = () => {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>v1.0.0</Text>
+            <Text style={[styles.footerText, { color: colors.textMuted }]}>v1.0.0</Text>
             <Pressable onPress={() => {}}>
-              <Text style={[styles.footerText, styles.footerLink, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>
+              <Text style={[styles.footerText, styles.footerLink, { color: colors.textMuted }]}>
                 {t('terms_privacy_short')}
               </Text>
             </Pressable>
-            <Text style={[styles.footerStrong, { color: isDark ? colors.textMuted : Colors.whiteAlpha80 }]}>
+            <Text style={[styles.footerStrong, { color: colors.textMuted }]}>
               {t('powered_by')}
             </Text>
           </View>
@@ -321,7 +320,7 @@ const SettingsScreen: React.FC = () => {
 
       {/* Auth gate modal for guests trying to access restricted features */}
       <AuthGateModalComponent />
-    </LinearGradient>
+    </View>
   );
 };
 
@@ -387,18 +386,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerBtn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerTile: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    paddingRight: 44,
-    fontFamily: FontFamily.bold,
+    paddingRight: 40,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.xl,
-    color: Colors.textLight,
+    letterSpacing: -0.2,
   },
   content: {
     paddingHorizontal: Spacing.base,
@@ -445,8 +448,9 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   cardTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.lg,
+    letterSpacing: -0.2,
     color: Colors.textPrimary,
   },
   chipsWrap: {

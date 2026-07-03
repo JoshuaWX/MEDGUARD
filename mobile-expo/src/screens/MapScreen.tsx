@@ -219,8 +219,9 @@ const MapScreen: React.FC = () => {
 
       <View style={styles.modeRow}>
         <SegmentedControl
+          variant="solid"
           segments={[
-            { key: 'facilities', label: 'Facilities', icon: 'stethoscope' },
+            { key: 'facilities', label: 'Clinics & pharmacies', icon: 'stethoscope' },
             { key: 'risk', label: 'Disease risk', icon: 'activity' },
           ]}
           value={mapMode}
@@ -255,6 +256,21 @@ const MapScreen: React.FC = () => {
               }}
             />
           ))}
+        </View>
+      )}
+
+      {mapMode === 'risk' && (
+        <View style={styles.legendBar}>
+          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>Low</Text>
+          <View style={styles.legendSwatches}>
+            {RISK_LEVELS.map((lvl) => (
+              <View key={lvl} style={[styles.legendBarSwatch, { backgroundColor: riskColor(selectedDisease, lvl) }]} />
+            ))}
+          </View>
+          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>High</Text>
+          <View style={[styles.legendDivider, { backgroundColor: colors.border }]} />
+          <View style={[styles.legendDot, { backgroundColor: NO_DATA_FILL }]} />
+          <Text style={[styles.legendBarLabel, { color: colors.textMuted }]}>No forecast</Text>
         </View>
       )}
 
@@ -298,24 +314,6 @@ const MapScreen: React.FC = () => {
           />
         </View>
       )}
-
-      {mapMode === 'risk' && CAN_MOUNT_NATIVE_MAP ? (
-        <View style={[styles.legend, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.legendTitle, { color: colors.text }]}>
-            {RISK_DISEASES.find((d) => d.key === selectedDisease)?.label} risk
-          </Text>
-          {RISK_LEVELS.map((lvl) => (
-            <View key={lvl} style={styles.legendRow}>
-              <View style={[styles.legendSwatch, { backgroundColor: riskColor(selectedDisease, lvl) }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>{RISK_LEVEL_LABEL[lvl]}</Text>
-            </View>
-          ))}
-          <View style={styles.legendRow}>
-            <View style={[styles.legendSwatch, { backgroundColor: NO_DATA_FILL }]} />
-            <Text style={[styles.legendText, { color: colors.textMuted }]}>No forecast</Text>
-          </View>
-        </View>
-      ) : null}
 
       <View style={[styles.bottomSheet, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm + TAB_BAR_OVERLAY_GUARD }]}>
         {mapMode === 'risk' ? (
@@ -494,6 +492,18 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 3,
   },
+  legendBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.sm,
+  },
+  legendSwatches: { flexDirection: 'row', gap: 3 },
+  legendBarSwatch: { width: 16, height: 8, borderRadius: 2 },
+  legendBarLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.overline },
+  legendDivider: { width: StyleSheet.hairlineWidth, height: 14, marginHorizontal: 2 },
+  legendDot: { width: 10, height: 10, borderRadius: 3 },
   legendText: {
     fontFamily: FontFamily.regular,
     fontSize: FontSize.xs,

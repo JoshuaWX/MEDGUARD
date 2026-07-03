@@ -18,10 +18,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
+import { Icon } from '../components';
 import { useIntel } from '../hooks/useIntel';
 import { useTheme } from '../hooks/useTheme';
 import type { BrainSignal, BrainSignalType } from '../services/brain';
@@ -29,7 +29,7 @@ import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme
 
 const LEVEL_TINT: Record<string, string> = {
   Low: Colors.success,
-  Moderate: '#3B82F6',
+  Moderate: Colors.info,
   Elevated: Colors.warning,
 };
 
@@ -45,7 +45,7 @@ const SIGNAL_LABEL: Record<BrainSignalType, string> = {
 
 const SEVERITY_TINT: Record<string, string> = {
   low: Colors.success,
-  medium: '#3B82F6',
+  medium: Colors.info,
   high: Colors.warning,
 };
 
@@ -84,8 +84,8 @@ const BrainReportScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm, borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10} accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Pressable onPress={() => navigation.goBack()} style={[styles.headerBtn, styles.headerTile, { backgroundColor: colors.surfaceSunken, borderColor: colors.border }]} hitSlop={10} accessibilityLabel="Go back">
+          <Icon name="chevron-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>Health Signal Report</Text>
         <View style={styles.headerBtn} />
@@ -98,7 +98,7 @@ const BrainReportScreen: React.FC = () => {
         </View>
       ) : !brain ? (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={36} color={colors.textMuted} />
+          <Icon name="wifi-off" size={34} color={colors.textMuted} />
           <Text style={[styles.muted, { color: colors.textSecondary }]}>No health signal available for your area yet.</Text>
           <Pressable onPress={refresh} style={[styles.retryBtn, { borderColor: colors.border }]}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>
@@ -165,7 +165,7 @@ const BrainReportScreen: React.FC = () => {
               <>
                 {officialSignals.map((s, i) => (
                   <View key={`o${i}`} style={styles.officialItem}>
-                    <Ionicons name="shield-checkmark-outline" size={16} color={Colors.primary} />
+                    <Icon name="shield-check" size={16} color={colors.primary} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.body, { color: colors.text }]}>{s.summary || s.evidence}</Text>
                       {!!s.source && <Text style={[styles.sourceTag, { color: colors.textMuted }]}>{s.source}</Text>}
@@ -174,7 +174,7 @@ const BrainReportScreen: React.FC = () => {
                 ))}
                 {whoAlerts.map((a, i) => (
                   <Pressable key={`w${i}`} style={styles.officialItem} onPress={() => open(a.url)}>
-                    <Ionicons name="globe-outline" size={16} color={Colors.primary} />
+                    <Icon name="globe" size={16} color={colors.primary} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.body, { color: colors.text }]}>{a.title}</Text>
                       <Text style={[styles.sourceTag, { color: Colors.primary }]}>WHO Disease Outbreak News ›</Text>
@@ -190,7 +190,7 @@ const BrainReportScreen: React.FC = () => {
             <Section title="What you can do" colors={colors}>
               {brain.recommendedActions.map((a, i) => (
                 <View key={i} style={styles.actionRow}>
-                  <Ionicons name="bulb-outline" size={15} color={Colors.primary} />
+                  <Icon name="lightbulb" size={15} color={colors.primary} />
                   <Text style={[styles.body, { color: colors.text, flex: 1 }]}>{a}</Text>
                 </View>
               ))}
@@ -202,7 +202,7 @@ const BrainReportScreen: React.FC = () => {
             <Section title="Data sources" colors={colors}>
               {intel!.sources!.map((src, i) => (
                 <Pressable key={i} style={styles.sourceRow} onPress={() => open(src.url)} disabled={!src.url}>
-                  <Ionicons name="link-outline" size={14} color={colors.textMuted} />
+                  <Icon name="link" size={14} color={colors.textMuted} />
                   <Text style={[styles.body, { color: src.url ? Colors.primary : colors.textSecondary, flex: 1 }]}>
                     {src.name}{src.url ? ' ›' : ''}
                   </Text>
@@ -262,21 +262,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, flex: 1, textAlign: 'center' },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTile: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  headerTitle: { fontFamily: FontFamily.display, fontSize: FontSize.lg, letterSpacing: -0.2, flex: 1, textAlign: 'center', paddingRight: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.xl },
   muted: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, textAlign: 'center' },
   retryBtn: { borderWidth: 1, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, marginTop: Spacing.sm },
   retryText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
-  card: { borderRadius: BorderRadius.xl, borderWidth: 1, padding: Spacing.base, gap: Spacing.sm },
+  card: { borderRadius: BorderRadius.card, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.lg, gap: Spacing.sm },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroArea: { fontFamily: FontFamily.regular, fontSize: FontSize.sm },
-  heroLevel: { fontFamily: FontFamily.bold, fontSize: FontSize['2xl'] },
+  heroArea: { fontFamily: FontFamily.medium, fontSize: FontSize.xs, textTransform: 'uppercase', letterSpacing: 1 },
+  heroLevel: { fontFamily: FontFamily.displayBold, fontSize: FontSize['2xl'], letterSpacing: -0.4, marginTop: 2 },
   confBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   confText: { fontFamily: FontFamily.medium, fontSize: FontSize.xs },
   updated: { fontFamily: FontFamily.regular, fontSize: FontSize.xs },
   summary: { fontFamily: FontFamily.regular, fontSize: FontSize.base, lineHeight: 23 },
-  sectionTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.base, marginBottom: 2 },
+  sectionTitle: { fontFamily: FontFamily.display, fontSize: FontSize.base, letterSpacing: -0.2, marginBottom: 2 },
   body: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
   signalRow: { flexDirection: 'row', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.sm },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },

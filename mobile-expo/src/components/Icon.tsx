@@ -34,12 +34,15 @@ import {
   Flame,
   Flower2,
   Footprints,
+  Globe,
   Heart,
   HeartPulse,
   Home,
   Image as ImageIcon,
   Info,
   Leaf,
+  Lightbulb,
+  Link as LinkIcon,
   LogOut,
   MapPin,
   Map as MapIcon,
@@ -59,6 +62,7 @@ import {
   TrendingUp,
   User,
   Wind,
+  WifiOff,
   X,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -115,6 +119,10 @@ const ICONS = {
   sparkles: Sparkles,
   trending: TrendingUp,
   message: MessageCircle,
+  globe: Globe,
+  link: LinkIcon,
+  lightbulb: Lightbulb,
+  'wifi-off': WifiOff,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

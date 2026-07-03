@@ -138,9 +138,26 @@ const ChatbotScreen: React.FC = () => {
 
   const [guestRemaining, setGuestRemaining] = useState(GUEST_MAX_REQUESTS_PER_SESSION);
 
-  // Theme state - synced with global app theme
-  const { isDark: isDarkMode, toggleTheme } = useTheme();
-  const theme = isDarkMode ? DarkTheme : LightTheme;
+  // Theme state — derived from the global "Calm Clinical" tokens so the chat
+  // matches the rest of the app (keeps the same shape as the old local themes).
+  const { isDark: isDarkMode, colors, toggleTheme } = useTheme();
+  const theme = useMemo(
+    () => ({
+      bgPrimary: colors.background,
+      bgSecondary: colors.surfaceSunken,
+      bgTertiary: isDarkMode ? colors.surface : colors.surfaceSunken,
+      bgHover: colors.border,
+      textPrimary: colors.text,
+      textSecondary: colors.textSecondary,
+      textMuted: colors.textMuted,
+      borderColor: colors.border,
+      accent: colors.primary,
+      accentHover: colors.primaryDark,
+      userGradientFrom: '#0E8A9C',
+      userGradientTo: '#086876',
+    }),
+    [colors, isDarkMode]
+  );
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -833,7 +850,7 @@ const ChatbotScreen: React.FC = () => {
                       </View>
                     ) : (
                       <View key={m.id} style={styles.messageAssistant}>
-                        <View style={[styles.assistantBubble, { backgroundColor: theme.bgTertiary }]}>
+                        <View style={[styles.assistantBubble, { backgroundColor: theme.bgTertiary, borderColor: theme.borderColor }]}>
                           <Text style={[styles.assistantMessageText, { color: theme.textPrimary }]}>
                             {m.content}
                           </Text>
@@ -1126,9 +1143,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 16,
-    fontFamily: FontFamily.bold,
-    letterSpacing: 0.2,
+    fontSize: 17,
+    fontFamily: FontFamily.display,
+    letterSpacing: -0.2,
   },
   headerActions: {
     flexDirection: 'row',
@@ -1186,10 +1203,10 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 28,
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.displayBold,
     marginBottom: 12,
     textAlign: 'center',
-    letterSpacing: -0.2,
+    letterSpacing: -0.5,
   },
   welcomeSubtitle: {
     fontSize: 16,
