@@ -229,10 +229,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.base,
   },
   brand: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.displayBold,
     fontSize: FontSize['3xl'],
     color: Colors.textLight,
-    letterSpacing: 0,
+    letterSpacing: -0.4,
   },
   tagline: {
     marginTop: Spacing.xs,

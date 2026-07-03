@@ -21,14 +21,13 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { useCycle } from '../hooks/useCycle';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
-import { useFeedback } from '../components';
+import { useFeedback, Icon } from '../components';
 import { PHASE_LABEL, type FlowIntensity } from '../services/cycle';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
@@ -92,8 +91,8 @@ const CycleTrackerScreen: React.FC = () => {
 
   const header = (
     <View style={[styles.header, { paddingTop: insets.top + Spacing.sm, borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-      <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={10}>
-        <Ionicons name="arrow-back" size={22} color={colors.text} />
+      <Pressable onPress={() => navigation.goBack()} style={[styles.headerBtn, styles.headerTile, { backgroundColor: colors.surfaceSunken, borderColor: colors.border }]} hitSlop={10}>
+        <Icon name="chevron-left" size={22} color={colors.text} />
       </Pressable>
       <Text style={[styles.headerTitle, { color: colors.text }]}>Cycle Tracker</Text>
       <View style={styles.headerBtn} />
@@ -114,7 +113,7 @@ const CycleTrackerScreen: React.FC = () => {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {header}
         <View style={styles.center}>
-          <Ionicons name="flower-outline" size={40} color={colors.primary} />
+          <Icon name="flower" size={40} color={colors.primary} />
           <Text style={[styles.enableTitle, { color: colors.text }]}>Track your cycle</Text>
           <Text style={[styles.enableBody, { color: colors.textSecondary }]}>
             Log your periods to see your current phase, your next estimated period, and your fertile window.
@@ -146,7 +145,7 @@ const CycleTrackerScreen: React.FC = () => {
             <Stat label="Fertile window" value={`${fmt(prediction.fertileWindowStart)}–${fmt(prediction.fertileWindowEnd)}`} sub="estimated" colors={colors} />
           </View>
           <Pressable onPress={() => { setStartDate(new Date()); setLogOpen(true); }} style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: Spacing.sm }]}>
-            <Ionicons name="add" size={18} color={Colors.textLight} />
+            <Icon name="plus" size={18} color={Colors.textLight} />
             <Text style={styles.primaryBtnText}>Log a period</Text>
           </Pressable>
         </View>
@@ -177,7 +176,7 @@ const CycleTrackerScreen: React.FC = () => {
           ) : (
             logs.map((l) => (
               <View key={l.id} style={[styles.logRow, { borderColor: colors.border }]}>
-                <Ionicons name="ellipse" size={10} color={Colors.danger} />
+                <View style={styles.logDot} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.logDate, { color: colors.text }]}>{fmt(l.startDate)}{l.endDate ? `–${fmt(l.endDate)}` : ''}</Text>
                   <Text style={[styles.muted, { color: colors.textMuted }]}>
@@ -203,7 +202,7 @@ const CycleTrackerScreen: React.FC = () => {
 
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Start date</Text>
             <Pressable onPress={() => setShowPicker(true)} style={[styles.dateBtn, { borderColor: colors.border }]}>
-              <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+              <Icon name="calendar" size={16} color={colors.primary} />
               <Text style={[styles.dateText, { color: colors.text }]}>{startDate.toDateString()}</Text>
             </Pressable>
             {showPicker && (
@@ -272,9 +271,9 @@ const Stepper: React.FC<{ label: string; value: number; min: number; max: number
   <View style={styles.switchRow}>
     <Text style={[styles.muted, { color: colors.text }]}>{label}</Text>
     <View style={styles.stepper}>
-      <Pressable onPress={() => onChange(Math.max(min, value - 1))} style={[styles.stepBtn, { borderColor: colors.border }]}><Ionicons name="remove" size={16} color={colors.text} /></Pressable>
+      <Pressable onPress={() => onChange(Math.max(min, value - 1))} style={[styles.stepBtn, { borderColor: colors.border }]}><Icon name="minus" size={16} color={colors.text} /></Pressable>
       <Text style={[styles.stepVal, { color: colors.text }]}>{value} {suffix}</Text>
-      <Pressable onPress={() => onChange(Math.min(max, value + 1))} style={[styles.stepBtn, { borderColor: colors.border }]}><Ionicons name="add" size={16} color={colors.text} /></Pressable>
+      <Pressable onPress={() => onChange(Math.min(max, value + 1))} style={[styles.stepBtn, { borderColor: colors.border }]}><Icon name="plus" size={16} color={colors.text} /></Pressable>
     </View>
   </View>
 );
@@ -282,22 +281,24 @@ const Stepper: React.FC<{ label: string; value: number; min: number; max: number
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: Spacing.base, paddingBottom: Spacing.sm, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, flex: 1, textAlign: 'center' },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTile: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  headerTitle: { fontFamily: FontFamily.display, fontSize: FontSize.lg, letterSpacing: -0.2, flex: 1, textAlign: 'center', paddingRight: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md, padding: Spacing.xl },
-  enableTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.xl },
+  enableTitle: { fontFamily: FontFamily.displayBold, fontSize: FontSize.xl, letterSpacing: -0.3 },
   enableBody: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 21, textAlign: 'center' },
-  card: { borderRadius: BorderRadius.xl, borderWidth: 1, padding: Spacing.base, gap: Spacing.sm },
+  card: { borderRadius: BorderRadius.card, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.lg, gap: Spacing.sm },
   phaseRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phaseDot: { width: 12, height: 12, borderRadius: 6 },
-  phaseLabel: { fontFamily: FontFamily.bold, fontSize: FontSize.lg },
+  phaseLabel: { fontFamily: FontFamily.display, fontSize: FontSize.lg, letterSpacing: -0.2 },
   muted: { fontFamily: FontFamily.regular, fontSize: FontSize.sm },
   statGrid: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
   stat: { flex: 1 },
   statLabel: { fontFamily: FontFamily.medium, fontSize: FontSize.xs },
-  statValue: { fontFamily: FontFamily.bold, fontSize: FontSize.base, marginTop: 2 },
+  statValue: { fontFamily: FontFamily.displayBold, fontSize: FontSize.base, letterSpacing: -0.2, marginTop: 2 },
   statSub: { fontFamily: FontFamily.regular, fontSize: FontSize.xs },
-  sectionTitle: { fontFamily: FontFamily.bold, fontSize: FontSize.base, marginBottom: 2 },
+  sectionTitle: { fontFamily: FontFamily.display, fontSize: FontSize.base, letterSpacing: -0.2, marginBottom: 2 },
+  logDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.danger },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepBtn: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

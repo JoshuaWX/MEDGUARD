@@ -236,8 +236,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['3xl'],
   },
   welcomeTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.displayBold,
     fontSize: FontSize['2xl'],
+    letterSpacing: -0.3,
     color: Colors.textPrimary,
     textAlign: 'center',
     marginBottom: Spacing.sm,

@@ -337,16 +337,12 @@ const SignUpScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Hero Background */}
-      <ImageBackground
-        source={{ uri: HERO_IMAGE }}
-        style={styles.heroBg}
-        resizeMode="cover"
-      >
+      {/* Hero — branded gradient (no stock photo) */}
+      <View style={styles.heroBg}>
         <LinearGradient
-          colors={isDark 
-            ? ['rgba(15, 23, 42, 0.7)', 'rgba(15, 23, 42, 0.95)'] as unknown as [string, string]
-            : ['rgba(17, 180, 212, 0.75)', 'rgba(16, 185, 129, 0.85)'] as unknown as [string, string]
+          colors={isDark
+            ? ['#0E2A33', '#0A0F13'] as unknown as [string, string]
+            : ['#0B7C8C', '#086876'] as unknown as [string, string]
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
@@ -384,7 +380,7 @@ const SignUpScreen: React.FC = () => {
           <Text style={styles.heroTitle}>{t('create_profile_title')}</Text>
           <Text style={styles.heroSubtitle}>{t('create_profile_subtitle')}</Text>
         </Animated.View>
-      </ImageBackground>
+      </View>
 
       {/* Form Card */}
       {/* ANDROID FIX: Use behavior="height" on Android with proper offset */}
@@ -752,13 +748,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.whiteAlpha30,
   },
   heroTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.displayBold,
     fontSize: FontSize['2xl'],
+    letterSpacing: -0.3,
     color: Colors.textLight,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   heroSubtitle: {
     fontFamily: FontFamily.regular,

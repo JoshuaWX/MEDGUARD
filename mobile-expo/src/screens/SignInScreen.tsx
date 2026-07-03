@@ -166,12 +166,8 @@ const SignInScreen: React.FC = () => {
           style={styles.flex}
           keyboardVerticalOffset={Platform.OS === 'android' ? 20 : 0}
         >
-          {/* Hero Section */}
-          <ImageBackground
-            source={{ uri: HERO_BG_URI }}
-            style={styles.hero}
-            imageStyle={styles.heroImage}
-          >
+          {/* Hero Section — branded gradient (no stock photo) */}
+          <View style={styles.hero}>
             <LinearGradient
               colors={Gradients.signinHero.colors as unknown as [string, string]}
               start={Gradients.signinHero.start}
@@ -198,7 +194,7 @@ const SignInScreen: React.FC = () => {
                 <Text style={styles.heroSubtitle}>{t('signin_subtitle')}</Text>
               </View>
             </View>
-          </ImageBackground>
+          </View>
 
         {/* Form Section */}
         <ScrollView
@@ -378,8 +374,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.base,
   },
   heroTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.displayBold,
     fontSize: FontSize['2xl'],
+    letterSpacing: -0.3,
     color: Colors.textLight,
   },
   heroSubtitle: {

@@ -9,9 +9,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Dimensions,
   ImageBackground,
+  ImageSourcePropType,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -28,7 +28,7 @@ import { ShieldIcon } from '../components';
 import { useAuth } from '../hooks/useAuth';
 import { LangCode, useI18n } from '../i18n';
 import { RootStackParamList } from '../navigation/types';
-import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
+import { BorderRadius, Colors, FontFamily, FontSize, LetterSpacing, Spacing } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,46 +38,45 @@ type WelcomeSlide = {
   id: string;
   title: string;
   subtitle: string;
-  image: string;
+  image: ImageSourcePropType;
   accent: string;
 };
 
-const IMAGE_WIDTH = Platform.OS === 'android' ? 900 : 1100;
-
+// Bundled locally (assets/onboarding) so slides load instantly — no network wait.
 const WELCOME_SLIDES: WelcomeSlide[] = [
   {
     id: 'aware',
     title: 'Stay aware of health risks near you',
     subtitle: 'MedGuard brings local health signals into one clear, calm daily view.',
-    image: `https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=${IMAGE_WIDTH}&q=82`,
+    image: require('../../assets/onboarding/aware.jpg'),
     accent: Colors.primary,
   },
   {
     id: 'alerts',
     title: 'Get early alerts for your location',
     subtitle: 'See weather, air quality, season, and outbreak-aware guidance before risks spread.',
-    image: `https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=${IMAGE_WIDTH}&q=82`,
+    image: require('../../assets/onboarding/alerts.jpg'),
     accent: Colors.emerald,
   },
   {
     id: 'checkins',
     title: 'Track how you are feeling each day',
     subtitle: 'Simple check-ins help you notice patterns and support community health awareness.',
-    image: `https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=${IMAGE_WIDTH}&q=82`,
+    image: require('../../assets/onboarding/checkins.jpg'),
     accent: Colors.cyan,
   },
   {
     id: 'facilities',
     title: 'Find nearby clinics and pharmacies',
     subtitle: 'Use your location to quickly discover care options around you when it matters.',
-    image: `https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=${IMAGE_WIDTH}&q=82`,
+    image: require('../../assets/onboarding/facilities.jpg'),
     accent: Colors.info,
   },
   {
     id: 'ai',
     title: 'Ask MedGuard AI for safe guidance',
     subtitle: 'Get practical health information with reminders to seek professional care when needed.',
-    image: `https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=${IMAGE_WIDTH}&q=82`,
+    image: require('../../assets/onboarding/ai.jpg'),
     accent: Colors.primaryDark,
   },
 ];
@@ -95,7 +94,6 @@ const WelcomeScreen: React.FC = () => {
   const scrollRef = useRef<ScrollView | null>(null);
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const { continueAsGuest } = useAuth();
   const { lang, setLang, t } = useI18n();
 
@@ -159,39 +157,28 @@ const WelcomeScreen: React.FC = () => {
         onMomentumScrollEnd={handleMomentumEnd}
         style={styles.carousel}
       >
-        {WELCOME_SLIDES.map((slide) => {
-          const imageFailed = failedImages[slide.id];
-          return (
-            <View key={slide.id} style={styles.slide}>
-              {!imageFailed ? (
-                <ImageBackground
-                  source={{ uri: slide.image }}
-                  style={StyleSheet.absoluteFill}
-                  imageStyle={styles.image}
-                  onError={() => setFailedImages((prev) => ({ ...prev, [slide.id]: true }))}
-                  accessibilityLabel={`${slide.title} background image`}
-                />
-              ) : null}
+        {WELCOME_SLIDES.map((slide) => (
+          <View key={slide.id} style={styles.slide}>
+            <ImageBackground source={slide.image} style={StyleSheet.absoluteFill} imageStyle={styles.image} />
 
-              <LinearGradient
-                colors={[
-                  'rgba(15,20,25,0.08)',
-                  'rgba(15,20,25,0.16)',
-                  'rgba(15,20,25,0.68)',
-                  Colors.backgroundDark,
-                ]}
-                locations={[0, 0.38, 0.68, 1]}
-                style={StyleSheet.absoluteFill}
-              />
+            <LinearGradient
+              colors={[
+                'rgba(15,20,25,0.08)',
+                'rgba(15,20,25,0.16)',
+                'rgba(15,20,25,0.68)',
+                Colors.backgroundDark,
+              ]}
+              locations={[0, 0.38, 0.68, 1]}
+              style={StyleSheet.absoluteFill}
+            />
 
-              <View style={[styles.slideCopy, { paddingBottom: insets.bottom + 184 }]}>
-                <View style={[styles.accentLine, { backgroundColor: slide.accent }]} />
-                <Text style={styles.title}>{slide.title}</Text>
-                <Text style={styles.subtitle}>{slide.subtitle}</Text>
-              </View>
+            <View style={[styles.slideCopy, { paddingBottom: insets.bottom + 184 }]}>
+              <View style={[styles.accentLine, { backgroundColor: slide.accent }]} />
+              <Text style={styles.title}>{slide.title}</Text>
+              <Text style={styles.subtitle}>{slide.subtitle}</Text>
             </View>
-          );
-        })}
+          </View>
+        ))}
       </ScrollView>
 
       <View style={[styles.header, { paddingTop: insets.top + Spacing.base }]}>
@@ -314,10 +301,10 @@ const styles = StyleSheet.create({
     marginLeft: 3,
   },
   brandText: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.base,
     color: Colors.textLight,
-    letterSpacing: 0,
+    letterSpacing: -0.2,
   },
   languagePill: {
     minWidth: 44,
@@ -348,11 +335,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.base,
   },
   title: {
-    fontFamily: FontFamily.bold,
-    fontSize: 34,
-    lineHeight: 40,
+    fontFamily: FontFamily.displayBold,
+    fontSize: 33,
+    lineHeight: 39,
     color: Colors.textLight,
-    letterSpacing: 0,
+    letterSpacing: LetterSpacing.tight,
     textShadowColor: 'rgba(0,0,0,0.28)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 12,
