@@ -44,8 +44,8 @@ import {
   BrainCard,
   BellIcon,
   InfoCircleIcon,
-  ArrowBackIcon,
   WarningIcon,
+  Icon,
   DiseaseRisk,
 } from '../components';
 import { useAlerts } from '../hooks/useAlerts';
@@ -160,44 +160,24 @@ const AlertsScreen: React.FC = () => {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
           }
         >
-          {/* Hero Header (matches alerts.html) */}
-          <Animated.View entering={FadeIn.duration(500)}>
-            <ImageBackground
-              source={{ uri: 'https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?auto=format&fit=crop&w=800&q=80' }}
-              style={styles.hero}
-              imageStyle={styles.heroImage}
-            >
-              <LinearGradient
-                colors={Gradients.alertsHero.colors as unknown as [string, string]}
-                start={Gradients.alertsHero.start}
-                end={Gradients.alertsHero.end}
-                style={StyleSheet.absoluteFill}
-              />
-              <LinearGradient
-                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-
-              <View style={styles.heroHeader}>
-                <View style={styles.heroTopRow}>
-                  <Pressable onPress={() => navigation.goBack()} style={styles.heroBackBtn} hitSlop={10}>
-                    <ArrowBackIcon size={22} color={Colors.textLight} />
-                  </Pressable>
-                  <Text style={styles.heroTitle}>{t('alerts_notifications')}</Text>
-                  <View style={styles.heroRightSpacer} />
-                </View>
-
-                <View style={styles.heroBadgeRow}>
-                  <Animated.View style={[styles.activeBadge, badgePulseStyle]}>
-                    <View style={styles.activeDot} />
-                    <Text style={styles.activeBadgeText}>{activeAlertCount} {t('active_alerts')}</Text>
-                  </Animated.View>
-                </View>
-              </View>
-            </ImageBackground>
-          </Animated.View>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} hitSlop={10}>
+                <Icon name="chevron-left" size={22} color={colors.text} />
+              </Pressable>
+              {activeAlertCount > 0 && (
+                <Animated.View style={[styles.activeBadge, { backgroundColor: isDark ? 'rgba(220,59,59,0.16)' : Colors.dangerLight }, badgePulseStyle]}>
+                  <View style={styles.activeDot} />
+                  <Text style={[styles.activeBadgeText, { color: Colors.danger }]}>{activeAlertCount} {t('active_alerts')}</Text>
+                </Animated.View>
+              )}
+            </View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{t('alerts_notifications')}</Text>
+            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+              Verified signals and risks for your area
+            </Text>
+          </View>
 
           {/* Community Alerts */}
           <View style={styles.contentWrap}>
@@ -212,7 +192,7 @@ const AlertsScreen: React.FC = () => {
             {riskAssessment && visibleRiskAdvisories.length > 0 && (
               <>
                 <View style={styles.sectionHeaderRow}>
-                  <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                  <Icon name="shield-check" size={18} color={colors.primary} />
                   <Text style={[styles.sectionHeading, { color: colors.text }]}>
                     {t('disease_risks') || 'Disease Risk Assessment'}
                   </Text>
@@ -305,7 +285,7 @@ const AlertsScreen: React.FC = () => {
             {airQuality && airQuality.insight && (
               <>
                 <View style={[styles.sectionHeaderRow, { marginTop: Spacing.xl }]}>
-                  <Ionicons name="cloud-outline" size={18} color={colors.primary} />
+                  <Icon name="cloud" size={18} color={colors.primary} />
                   <Text style={[styles.sectionHeading, { color: colors.text }]}>
                     {t('air_quality') || 'Air Quality'}
                   </Text>
@@ -376,7 +356,7 @@ const AlertsScreen: React.FC = () => {
             <GlassCard style={styles.reminderCard}>
               <View style={styles.notifRow}>
                 <View style={styles.notifLeft}>
-                  <Ionicons name="alarm-outline" size={20} color={colors.primary} />
+                  <Icon name="clock" size={20} color={colors.primary} />
                   <View style={styles.notifTextWrap}>
                     <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily check-in reminder</Text>
                     <Text style={[styles.reminderText, { color: colors.textSecondary }]}>A gentle nudge to check in on how you feel.</Text>
@@ -392,7 +372,7 @@ const AlertsScreen: React.FC = () => {
               </View>
               <View style={[styles.notifRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
                 <View style={styles.notifLeft}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+                  <Icon name="shield-check" size={20} color={colors.primary} />
                   <View style={styles.notifTextWrap}>
                     <Text style={[styles.reminderTitle, { color: colors.text }]}>Official health alerts</Text>
                     <Text style={[styles.reminderText, { color: colors.textSecondary }]}>Get notified when NCDC/WHO report an outbreak in your area.</Text>
@@ -428,7 +408,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.base,
+    paddingHorizontal: Spacing.lg,
+  },
+  header: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    gap: Spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 40,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: {
+    fontFamily: FontFamily.displayBold,
+    fontSize: FontSize['3xl'],
+    letterSpacing: -0.4,
+  },
+  headerSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    marginTop: -6,
   },
   hero: {
     borderBottomLeftRadius: 34,
@@ -474,29 +483,24 @@ const styles = StyleSheet.create({
   activeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: Colors.whiteAlpha30,
+    gap: 7,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.pill,
   },
   activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#fb7185',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: Colors.danger,
   },
   activeBadgeText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.textLight,
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.xs,
   },
   contentWrap: {
-    paddingTop: Spacing['2xl'],
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.base,
-    marginTop: -Spacing.base,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -506,8 +510,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   sectionHeading: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.lg,
+    letterSpacing: -0.2,
     color: Colors.textPrimary,
     flex: 1,
   },

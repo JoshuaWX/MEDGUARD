@@ -5,6 +5,8 @@
 export { default as GlassCard } from './GlassCard';
 export { default as Card, type CardVariant } from './Card';
 export { default as ScreenHeader } from './ScreenHeader';
+export { default as Chip } from './Chip';
+export { default as SegmentedControl, type Segment } from './SegmentedControl';
 export { default as Button } from './Button';
 export { default as Input } from './Input';
 export { default as FloatingShape } from './FloatingShape';

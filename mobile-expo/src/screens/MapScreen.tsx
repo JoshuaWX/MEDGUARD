@@ -15,10 +15,9 @@ import {
 import Constants from 'expo-constants';
 import MapCanvas, { Marker, type MapCanvasHandle, type Region } from '../components/MapCanvas';
 import RiskChoropleth from '../components/RiskChoropleth';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ErrorBanner, FeatureBlockedScreen } from '../components';
+import { ErrorBanner, FeatureBlockedScreen, Icon, Chip, SegmentedControl } from '../components';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
@@ -210,98 +209,52 @@ const MapScreen: React.FC = () => {
         </View>
         <Pressable
           onPress={handleRecenter}
-          style={[styles.headerAction, { backgroundColor: colors.background }]}
+          style={[styles.headerAction, { backgroundColor: colors.surfaceSunken, borderColor: colors.border }]}
           accessibilityRole="button"
           accessibilityLabel="Recenter map"
         >
-          <Ionicons name="locate" size={20} color={colors.primary} />
+          <Icon name="navigation" size={20} color={colors.primary} />
         </Pressable>
       </View>
 
       <View style={styles.modeRow}>
-        {(['facilities', 'risk'] as MapMode[]).map((m) => {
-          const active = m === mapMode;
-          return (
-            <Pressable
-              key={m}
-              onPress={() => setMapMode(m)}
-              style={[styles.modeChip, { backgroundColor: active ? Colors.primary : colors.surface, borderColor: active ? Colors.primary : colors.border }]}
-            >
-              <Ionicons
-                name={m === 'facilities' ? 'medkit-outline' : 'thermometer-outline'}
-                size={14}
-                color={active ? Colors.textLight : colors.textSecondary}
-              />
-              <Text style={[styles.modeChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
-                {m === 'facilities' ? 'Facilities' : 'Disease risk'}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <SegmentedControl
+          segments={[
+            { key: 'facilities', label: 'Facilities', icon: 'stethoscope' },
+            { key: 'risk', label: 'Disease risk', icon: 'activity' },
+          ]}
+          value={mapMode}
+          onChange={(k) => setMapMode(k as MapMode)}
+        />
       </View>
 
       {mapMode === 'facilities' ? (
         <View style={styles.filterRow}>
-          {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => {
-            const active = f === facilityFilter;
-            return (
-              <Pressable
-                key={f}
-                onPress={() => setFacilityFilter(f)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: active ? Colors.primary : colors.surface,
-                    borderColor: active ? Colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.filterChipText, { color: active ? Colors.textLight : colors.textSecondary }]}>
-                  {f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
-                </Text>
-              </Pressable>
-            );
-          })}
-
-          <Pressable
-            onPress={handleSearchThisArea}
-            style={[styles.searchAreaBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <Ionicons name="search" size={16} color={colors.textSecondary} />
-            <Text style={[styles.searchAreaText, { color: colors.textSecondary }]}>Search this area</Text>
-          </Pressable>
+          {(['all', 'clinic', 'pharmacy'] as FacilityFilter[]).map((f) => (
+            <Chip
+              key={f}
+              label={f === 'all' ? 'All' : f === 'clinic' ? 'Clinics' : 'Pharmacies'}
+              active={f === facilityFilter}
+              onPress={() => setFacilityFilter(f)}
+            />
+          ))}
+          <Chip label="Search this area" icon="search" onPress={handleSearchThisArea} style={styles.searchChip} />
         </View>
       ) : (
         <View style={styles.filterRow}>
-          {RISK_DISEASES.map(({ key, label }) => {
-            const active = key === selectedDisease;
-            const hasData = diseasesWithData.has(key);
-            return (
-              <Pressable
-                key={key}
-                onPress={() => {
-                  setSelectedDisease(key);
-                  setSelectedState(null);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: active ? riskColor(key, 'elevated') : colors.surface,
-                    borderColor: active ? riskColor(key, 'elevated') : colors.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    { color: active ? Colors.textLight : hasData ? colors.textSecondary : colors.textMuted },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {RISK_DISEASES.map(({ key, label }) => (
+            <Chip
+              key={key}
+              label={label}
+              active={key === selectedDisease}
+              muted={!diseasesWithData.has(key)}
+              color={riskColor(key, 'elevated')}
+              onPress={() => {
+                setSelectedDisease(key);
+                setSelectedState(null);
+              }}
+            />
+          ))}
         </View>
       )}
 
@@ -450,7 +403,7 @@ const MapScreen: React.FC = () => {
                       {facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(facility.distanceMeters)}m
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                  <Icon name="chevron-right" size={16} color={colors.textMuted} />
                 </Pressable>
               ))}
             </View>
@@ -477,8 +430,9 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   headerTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.lg,
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
     fontFamily: FontFamily.regular,
@@ -492,7 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.sm,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   modeRow: {
     flexDirection: 'row',
@@ -553,6 +507,7 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
@@ -601,10 +556,12 @@ const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   sheetTitle: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.base,
+    letterSpacing: -0.2,
     marginBottom: Spacing.sm,
   },
+  searchChip: { marginLeft: 'auto' },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
