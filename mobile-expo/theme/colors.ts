@@ -93,67 +93,69 @@ export const LightColors = {
   inputBackground: '#F3F6F7',
 } as const;
 
-// Dark theme — deep ink with a cool teal undertone. Tuned like a premium dark
-// UI (Linear/Oura): a near-black base, a clear 3-step elevation ladder, borders
-// that carry the structure (dark mode leans on borders, not shadows), softened
-// off-white text, a brighter primary, and semantics/tints re-tuned for dark
-// (the light pastel *Light tints from BaseColors are overridden to alpha here).
+// Dark theme — flat, matte "island" scheme (JetBrains New UI feel). TRUE NEUTRAL
+// grays (no teal tint, no gloss/glow): cards are slightly lighter gray islands
+// floating on a darker canvas, separated by tone + a subtle border rather than
+// shadow. Teal is an ACCENT only. Semantics are re-tuned to read on neutral gray
+// (the light *Light pastels from BaseColors are overridden to low-alpha tints).
 export const DarkColors = {
   ...BaseColors,
-  primary: '#2CC3D4',
-  primaryLight: 'rgba(44, 195, 212, 0.16)',
-  primaryDark: '#0B7C8C',
+  // Accent teal, slightly matte (less neon than a glossy scheme).
+  primary: '#3BACBB',
+  primaryLight: 'rgba(59, 172, 187, 0.16)',
+  primaryDark: '#2C818E',
 
-  // Elevation ladder — each step reads as one surface higher.
-  background: '#090D11',
-  surface: '#131C22',
-  surfaceElevated: '#1B262E',
-  surfaceSunken: '#0D141A',
+  // Neutral-gray "island" ramp — canvas darkest, card one step lighter.
+  background: '#1A1B1E',       // canvas behind the islands
+  surface: '#26282C',          // card / island
+  surfaceElevated: '#2F3236',  // menus / popovers, one step up
+  surfaceSunken: '#202124',    // wells / inputs, one step down
 
-  gradientFrom: '#090D11',
-  gradientVia: '#0C141A',
-  gradientTo: '#111C23',
+  // Kept for API compatibility; near-flat neutral (no colored gradient).
+  gradientFrom: '#1A1B1E',
+  gradientVia: '#202124',
+  gradientTo: '#26282C',
 
-  // Softened off-white so long text isn't harsh on the deep base.
-  text: '#EAF1F3',
-  textSecondary: '#9FAEB7',
-  textMuted: '#64757F',
-  textInverse: '#06121A',
+  text: '#DFE1E5',
+  textSecondary: '#9DA2AB',
+  textMuted: '#6B6F76',
+  textInverse: '#1A1B1E',
 
-  // Borders do the structural work in dark; a touch more visible + a clear
-  // "strong" step for emphasis/dividers on elevated surfaces.
-  border: '#26333D',
-  borderLight: '#2F3E48',
-  borderStrong: '#3B4C57',
-  outline: '#2F3E48',
-  divider: '#222F38',
+  // Subtle neutral borders carry the island separation.
+  border: '#34363B',
+  borderLight: '#3C3F44',
+  borderStrong: '#4A4D53',
+  outline: '#3C3F44',
+  divider: '#2E3034',
 
-  primaryTint: 'rgba(44, 195, 212, 0.15)',
+  primaryTint: 'rgba(59, 172, 187, 0.14)',
 
-  // Semantics — brightened so they read as color (not mud) on dark surfaces.
-  success: '#2FC091',
-  successLight: 'rgba(47, 192, 145, 0.16)',
-  warning: '#E7A33A',
-  warningLight: 'rgba(231, 163, 58, 0.16)',
-  danger: '#F16A63',
-  dangerLight: 'rgba(241, 106, 99, 0.16)',
-  info: '#5E93F0',
-  infoLight: 'rgba(94, 147, 240, 0.16)',
-  emerald: '#2FC091',
-  emeraldLight: 'rgba(47, 192, 145, 0.16)',
-  alertUrgent: '#F16A63',
-  alertCaution: '#E7A33A',
-  alertInfo: '#2FC091',
+  // Semantics — clear on neutral gray, slightly matte (not neon).
+  success: '#54B394',
+  successLight: 'rgba(84, 179, 148, 0.15)',
+  warning: '#DDA53F',
+  warningLight: 'rgba(221, 165, 63, 0.15)',
+  danger: '#E56A62',
+  dangerLight: 'rgba(229, 106, 98, 0.15)',
+  info: '#6C9CEA',
+  infoLight: 'rgba(108, 156, 234, 0.15)',
+  emerald: '#54B394',
+  emeraldLight: 'rgba(84, 179, 148, 0.15)',
+  alertUrgent: '#E56A62',
+  alertCaution: '#DDA53F',
+  alertInfo: '#54B394',
 
-  glass: 'rgba(19, 28, 34, 0.94)',
-  glassOverlay: 'rgba(44, 195, 212, 0.10)',
+  // Flat surfaces (no translucent glass, no colored overlay glow).
+  glass: '#26282C',
+  glassOverlay: 'rgba(255, 255, 255, 0.03)',
 
-  shadow: 'rgba(0, 0, 0, 0.55)',
-  shadowPrimary: 'rgba(44, 195, 212, 0.24)',
+  // Neutral, restrained shadows — depth in dark comes from tone + border.
+  shadow: 'rgba(0, 0, 0, 0.40)',
+  shadowPrimary: 'rgba(0, 0, 0, 0.40)',
 
-  overlay: 'rgba(4, 8, 11, 0.72)',
-  cardBackground: '#131C22',
-  inputBackground: '#0D141A',
+  overlay: 'rgba(0, 0, 0, 0.66)',
+  cardBackground: '#26282C',
+  inputBackground: '#202124',
 } as const;
 
 // Legacy static export (light values). Prefer useTheme().colors in components.
