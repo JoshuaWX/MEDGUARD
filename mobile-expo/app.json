@@ -64,6 +64,14 @@
           "color": "#11b4d4",
           "defaultChannel": "health-reminders"
         }
+      ],
+      [
+        "@sentry/react-native",
+        {
+          "organization": "joshuawx",
+          "project": "medguard",
+          "url": "https://de.sentry.io/"
+        }
       ]
     ],
     "extra": {

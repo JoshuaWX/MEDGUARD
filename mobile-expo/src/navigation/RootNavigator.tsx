@@ -9,6 +9,7 @@ import * as Linking from 'expo-linking';
 
 import { RootStackParamList } from './types';
 import { navigationRef, useNotificationRouting } from '../services/notificationRouting';
+import { navigationIntegration, setSentryUser } from '../services/sentry';
 import TabNavigator from './TabNavigator';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import SignInScreen from '../screens/SignInScreen';
@@ -29,6 +30,11 @@ function RootNavigator() {
 
   // Route notification taps to the right screen once the user is signed in.
   useNotificationRouting(Boolean(user?.id));
+
+  // Tag Sentry events with the (non-PII) user id so issues can be grouped by user.
+  React.useEffect(() => {
+    setSentryUser(user?.id);
+  }, [user?.id]);
 
   const lastRoutedRef = React.useRef<string>('');
   const hasShownWelcomeThisRunRef = React.useRef(false);
@@ -109,6 +115,8 @@ function RootNavigator() {
       linking={linking}
       onReady={() => {
         navReadyRef.current = true;
+        // Give Sentry the container so it records screen-transition breadcrumbs.
+        navigationIntegration.registerNavigationContainer(navigationRef);
       }}
     >
       <Stack.Navigator
