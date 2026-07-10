@@ -303,20 +303,6 @@ const SettingsScreen: React.FC = () => {
             </View>
           </GlassCard>
 
-          {/* DEV-ONLY: verify Sentry receives errors. Remove once confirmed. */}
-          {__DEV__ && (
-            <Pressable
-              onPress={() => {
-                throw new Error('MedGuard Sentry test error — ' + new Date().toISOString());
-              }}
-              style={[styles.sentryTestBtn, { borderColor: colors.border }]}
-              accessibilityRole="button"
-            >
-              <Icon name="alert-triangle" size={16} color={colors.danger} />
-              <Text style={[styles.sentryTestText, { color: colors.danger }]}>Send test error to Sentry</Text>
-            </Pressable>
-          )}
-
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: colors.textMuted }]}>v1.0.0</Text>
@@ -513,22 +499,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: FontSize.base,
     color: Colors.textLight,
-  },
-  sentryTestBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    alignSelf: 'center',
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.pill,
-    borderWidth: 1,
-  },
-  sentryTestText: {
-    fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
   },
   footer: {
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useFonts } from 'expo-font';
 import * as ExpoSplashScreen from 'expo-splash-screen';
@@ -14,7 +14,6 @@ import { AuthProvider } from './src/hooks/useAuth';
 import { LocationProvider } from './src/hooks/LocationContext';
 import { ThemeProvider } from './src/hooks/useTheme';
 import { I18nProvider } from './src/i18n';
-import SplashScreen from './src/screens/SplashScreen';
 import { configureNotifications } from './src/services/notifications';
 import { initSentry } from './src/services/sentry';
 import VersionGate from './src/components/VersionGate';
@@ -31,8 +30,7 @@ configureNotifications();
 
 function App() {
   const [appReady, setAppReady] = useState(false);
-  const [splashComplete, setSplashComplete] = useState(false);
-  
+
   const [fontsLoaded] = useFonts({
     'Inter-Regular': require('./assets/fonts/Inter_24pt-Regular.ttf'),
     'Inter-Medium': require('./assets/fonts/Inter_24pt-Medium.ttf'),
@@ -45,23 +43,16 @@ function App() {
 
   useEffect(() => {
     if (fontsLoaded) {
-      // Hide native splash screen, show our custom animated one
+      // Fonts ready → hide the native splash (the logo) and go straight to the
+      // app. No custom animated splash: the native logo splash IS the intro,
+      // and the version check happens invisibly inside VersionGate.
       ExpoSplashScreen.hideAsync();
       setAppReady(true);
     }
   }, [fontsLoaded]);
 
-  const handleSplashComplete = useCallback(() => {
-    setSplashComplete(true);
-  }, []);
-
-  // Still loading fonts - native splash is showing
+  // Still loading fonts — the native splash (logo) is showing.
   if (!appReady) return null;
-
-  // Show our custom animated splash screen
-  if (!splashComplete) {
-    return <SplashScreen onAnimationComplete={handleSplashComplete} />;
-  }
 
   // Main app
   // ANDROID FIX: GestureHandlerRootView must wrap the entire app for gesture handler to work

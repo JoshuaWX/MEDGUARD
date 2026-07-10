@@ -33,12 +33,13 @@ export const navigationIntegration = Sentry.reactNavigationIntegration({
 export function initSentry(): void {
   Sentry.init({
     dsn: SENTRY_DSN,
-    // NOTE: currently reports in development too so it can be verified on-device.
-    // Once confirmed working, flip to `!__DEV__` to report only from real builds.
-    enabled: true,
+    // Report only from real (release/preview) builds — not the local dev machine.
+    enabled: !__DEV__,
     environment: __DEV__ ? 'development' : 'production',
     // Performance sampling (screen loads, network). Keep modest to control volume.
     tracesSampleRate: 0.2,
+    // Native (Java/Kotlin/ObjC) crash capture, on by default — kept explicit.
+    enableNativeCrashHandling: true,
     // Do not collect IP/PII automatically.
     sendDefaultPii: false,
     integrations: [navigationIntegration],

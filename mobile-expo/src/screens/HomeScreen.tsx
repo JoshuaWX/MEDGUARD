@@ -36,6 +36,7 @@ import {
   BrainCard,
   DiseaseOutlookCard,
   PermissionsPrimerModal,
+  ScreenLoader,
 } from '../components';
 import type { IconName } from '../components';
 import { EnvironmentModal } from '../components/EnvironmentModal';
@@ -75,7 +76,7 @@ const getRiskMeta = (level: string): { tint: string; title: string; icon: IconNa
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
   const { rows: riskRows, loading: riskLoading } = useRiskMap();
   const { geocoded, refreshLocation, requestPermission, permissionStatus } = useLocationContext();
@@ -131,11 +132,21 @@ const HomeScreen: React.FC = () => {
   const riskMeta = getRiskMeta(overallRisk);
   const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive) || [];
   const topRecommendation = activeRisks[0]?.actions?.[0];
-  const firstName = user?.name?.split(' ')[0] || 'there';
+  const firstName = user?.name?.split(' ')[0] || 'Friend';
   const riskIndex = overallRisk === 'high' ? 2 : overallRisk === 'medium' ? 1 : 0;
   const riskLevelLabels = ['Low', 'Moderate', 'Elevated'];
 
   const bottomPadding = Math.max(insets.bottom, 12) + 100;
+
+  // Wait for the signed-in user's profile before rendering the header, so we
+  // never flash a placeholder greeting (matches MyHealth/Profile behaviour).
+  if (userLoading && !user) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScreenLoader label="Loading your dashboard…" />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

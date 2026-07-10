@@ -75,7 +75,6 @@ import {
 import { toUserMessage } from '../services/errorMessages';
 import { notifyStreakMilestone } from '../services/notifications';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
-import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
@@ -131,13 +130,13 @@ function formatDistance(distanceMeters: number): string {
 // Rotating pool of general wellness tips. All are always-true guidance (no
 // fabricated "personalized" claim); one is shown per day so the card is not
 // permanently static. Keys resolve via i18n (English fallback for other langs).
-const HEALTH_TIPS = [
-  { key: 'stay_hydrated', icon: 'water-outline', tint: '#0ea5e9' },
-  { key: 'hand_hygiene', icon: 'hand-left-outline', tint: '#10b981' },
-  { key: 'mosquito', icon: 'bug-outline', tint: '#8b5cf6' },
-  { key: 'rest', icon: 'moon-outline', tint: '#6366f1' },
-  { key: 'food_safety', icon: 'restaurant-outline', tint: '#f59e0b' },
-] as const;
+const HEALTH_TIPS: Array<{ key: string; icon: IconName; tint: string }> = [
+  { key: 'stay_hydrated', icon: 'droplet', tint: '#3AA5E0' },
+  { key: 'hand_hygiene', icon: 'hand', tint: '#2FB187' },
+  { key: 'mosquito', icon: 'bug', tint: '#8B7BE8' },
+  { key: 'rest', icon: 'moon', tint: '#6C74E0' },
+  { key: 'food_safety', icon: 'utensils', tint: '#D89235' },
+];
 
 const MyHealthScreen: React.FC = () => {
   const { t } = useI18n();
@@ -523,7 +522,7 @@ const MyHealthScreenContent: React.FC = () => {
               {hasCheckedIn && todayCheckin ? (
                 // Show today's result
                 <View style={styles.checkinResult}>
-                  <RiskLevelCard level={todayCheckin.riskLevel} />
+                  <RiskLevelCard level={todayCheckin.riskLevel} showCheckedInHeader />
                 </View>
               ) : showCheckinForm ? (
                 // Show check-in form
@@ -619,8 +618,8 @@ const MyHealthScreenContent: React.FC = () => {
               ) : (
                 // Inviting start state
                 <View style={styles.checkinStart}>
-                  <View style={[styles.checkinStartIcon, { backgroundColor: Colors.primaryLight }]}>
-                    <Ionicons name="clipboard-outline" size={26} color={Colors.primary} />
+                  <View style={[styles.checkinStartIcon, { backgroundColor: colors.primaryTint }]}>
+                    <Icon name="clipboard" size={26} color={colors.primary} />
                   </View>
                   <Text style={[styles.checkinStartTitle, { color: colors.text }]}>How are you feeling today?</Text>
                   <Text style={[styles.checkinStartSub, { color: colors.textSecondary }]}>
@@ -667,7 +666,7 @@ const MyHealthScreenContent: React.FC = () => {
             <View style={styles.metricsRow}>
               <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.metricHeader}>
-                  <Ionicons name="walk-outline" size={18} color={Colors.primary} />
+                  <Icon name="footprints" size={18} color={colors.primary} />
                   <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Steps today</Text>
                 </View>
                 {stepsNeedPermission ? (
@@ -694,7 +693,7 @@ const MyHealthScreenContent: React.FC = () => {
 
               <View style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.metricHeader}>
-                  <Ionicons name="body-outline" size={18} color={Colors.primary} />
+                  <Icon name="scale" size={18} color={colors.primary} />
                   <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>BMI</Text>
                 </View>
                 {bmi != null ? (
@@ -730,10 +729,10 @@ const MyHealthScreenContent: React.FC = () => {
               style={[styles.cycleEntry, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
               <View style={styles.metricHeader}>
-                <Ionicons name="flower-outline" size={18} color="#ec4899" />
+                <Icon name="flower" size={18} color="#DB6BA6" />
                 <Text style={[styles.metricLabel, { color: colors.text }]}>Cycle tracker</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Icon name="chevron-right" size={18} color={colors.textMuted} />
             </Pressable>
           </Animated.View>
 
@@ -748,7 +747,7 @@ const MyHealthScreenContent: React.FC = () => {
               </View>
               <View style={styles.tipRow}>
                 <View style={[styles.tipIconTile, { backgroundColor: tipOfDay.tint + '1A' }]}>
-                  <Ionicons name={tipOfDay.icon as keyof typeof Ionicons.glyphMap} size={30} color={tipOfDay.tint} />
+                  <Icon name={tipOfDay.icon} size={30} color={tipOfDay.tint} />
                 </View>
                 <View style={styles.tipContent}>
                   <Text style={[styles.tipTitle, { color: colors.text }]}>{t(`tip_${tipOfDay.key}_title`)}</Text>
@@ -865,10 +864,10 @@ const MyHealthScreenContent: React.FC = () => {
               <View style={styles.scoreInfoList}>
                 {scoreFactors.map((f) => (
                   <View key={f.key} style={styles.scoreInfoRow}>
-                    <Ionicons
-                      name={f.tone === 'positive' ? 'arrow-up-circle' : f.tone === 'negative' ? 'arrow-down-circle' : 'remove-circle'}
+                    <Icon
+                      name={f.tone === 'positive' ? 'arrow-up' : f.tone === 'negative' ? 'arrow-down' : 'minus'}
                       size={18}
-                      color={f.tone === 'positive' ? Colors.emerald : f.tone === 'negative' ? Colors.danger : colors.textMuted}
+                      color={f.tone === 'positive' ? colors.success : f.tone === 'negative' ? colors.danger : colors.textMuted}
                     />
                     <Text style={[styles.scoreInfoLabel, { color: colors.text }]}>{f.label}</Text>
                     <Text
@@ -931,11 +930,7 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
     >
       <GlassCard style={styles.clinicCard}>
         <View style={[styles.clinicIconTile, { backgroundColor: colors.primaryLight }]}>
-          <Ionicons
-            name={status === 'Pharmacy' ? 'medical' : 'medkit'}
-            size={26}
-            color={colors.primary}
-          />
+          <Icon name={status === 'Pharmacy' ? 'pill' : 'stethoscope'} size={26} color={colors.primary} />
         </View>
         <View style={styles.clinicContent}>
           <Text style={[styles.clinicName, { color: colors.text }]}>{name}</Text>

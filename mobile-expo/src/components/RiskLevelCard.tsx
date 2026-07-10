@@ -1,17 +1,14 @@
 /**
- * RiskLevelCard Component (v3 — Professional)
+ * RiskLevelCard ("Calm Clinical" / island theme)
  *
- * DESIGN:
- * - Left accent bar with animated scaleY entrance
- * - Ionicons in tinted circle (no emojis)
- * - "What you can do" guidance with bulb icon
- * - Compact pill variant for inline preview
- * - Clean type hierarchy
+ * Shows the result of a daily check-in. Redesigned to the app's flat, themed
+ * language: a surface card with a hairline border, a colored left accent, a
+ * tinted icon chip, and a sunken "what you can do" box. Semantics are themed +
+ * dark-aware (low→success, moderate→info, elevated→warning) — no hardcoded neon.
  *
  * PUBLIC HEALTH REASONING:
  * - Non-alarmist: amber (not red) for elevated
- * - Actionable guidance, not diagnosis
- * - Clear disclaimer in every view
+ * - Actionable guidance, not diagnosis; clear disclaimer in every view
  */
 
 import React, { useEffect } from 'react';
@@ -24,60 +21,61 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import {
-  Colors,
   BorderRadius,
   Spacing,
   Shadows,
   FontFamily,
   FontSize,
-  useThemedColors,
 } from '../../theme';
 import { useTheme } from '../hooks/useTheme';
 import { RiskLevel, getRiskLevelDisplay } from '../services/healthCheckin';
+import Icon, { type IconName } from './Icon';
 
 interface RiskLevelCardProps {
   level: RiskLevel;
   showGuidance?: boolean;
   compact?: boolean;
+  /** Show a small "Checked in today" confirmation header (completed state). */
+  showCheckedInHeader?: boolean;
 }
 
-const RISK_META: Record<RiskLevel, { icon: string; bg: string }> = {
-  low: { icon: 'checkmark-circle', bg: 'rgba(16,185,129,0.10)' },
-  moderate: { icon: 'information-circle', bg: 'rgba(59,130,246,0.10)' },
-  elevated: { icon: 'warning', bg: 'rgba(245,158,11,0.10)' },
+const RISK_ICON: Record<RiskLevel, IconName> = {
+  low: 'check-circle',
+  moderate: 'info',
+  elevated: 'alert-triangle',
 };
 
 const RiskLevelCard: React.FC<RiskLevelCardProps> = ({
   level,
   showGuidance = true,
   compact = false,
+  showCheckedInHeader = false,
 }) => {
-  const { isDark } = useTheme();
-  const themed = useThemedColors(isDark);
+  const { colors } = useTheme();
   const display = getRiskLevelDisplay(level);
-  const meta = RISK_META[level];
+  const icon = RISK_ICON[level];
+
+  // Themed, dark-aware accent per level (ignores the service's hardcoded hue).
+  const accent =
+    level === 'low' ? colors.success : level === 'elevated' ? colors.warning : colors.info;
+  const accentTint =
+    level === 'low' ? colors.successLight : level === 'elevated' ? colors.warningLight : colors.infoLight;
 
   // Animated accent bar
   const barScale = useSharedValue(0);
   useEffect(() => {
     barScale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
   }, [level]);
-
-  const barStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleY: barScale.value }],
-  }));
+  const barStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: barScale.value }] }));
 
   // ── Compact pill ──────────────────────────────────────────────────────
   if (compact) {
     return (
       <Animated.View entering={FadeIn.duration(300)}>
-        <View style={[styles.compactRow, { backgroundColor: meta.bg }]}>
-          <Ionicons name={meta.icon as any} size={18} color={display.color} />
-          <Text style={[styles.compactLabel, { color: display.color }]}>
-            {display.label}
-          </Text>
+        <View style={[styles.compactRow, { backgroundColor: accentTint }]}>
+          <Icon name={icon} size={16} color={accent} />
+          <Text style={[styles.compactLabel, { color: accent }]}>{display.label}</Text>
         </View>
       </Animated.View>
     );
@@ -87,50 +85,44 @@ const RiskLevelCard: React.FC<RiskLevelCardProps> = ({
   return (
     <Animated.View
       entering={FadeInUp.duration(450)}
-      style={[styles.card, { backgroundColor: meta.bg }]}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, Shadows.sm]}
     >
       {/* Left accent bar */}
-      <Animated.View
-        style={[
-          styles.accentBar,
-          { backgroundColor: display.color },
-          barStyle,
-        ]}
-      />
+      <Animated.View style={[styles.accentBar, { backgroundColor: accent }, barStyle]} />
 
       <View style={styles.body}>
-        {/* Header row: icon circle + label + description */}
+        {/* Optional "checked in today" confirmation */}
+        {showCheckedInHeader && (
+          <View style={styles.checkedInRow}>
+            <Icon name="check-circle" size={15} color={colors.success} />
+            <Text style={[styles.checkedInText, { color: colors.textSecondary }]}>Checked in today</Text>
+          </View>
+        )}
+
+        {/* Header row: icon chip + label + description */}
         <View style={styles.headerRow}>
-          <View style={[styles.iconCircle, { backgroundColor: display.color + '1A' }]}>
-            <Ionicons name={meta.icon as any} size={26} color={display.color} />
+          <View style={[styles.iconChip, { backgroundColor: accentTint }]}>
+            <Icon name={icon} size={24} color={accent} />
           </View>
           <View style={styles.headerText}>
-            <Text style={[styles.levelLabel, { color: display.color }]}>
-              {display.label} Health Awareness
-            </Text>
-            <Text style={[styles.description, { color: themed.textSecondary }]}>
-              {display.description}
-            </Text>
+            <Text style={[styles.levelLabel, { color: accent }]}>{display.label} Health Awareness</Text>
+            <Text style={[styles.description, { color: colors.textSecondary }]}>{display.description}</Text>
           </View>
         </View>
 
         {/* Guidance box */}
         {showGuidance && (
-          <View style={[styles.guidanceBox, { backgroundColor: themed.surface }]}>
+          <View style={[styles.guidanceBox, { backgroundColor: colors.surfaceSunken }]}>
             <View style={styles.guidanceTitleRow}>
-              <Ionicons name="bulb-outline" size={18} color={themed.text} />
-              <Text style={[styles.guidanceTitle, { color: themed.text }]}>
-                What you can do
-              </Text>
+              <Icon name="lightbulb" size={16} color={colors.text} />
+              <Text style={[styles.guidanceTitle, { color: colors.text }]}>What you can do</Text>
             </View>
-            <Text style={[styles.guidanceText, { color: themed.textSecondary }]}>
-              {display.guidance}
-            </Text>
+            <Text style={[styles.guidanceText, { color: colors.textSecondary }]}>{display.guidance}</Text>
           </View>
         )}
 
         {/* Disclaimer */}
-        <Text style={[styles.disclaimer, { color: themed.textMuted }]}>
+        <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
           For awareness only — not a medical diagnosis. Consult a healthcare provider for medical advice.
         </Text>
       </View>
@@ -146,7 +138,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.pill,
     alignSelf: 'flex-start',
   },
   compactLabel: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
@@ -154,19 +146,29 @@ const styles = StyleSheet.create({
   // ── Full card ─────────────────────────────────────────────────────────
   card: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.card,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     marginVertical: Spacing.md,
-    ...Shadows.sm,
   },
   accentBar: {
     width: 5,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderBottomLeftRadius: BorderRadius.xl,
   },
   body: {
     flex: 1,
     padding: Spacing.lg,
+  },
+  checkedInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  checkedInText: {
+    fontFamily: FontFamily.semibold,
+    fontSize: FontSize.xs,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
   },
   headerRow: {
     flexDirection: 'row',
@@ -174,17 +176,18 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginBottom: Spacing.base,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  iconChip: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerText: { flex: 1 },
   levelLabel: {
-    fontFamily: FontFamily.bold,
+    fontFamily: FontFamily.display,
     fontSize: FontSize.lg,
+    letterSpacing: -0.2,
     marginBottom: 4,
   },
   description: {
@@ -211,7 +214,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.sm,
     lineHeight: FontSize.sm * 1.6,
-    marginLeft: 26,
+    marginLeft: 24,
   },
   disclaimer: {
     fontFamily: FontFamily.regular,

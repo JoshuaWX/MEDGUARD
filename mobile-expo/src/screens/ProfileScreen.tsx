@@ -38,7 +38,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -248,7 +247,7 @@ const ProfileScreen: React.FC = () => {
               hitSlop={6}
             >
               <Text style={[styles.medChipText, { color: colors.text }]}>{entry}</Text>
-              <Ionicons name="close" size={14} color={colors.textSecondary} />
+              <Icon name="close" size={14} color={colors.textSecondary} />
             </Pressable>
           ))
         )}
@@ -267,7 +266,7 @@ const ProfileScreen: React.FC = () => {
           style={[styles.medAddBtn, { backgroundColor: colors.primary }]}
           hitSlop={6}
         >
-          <Ionicons name="add" size={20} color={Colors.textLight} />
+          <Icon name="plus" size={20} color={Colors.textLight} />
         </Pressable>
       </View>
     </View>
@@ -566,14 +565,14 @@ const ProfileScreen: React.FC = () => {
                   onPress={() => void handleAvatarSelection('camera')}
                   style={[styles.avatarSourceOption, { borderColor: colors.border }]}
                 >
-                  <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                  <Icon name="camera" size={22} color={colors.primary} />
                   <Text style={[styles.avatarSourceOptionText, { color: colors.text }]}>Take a photo</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => void handleAvatarSelection('library')}
                   style={[styles.avatarSourceOption, { borderColor: colors.border }]}
                 >
-                  <Ionicons name="images-outline" size={22} color={colors.primary} />
+                  <Icon name="image" size={22} color={colors.primary} />
                   <Text style={[styles.avatarSourceOptionText, { color: colors.text }]}>Choose from photos</Text>
                 </Pressable>
                 <Pressable onPress={() => setAvatarSourceOpen(false)} style={styles.avatarSourceCancel}>

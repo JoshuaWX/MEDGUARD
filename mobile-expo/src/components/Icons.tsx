@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, Mask, Rect, G } from 'react-native-svg';
 import { Colors } from '../../theme';
 
 interface IconProps {
@@ -12,11 +12,33 @@ interface IconProps {
   color?: string;
 }
 
-export const ShieldIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textLight }) => (
-  <Svg width={size} height={size} viewBox="0 0 256 256" fill={color}>
-    <Path d="M208,40H48A16,16,0,0,0,32,56v58.78c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Zm-4.12,70.55c-4.48,70.06-59.2,95.23-75.88,101.44-16.53-6.16-71.28-31.33-75.88-101.44V56h151.76ZM167.66,101.66,119.31,150a8,8,0,0,1-11.31,0L88.34,130.34a8,8,0,0,1,11.32-11.32L114,133.37l42.34-42.35a8,8,0,0,1,11.32,11.32Z" />
-  </Svg>
-);
+// MedGuard brand mark — a modernized shield with a checkmark punched out of it.
+// Single-color (fills with `color`) so it tints correctly everywhere: white on
+// gradients, muted on the health disclaimer, etc. The check is a negative-space
+// hole (via a mask) so the background reads through it.
+const SHIELD_PATH =
+  'M256 84C322 111 374 119 404 121C411 214 398 333 256 431C114 333 101 214 108 121C138 119 190 111 256 84Z';
+const CHECK_PATH = 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z';
+
+// Unique mask id per instance (avoids id collisions when several render at once).
+let shieldMaskSeq = 0;
+
+export const ShieldIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textLight }) => {
+  const maskId = React.useMemo(() => `mg-shield-${shieldMaskSeq++}`, []);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 512 512">
+      <Defs>
+        <Mask id={maskId}>
+          <Rect x="0" y="0" width="512" height="512" fill="#fff" />
+          <G transform="translate(146,131) scale(9.1)">
+            <Path d={CHECK_PATH} fill="#000" />
+          </G>
+        </Mask>
+      </Defs>
+      <Path d={SHIELD_PATH} fill={color} mask={`url(#${maskId})`} />
+    </Svg>
+  );
+};
 
 export const BellIcon: React.FC<IconProps> = ({ size = 24, color = Colors.textSecondary }) => (
   <Svg width={size} height={size} viewBox="0 0 256 256" fill={color}>

@@ -17,9 +17,9 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
-import { Colors, FontFamily, FontSize, Spacing } from '../../theme';
+import { FontFamily, FontSize, Spacing } from '../../theme';
+import Icon from './Icon';
 
 interface ScreenLoaderProps {
   /** Optional label shown under the pulsing mark. */
@@ -45,8 +45,8 @@ const ScreenLoader: React.FC<ScreenLoaderProps> = ({ label }) => {
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.mark, markStyle]}>
-        <Ionicons name="pulse" size={30} color={Colors.primary} />
+      <Animated.View style={[styles.mark, markStyle, { backgroundColor: colors.primaryTint, borderColor: colors.primaryTint }]}>
+        <Icon name="activity" size={30} color={colors.primary} />
       </Animated.View>
       <Text style={[styles.label, { color: colors.textSecondary }]}>
         {label ?? 'Loading…'}
@@ -69,9 +69,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(17,180,212,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(17,180,212,0.25)',
   },
   label: {
     fontFamily: FontFamily.medium,
