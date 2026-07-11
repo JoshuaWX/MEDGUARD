@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MedGuard USSD Simulator</title>
+<style>
+  :root { --teal:#0B7C8C; --ink:#0C1519; --mut:#55636B; --line:#E6EBEE; --bg:#0d141a; }
+  * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { margin:0; min-height:100vh; display:flex; flex-direction:column; align-items:center;
+         gap:18px; padding:28px 16px; background:#eef2f4; color:var(--ink); }
+  h1 { font-size:19px; margin:0; letter-spacing:-0.3px; }
+  .sub { color:var(--mut); font-size:13px; margin:-8px 0 4px; text-align:center; max-width:440px; }
+  .config { display:flex; flex-wrap:wrap; gap:10px; width:100%; max-width:440px; }
+  .config label { flex:1 1 190px; font-size:12px; color:var(--mut); display:flex; flex-direction:column; gap:4px; }
+  .config input { padding:9px 11px; border:1px solid var(--line); border-radius:10px; font-size:13px; }
+  /* phone */
+  .phone { width:300px; background:#0b0e12; border-radius:34px; padding:16px; box-shadow:0 18px 50px rgba(0,0,0,.28);
+           border:2px solid #23282e; }
+  .screen { background:#0d141a; border-radius:18px; min-height:360px; padding:18px 16px; display:flex; flex-direction:column; }
+  .brandbar { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .brandbar .dot { width:10px; height:10px; border-radius:50%; background:#2fbe6e; }
+  .brandbar span { color:#8b98a1; font-size:11px; letter-spacing:1px; text-transform:uppercase; }
+  .msg { color:#e7eef1; font-size:14px; line-height:1.5; white-space:pre-wrap; flex:1; }
+  .msg.end { color:#a9c9cf; }
+  .replyRow { display:flex; gap:8px; margin-top:14px; }
+  .replyRow input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #2a3138; background:#111820; color:#e7eef1; font-size:14px; }
+  button { cursor:pointer; border:none; border-radius:10px; padding:10px 14px; font-weight:600; font-size:14px; }
+  .send { background:var(--teal); color:#fff; }
+  .dial { background:#2fbe6e; color:#04120a; width:100%; margin-top:12px; padding:12px; font-size:15px; }
+  .hint { color:#5f6b73; font-size:11px; margin-top:10px; text-align:center; }
+  .err { color:#f19a94; }
+</style>
+</head>
+<body>
+  <h1>MedGuard · USSD Simulator</h1>
+  <p class="sub">Simulates a feature-phone dialling MedGuard's short code. It calls your real deployed
+     <code>ussd</code> edge function exactly like the Africa's Talking gateway would.</p>
+
+  <div class="config">
+    <label>Function URL
+      <input id="url" placeholder="https://&lt;project&gt;.functions.supabase.co/ussd" />
+    </label>
+    <label>Phone number
+      <input id="phone" value="+2348030000001" />
+    </label>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="brandbar"><span id="code">*347*63*000#</span></div>
+      <div id="msg" class="msg">Enter your function URL above, then press Dial.</div>
+      <div class="replyRow" id="replyRow" style="display:none">
+        <input id="reply" placeholder="Type reply…" autocomplete="off" />
+        <button class="send" id="sendBtn">Send</button>
+      </div>
+      <button class="dial" id="dialBtn">📞 Dial</button>
+    </div>
+  </div>
+  <div class="hint">Try: <b>1</b> → <b>Ondo</b> (risk) · <b>2</b> → <b>Lagos</b> (subscribe) · <b>3</b> (official)</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let sessionId = null;
+  let acc = ''; // accumulated USSD text joined by '*'
+
+  function rand() { return 'sim-' + Math.random().toString(36).slice(2, 10); }
+
+  async function post(text) {
+    const url = $('url').value.trim();
+    if (!url) { render('Please enter the function URL.', true, true); return; }
+    const form = new URLSearchParams({
+      sessionId, serviceCode: '*347*63#', phoneNumber: $('phone').value.trim(), text,
+    });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+      });
+      const body = await res.text();
+      handle(body);
+    } catch (e) {
+      render('Network error: ' + e.message + '\n(Is the function deployed with --no-verify-jwt and CORS?)', false, true);
+    }
+  }
+
+  function handle(body) {
+    const isEnd = body.startsWith('END ');
+    const text = body.replace(/^(CON|END)\s/, '');
+    render(text, isEnd);
+    if (isEnd) {
+      // session over — allow re-dial
+      $('replyRow').style.display = 'none';
+      $('dialBtn').style.display = 'block';
+      sessionId = null;
+    } else {
+      $('replyRow').style.display = 'flex';
+      $('dialBtn').style.display = 'none';
+      $('reply').value = '';
+      $('reply').focus();
+    }
+  }
+
+  function render(text, end, isErr) {
+    const m = $('msg');
+    m.textContent = text;
+    m.className = 'msg' + (end ? ' end' : '') + (isErr ? ' err' : '');
+  }
+
+  $('dialBtn').onclick = () => {
+    sessionId = rand();
+    acc = '';
+    render('Connecting…');
+    post('');
+  };
+  $('sendBtn').onclick = () => {
+    const r = $('reply').value.trim();
+    if (!r) return;
+    acc = acc ? acc + '*' + r : r;
+    render('…');
+    post(acc);
+  };
+  $('reply').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('sendBtn').click(); });
+</script>
+</body>
+</html>
