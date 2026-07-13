@@ -20,6 +20,8 @@ import ChatbotScreen from '../screens/ChatbotScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import BrainReportScreen from '../screens/BrainReportScreen';
 import CycleTrackerScreen from '../screens/CycleTrackerScreen';
+import HealthNewsScreen from '../screens/HealthNewsScreen';
+import HealthPostScreen from '../screens/HealthPostScreen';
 import { useAuth } from '../hooks/useAuth';
 import { ResetPasswordModal } from '../components';
 
@@ -137,6 +139,8 @@ function RootNavigator() {
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="BrainReport" component={BrainReportScreen} />
         <Stack.Screen name="CycleTracker" component={CycleTrackerScreen} />
+        <Stack.Screen name="HealthNews" component={HealthNewsScreen} />
+        <Stack.Screen name="HealthPost" component={HealthPostScreen} />
       </Stack.Navigator>
 
       {/* Reset Password Modal — overlays any screen when recovery deep link fires */}

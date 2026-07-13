@@ -35,6 +35,7 @@ import {
   FloatingActionButton,
   BrainCard,
   DiseaseOutlookCard,
+  HealthNewsCard,
   PermissionsPrimerModal,
   ScreenLoader,
 } from '../components';
@@ -310,6 +311,9 @@ const HomeScreen: React.FC = () => {
                 onOpenMap={() => (navigation as any).navigate('Map')}
               />
             </View>
+
+            {/* Health News (auto-ingested official updates + tips) */}
+            <HealthNewsCard />
 
             {/* Personal-area disease risks */}
             {activeRisks.length > 0 && (

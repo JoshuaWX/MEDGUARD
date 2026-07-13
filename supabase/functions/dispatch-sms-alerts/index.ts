@@ -17,6 +17,7 @@
 import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
+import { readAtConfig, sendViaAfricasTalking } from '../_shared/sms.ts';
 
 const COOLDOWN_HOURS = 24;
 const MAX_PER_RUN = 1000;
@@ -45,34 +46,6 @@ function forecastMsg(state: string, parts: string[]): string {
     `Stay alert & seek care if unwell. Reply STOP to opt out.`;
 }
 
-async function sendViaAfricasTalking(
-  apiKey: string, username: string, sender: string | null, env: string,
-  to: string[], message: string,
-): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const base = env === 'production'
-    ? 'https://api.africastalking.com'
-    : 'https://api.sandbox.africastalking.com';
-  const form = new URLSearchParams({ username, to: to.join(','), message });
-  if (sender) form.set('from', sender);
-  try {
-    const res = await fetch(`${base}/version1/messaging`, {
-      method: 'POST',
-      headers: {
-        apiKey,
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: form.toString(),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: `AT ${res.status}` };
-    const id = data?.SMSMessageData?.Recipients?.[0]?.messageId;
-    return { ok: true, id };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
-}
-
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -85,11 +58,8 @@ serve(async (req: Request) => {
   const admin = tryCreateAdminClient();
   if (!admin) return json({ error: 'service role not configured' }, 500);
 
-  const apiKey = Deno.env.get('AT_API_KEY') ?? '';
-  const username = Deno.env.get('AT_USERNAME') ?? 'sandbox';
-  const sender = Deno.env.get('AT_SENDER') || null;
-  const atEnv = Deno.env.get('AT_ENV') ?? 'sandbox';
-  const simulate = !apiKey; // no creds → log-only
+  const at = readAtConfig();
+  const simulate = at.simulate; // no creds → log-only
 
   const nowIso = new Date().toISOString();
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_HOURS * 3600 * 1000).toISOString();
@@ -158,7 +128,7 @@ serve(async (req: Request) => {
     let error: string | undefined;
 
     if (!simulate) {
-      const r = await sendViaAfricasTalking(apiKey, username, sender, atEnv, numbers, alert.body);
+      const r = await sendViaAfricasTalking(at, numbers, alert.body);
       status = r.ok ? 'sent' : 'failed';
       providerId = r.id;
       error = r.error;

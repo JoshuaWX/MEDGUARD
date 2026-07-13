@@ -3,6 +3,7 @@
  */
 
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { HealthPost } from '../hooks/useHealthFeed';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -15,6 +16,8 @@ export type RootStackParamList = {
   Settings: undefined;
   BrainReport: undefined;
   CycleTracker: undefined;
+  HealthNews: undefined;
+  HealthPost: { post: HealthPost };
 };
 
 export type MainTabParamList = {

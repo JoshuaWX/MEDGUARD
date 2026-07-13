@@ -27,6 +27,7 @@ export { default as PasswordStrengthIndicator } from './PasswordStrengthIndicato
 export { default as RiskCard } from './RiskCard';
 export { default as BrainCard } from './BrainCard';
 export { default as DiseaseOutlookCard } from './DiseaseOutlookCard';
+export { default as HealthNewsCard } from './HealthNewsCard';
 export { default as AQICard } from './AQICard';
 export { default as FeatureBlockedScreen } from './FeatureBlockedScreen';
 export { default as AuthGateModal } from './AuthGateModal';

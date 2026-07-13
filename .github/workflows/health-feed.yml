@@ -1,0 +1,51 @@
+name: Daily health news feed
+
+# Auto-ingests the MedGuard Health News feed (public.health_posts):
+#   - Official Nigeria health reports PUBLISHED by NCDC / WHO / OCHA (via ReliefWeb API)
+#   - NCDC's own news page (best-effort scrape)
+#   - A curated library of prevention tips
+# Official items are stored ATTRIBUTED relays; MedGuard never self-declares an outbreak.
+#
+# SETUP (one-time): add repository secrets
+#   SUPABASE_SERVICE_ROLE_KEY  (Settings -> Secrets and variables -> Actions)
+#   RELIEFWEB_APPNAME          (free; register at https://apidoc.reliefweb.int/parameters#appname)
+# The project URL is public. The job still runs (tips + NCDC) if RELIEFWEB_APPNAME is unset.
+
+on:
+  schedule:
+    - cron: "37 5 * * *" # daily 05:37 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: health-feed
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml
+    env:
+      SUPABASE_URL: https://cddfhyxlhtmrrtduwlqd.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RELIEFWEB_APPNAME: ${{ secrets.RELIEFWEB_APPNAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install requests python-dotenv
+
+      - name: Guard — service key present
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set; refusing to run."
+            exit 1
+          fi
+
+      - name: Ingest health feed -> health_posts
+        run: python -m ingest.health_feed

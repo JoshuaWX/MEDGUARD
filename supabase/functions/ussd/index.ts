@@ -70,7 +70,8 @@ serve(async (req: Request) => {
         '1. Disease risk near me\n' +
         '2. Subscribe to free alerts\n' +
         '3. Latest official alert\n' +
-        '4. Report health emergency',
+        '4. Report health emergency\n' +
+        '5. Health updates & tips',
       );
     }
 
@@ -127,12 +128,12 @@ serve(async (req: Request) => {
 
       const { error } = await admin
         .from('ussd_subscribers')
-        .upsert({ msisdn: phone, state, active: true }, { onConflict: 'msisdn' });
+        .upsert({ msisdn: phone, state, active: true, news_opt_in: true }, { onConflict: 'msisdn' });
       if (error) return ussd('END Could not subscribe right now. Please try again later.');
 
       return ussd(
-        `END Subscribed. You'll get FREE SMS alerts when ${state} disease risk rises. ` +
-        'Reply STOP to any alert to opt out.',
+        `END Subscribed. You'll get FREE SMS alerts when ${state} disease risk rises, ` +
+        'plus official health updates. Reply STOP to any alert to opt out.',
       );
     }
 
@@ -193,6 +194,40 @@ serve(async (req: Request) => {
         `END Report received for ${lga || state}. Health authorities are alerted to check the area. ` +
         'If life is in danger NOW, call 112. (This is not an ambulance service.)',
       );
+    }
+
+    // ── 5. Health updates & tips ───────────────────────────────────────────
+    // Reads the auto-ingested health_posts feed (official updates + tips).
+    if (choice === '5') {
+      if (parts.length === 1) {
+        return ussd('CON Health updates & tips\n1. Latest health update\n2. A prevention tip');
+      }
+      if (parts[1] === '1') {
+        const { data } = await admin
+          .from('health_posts')
+          .select('title, summary, source')
+          .eq('status', 'published')
+          .in('category', ['official_update', 'outbreak_news'])
+          .order('published_at', { ascending: false })
+          .limit(1);
+        if (!data || !data.length) return ussd('END No health updates right now. Stay safe.');
+        const p = data[0] as Record<string, string>;
+        return ussd(`END ${p.source || 'NCDC'}: ${String(p.title).slice(0, 100)}\n` +
+          `${String(p.summary || '').slice(0, 130)}`);
+      }
+      if (parts[1] === '2') {
+        const { data } = await admin
+          .from('health_posts')
+          .select('title, body')
+          .eq('status', 'published').eq('category', 'prevention_tip')
+          .order('published_at', { ascending: false }).limit(20);
+        const tips = (data ?? []) as Array<Record<string, string>>;
+        if (!tips.length) return ussd('END No tips available right now.');
+        // rotate by day so repeat dials show variety
+        const t = tips[Math.floor(Date.now() / 86_400_000) % tips.length];
+        return ussd(`END Tip — ${String(t.title)}\n${String(t.body).slice(0, 150)}`);
+      }
+      return ussd('END Invalid choice. Please dial again.');
     }
 
     return ussd('END Invalid choice. Please dial again.');

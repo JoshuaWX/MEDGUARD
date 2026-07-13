@@ -1,0 +1,74 @@
+[
+  {
+    "slug": "malaria-nets",
+    "disease": "malaria",
+    "title": "Sleep under a treated mosquito net",
+    "body": "Malaria spreads through mosquito bites, mostly at night. Sleeping under an insecticide-treated net every night is one of the cheapest, most effective ways to protect yourself and your children. Tuck the net under the mattress so there are no gaps, and repair any holes."
+  },
+  {
+    "slug": "malaria-standing-water",
+    "disease": "malaria",
+    "title": "Clear standing water around your home",
+    "body": "Mosquitoes breed in still water. Empty or cover buckets, tyres, tins, gutters and any container that collects rainwater around your compound at least once a week. Fewer breeding spots means fewer mosquitoes and less malaria."
+  },
+  {
+    "slug": "malaria-early-care",
+    "disease": "malaria",
+    "title": "Test early if you have a fever",
+    "body": "Fever, chills, headache and body pains can be malaria. Get a rapid malaria test at a clinic or pharmacy early rather than guessing, and complete the full treatment your health worker gives you. Early treatment prevents severe illness, especially in young children and pregnant women."
+  },
+  {
+    "slug": "cholera-safe-water",
+    "disease": "cholera",
+    "title": "Drink only safe water",
+    "body": "Cholera spreads through water and food contaminated with faeces. Drink water that is boiled, sachet/bottled from a trusted source, or treated. Store treated water in a clean, covered container and take it out with a clean cup or ladle, not by dipping hands."
+  },
+  {
+    "slug": "cholera-handwashing",
+    "disease": "cholera",
+    "title": "Wash hands with soap",
+    "body": "Wash your hands with soap and clean water after using the toilet, after cleaning a child, and before cooking or eating. Handwashing at these key moments is one of the strongest defences against cholera, typhoid and other diarrhoeal diseases."
+  },
+  {
+    "slug": "cholera-ors",
+    "disease": "cholera",
+    "title": "Watery diarrhoea: start ORS and seek care",
+    "body": "Sudden heavy, watery diarrhoea can cause dangerous dehydration within hours. Start oral rehydration salts (ORS) mixed with clean water immediately and go to the nearest health facility fast, especially for children and the elderly. Do not wait it out at home."
+  },
+  {
+    "slug": "lassa-rodents",
+    "disease": "lassa",
+    "title": "Keep rats out of your food",
+    "body": "Lassa fever spreads from rats to people through food and surfaces contaminated with rat urine or droppings. Store rice, garri and other food in tightly covered containers, keep your home and surroundings clean, block rat entry points, and avoid drying food where rats can reach it."
+  },
+  {
+    "slug": "lassa-symptoms",
+    "disease": "lassa",
+    "title": "Lassa season: don't ignore persistent fever",
+    "body": "During the dry season, a fever that does not improve with malaria treatment — especially with sore throat, weakness or bleeding — should be checked at a hospital, and mention Lassa fever. Early care saves lives. Health workers should always use protective measures."
+  },
+  {
+    "slug": "typhoid-food",
+    "disease": "typhoid",
+    "title": "Eat freshly cooked, hot food",
+    "body": "Typhoid spreads through contaminated food and water. Eat food that is freshly cooked and still hot, wash fruits and vegetables with clean water, and avoid food that has been left uncovered for long periods. Peel fruits yourself where you can."
+  },
+  {
+    "slug": "measles-vaccine",
+    "disease": "measles",
+    "title": "Vaccinate children against measles",
+    "body": "Measles is highly contagious and can be deadly for young children, but it is preventable. Make sure your children receive their routine measles vaccine doses at the health centre. If measles is going round your area, keep unvaccinated children away from crowds."
+  },
+  {
+    "slug": "meningitis-dry-season",
+    "disease": "meningitis",
+    "title": "Meningitis: watch the harmattan months",
+    "body": "In the dry, dusty harmattan season, meningitis spreads more easily, especially in the north. A sudden high fever with a stiff neck, severe headache or confusion is an emergency — go to hospital immediately. Good ventilation and avoiding overcrowded, smoky rooms helps."
+  },
+  {
+    "slug": "general-seek-care",
+    "disease": "general",
+    "title": "Know when to seek emergency care",
+    "body": "Get medical help urgently for: difficulty breathing, a stiff neck with fever, convulsions, heavy bleeding, severe dehydration, or a fever that keeps rising. For life-threatening emergencies in Nigeria, call 112. Acting early is almost always safer than waiting."
+  }
+]
