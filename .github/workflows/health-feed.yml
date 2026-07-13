@@ -49,3 +49,12 @@ jobs:
 
       - name: Ingest health feed -> health_posts
         run: python -m ingest.health_feed
+
+      # After ingest, push new official posts + fresh outbreak alerts to opted-in
+      # users (notify-area). Safe no-op until push tokens exist.
+      - name: Notify — dispatch official posts + outbreak alerts (push)
+        continue-on-error: true
+        run: |
+          curl -sS -X POST "https://cddfhyxlhtmrrtduwlqd.supabase.co/functions/v1/notify-area" \
+            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -H "Content-Type: application/json" -d '{}'

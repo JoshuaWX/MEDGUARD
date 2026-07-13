@@ -80,3 +80,12 @@ jobs:
 
       - name: Malaria — per-state baseline + seasonal transmission risk
         run: python malaria_baseline.py predict
+
+      # After fresh forecasts land, push personal risk-tier RISES to opted-in
+      # users (dispatch-risk-changes). Safe no-op until push tokens exist.
+      - name: Notify — dispatch risk-tier changes (push)
+        continue-on-error: true
+        run: |
+          curl -sS -X POST "https://cddfhyxlhtmrrtduwlqd.supabase.co/functions/v1/dispatch-risk-changes" \
+            -H "x-cron-secret: ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -H "Content-Type: application/json" -d '{}'
