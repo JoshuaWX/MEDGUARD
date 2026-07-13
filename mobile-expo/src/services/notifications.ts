@@ -397,20 +397,6 @@ export async function notifyStreakMilestone(days: number): Promise<void> {
   }
 }
 
-/**
- * Send immediate local notification (for testing)
- */
-export async function sendTestNotification(): Promise<void> {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: '🔔 Test Notification',
-      body: 'Notifications are working! You\'ll receive daily check-in reminders.',
-      sound: 'default',
-    },
-    trigger: null, // Immediate
-  });
-}
-
 // ============================================================================
 // HELPERS
 // ============================================================================

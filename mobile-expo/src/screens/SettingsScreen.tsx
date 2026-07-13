@@ -56,7 +56,6 @@ const SettingsScreen: React.FC = () => {
     featureEnabled: notificationsFeatureEnabled,
     setReminderEnabled,
     setReminderTime,
-    sendTest,
   } = useNotifications();
 
   const [locationSharing, setLocationSharing] = useState(true);
@@ -88,14 +87,6 @@ const SettingsScreen: React.FC = () => {
       const hours = selectedDate.getHours().toString().padStart(2, '0');
       const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
       await setReminderTime(`${hours}:${minutes}:00`);
-    }
-  };
-
-  // Handler for test notification
-  const handleTestNotification = async () => {
-    const sent = await sendTest();
-    if (sent) {
-      toast({ tone: 'success', title: 'Test sent', message: 'Check your notifications.' });
     }
   };
 
@@ -227,14 +218,6 @@ const SettingsScreen: React.FC = () => {
                         onChange={handleTimeChange}
                       />
                     )}
-                    
-                    {/* Test notification button */}
-                    <Pressable 
-                      onPress={handleTestNotification}
-                      style={styles.testButton}
-                    >
-                      <Text style={styles.testButtonText}>Send Test Notification</Text>
-                    </Pressable>
                   </View>
                 )}
 
@@ -548,19 +531,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
     fontSize: FontSize.base,
     color: Colors.textPrimary,
-  },
-  testButton: {
-    marginTop: Spacing.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    backgroundColor: Colors.whiteAlpha10,
-    borderRadius: BorderRadius.md,
-    alignSelf: 'flex-start',
-  },
-  testButtonText: {
-    fontFamily: FontFamily.medium,
-    fontSize: FontSize.sm,
-    color: Colors.primary,
   },
   permissionNote: {
     marginTop: Spacing.sm,

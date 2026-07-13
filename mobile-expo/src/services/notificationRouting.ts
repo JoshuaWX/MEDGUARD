@@ -31,6 +31,12 @@ function routeFor(data: NotificationData | undefined | null): (() => void) | nul
     case 'outbreak':
     case 'outbreak_alert':
       return () => navigationRef.navigate('Alerts' as never);
+    case 'health_post':
+      // New official health-news post → the feed (the post opens from there).
+      return () => navigationRef.navigate('HealthNews' as never);
+    case 'risk_change':
+      // The user's state risk tier rose → Alerts (state risk + official reports).
+      return () => navigationRef.navigate('Alerts' as never);
     case 'checkin_reminder':
     case 'streak_milestone':
       // My Health lives inside the MainTabs bottom-tab navigator.

@@ -22,7 +22,6 @@ import {
   registerForPushNotifications,
   scheduleDailyReminder,
   cancelDailyReminder,
-  sendTestNotification,
   formatTimeDisplay,
 } from '../services/notifications';
 import { toUserMessage } from '../services/errorMessages';
@@ -56,7 +55,6 @@ interface UseNotificationsReturn {
   setReminderEnabled: (enabled: boolean) => Promise<void>;
   setReminderTime: (time: string) => Promise<void>;
   setCommunityAlertsEnabled: (enabled: boolean) => Promise<void>;
-  sendTest: () => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -233,20 +231,6 @@ export function useNotifications(): UseNotificationsReturn {
   }, [user?.id, permissionGranted, requestPermission]);
 
   /**
-   * Send test notification
-   */
-  const sendTest = useCallback(async () => {
-    try {
-      await sendTestNotification();
-      return true;
-    } catch (err) {
-      console.error('Error sending test notification:', err);
-      setError(toUserMessage(err, 'notifications'));
-      return false;
-    }
-  }, []);
-
-  /**
    * Refresh all data
    */
   const refresh = useCallback(async () => {
@@ -296,7 +280,6 @@ export function useNotifications(): UseNotificationsReturn {
     setReminderEnabled,
     setReminderTime,
     setCommunityAlertsEnabled,
-    sendTest,
     refresh,
   };
 }
