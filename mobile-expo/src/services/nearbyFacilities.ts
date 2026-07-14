@@ -11,6 +11,12 @@ export interface NearbyFacility {
   address: string | null;
   distanceMeters: number;
   source: string;
+  /** Present in treatment-finder mode (curated NCDC centre description). */
+  description?: string | null;
+  phone?: string | null;
+  /** Authoritative Google Maps destination for curated centres; else route by coords. */
+  directionsQuery?: string | null;
+  ncdcDesignated?: boolean;
 }
 
 function isUsableFacility(value: unknown): value is NearbyFacility {
@@ -46,6 +52,8 @@ export async function fetchNearbyFacilities(params: {
   longitude: number;
   radiusMeters?: number;
   type?: 'all' | 'clinic' | 'pharmacy';
+  /** When set, treatment-finder mode: curated NCDC centres first + broadened hospital search. */
+  disease?: string;
 }) {
   const { data, error } = await invokeEdgeFunction<NearbyFacilitiesResponse>(
     'nearby-facilities',
@@ -54,6 +62,7 @@ export async function fetchNearbyFacilities(params: {
       longitude: params.longitude,
       radiusMeters: params.radiusMeters ?? 5000,
       type: params.type ?? 'all',
+      ...(params.disease ? { disease: params.disease } : {}),
     },
     {
       timeout: 30000,

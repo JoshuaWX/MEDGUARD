@@ -2,6 +2,7 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabase.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
+import { getTreatmentCentres } from './treatmentCentres.ts';
 
 type FacilityType = 'all' | 'clinic' | 'pharmacy';
 
@@ -10,6 +11,8 @@ type NearbyFacilitiesRequest = {
   longitude?: number;
   radiusMeters?: number;
   type?: FacilityType;
+  /** When set, treatment-finder mode: curated NCDC centres first + broadened hospital search. */
+  disease?: string;
 };
 
 type OverpassElement = {
@@ -68,20 +71,32 @@ function normalizeType(input: unknown): FacilityType {
   return 'all';
 }
 
-function buildOverpassQuery(lat: number, lon: number, radiusMeters: number, type: FacilityType): string {
-  const baseClinic = '["amenity"~"hospital|clinic|doctors|dentist"]';
+function buildOverpassQuery(
+  lat: number,
+  lon: number,
+  radiusMeters: number,
+  type: FacilityType,
+  treatment: boolean,
+): string {
+  // Treatment intent → prioritise hospitals (inc. healthcare=hospital tagging);
+  // routine intent → the general clinic/pharmacy set.
+  const baseClinic = treatment
+    ? '["amenity"~"hospital|clinic"]'
+    : '["amenity"~"hospital|clinic|doctors|dentist"]';
+  const baseHealthcare = '["healthcare"~"hospital|clinic"]';
   const basePharmacy = '["amenity"="pharmacy"]';
 
   const parts: string[] = [];
   if (type === 'all' || type === 'clinic') {
-    parts.push(`node${baseClinic}(around:${radiusMeters},${lat},${lon});`);
-    parts.push(`way${baseClinic}(around:${radiusMeters},${lat},${lon});`);
-    parts.push(`relation${baseClinic}(around:${radiusMeters},${lat},${lon});`);
+    for (const el of ['node', 'way', 'relation']) {
+      parts.push(`${el}${baseClinic}(around:${radiusMeters},${lat},${lon});`);
+      if (treatment) parts.push(`${el}${baseHealthcare}(around:${radiusMeters},${lat},${lon});`);
+    }
   }
   if (type === 'all' || type === 'pharmacy') {
-    parts.push(`node${basePharmacy}(around:${radiusMeters},${lat},${lon});`);
-    parts.push(`way${basePharmacy}(around:${radiusMeters},${lat},${lon});`);
-    parts.push(`relation${basePharmacy}(around:${radiusMeters},${lat},${lon});`);
+    for (const el of ['node', 'way', 'relation']) {
+      parts.push(`${el}${basePharmacy}(around:${radiusMeters},${lat},${lon});`);
+    }
   }
 
   return `
@@ -91,6 +106,11 @@ function buildOverpassQuery(lat: number, lon: number, radiusMeters: number, type
 );
 out center tags;
 `;
+}
+
+function extractPhone(tags: Record<string, string> | undefined): string | null {
+  if (!tags) return null;
+  return tags['phone'] || tags['contact:phone'] || tags['contact:mobile'] || null;
 }
 
 function classifyFacility(tags: Record<string, string> | undefined): 'clinic' | 'pharmacy' {
@@ -127,6 +147,7 @@ serve(async (req: Request) => {
         longitude: params.get('longitude') ?? undefined,
         radiusMeters: params.get('radiusMeters') ?? undefined,
         type: (params.get('type') as FacilityType) ?? undefined,
+        disease: params.get('disease') ?? undefined,
       } as unknown as NearbyFacilitiesRequest;
     }
 
@@ -134,6 +155,8 @@ serve(async (req: Request) => {
     const longitude = parseNumber(body.longitude);
     const radius = clamp(parseNumber(body.radiusMeters) ?? 5000, 1000, 20000);
     const type = normalizeType(body.type);
+    const disease = typeof body.disease === 'string' ? body.disease.trim().toLowerCase() : '';
+    const treatmentMode = disease.length > 0;
 
     if (latitude == null || longitude == null) {
       return jsonResponse({ error: 'latitude and longitude are required' }, { status: 400 });
@@ -169,7 +192,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const query = buildOverpassQuery(latitude, longitude, radius, type);
+    const query = buildOverpassQuery(latitude, longitude, radius, type, treatmentMode);
     const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       headers: {
@@ -187,7 +210,7 @@ serve(async (req: Request) => {
     const overpassData = (await overpassRes.json().catch(() => ({}))) as { elements?: OverpassElement[] };
     const elements = overpassData.elements || [];
 
-    const facilities = elements
+    const osmFacilities = elements
       .map((el) => {
         const point = el.type === 'node'
           ? { lat: el.lat, lon: el.lon }
@@ -208,11 +231,42 @@ serve(async (req: Request) => {
           address: formatAddress(tags),
           distanceMeters,
           source: 'OpenStreetMap/Overpass',
+          description: null as string | null,
+          phone: extractPhone(tags),
+          directionsQuery: null as string | null,
+          ncdcDesignated: false,
         };
       })
       .filter((v): v is NonNullable<typeof v> => Boolean(v))
       .sort((a, b) => a.distanceMeters - b.distanceMeters)
       .slice(0, 60);
+
+    // Treatment mode: prepend curated NCDC-designated centres (authoritative,
+    // always shown first regardless of distance), then the nearby hospitals.
+    const curated = treatmentMode
+      ? getTreatmentCentres(disease)
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            kind: 'clinic' as const,
+            latitude: c.latitude,
+            longitude: c.longitude,
+            address: `${c.state} State`,
+            distanceMeters: Math.round(haversineMeters(latitude, longitude, c.latitude, c.longitude)),
+            source: c.source,
+            description: c.description,
+            phone: c.phone ?? null,
+            directionsQuery: c.directionsQuery,
+            ncdcDesignated: true,
+          }))
+          .sort((a, b) => a.distanceMeters - b.distanceMeters)
+      : [];
+
+    const curatedIds = new Set(curated.map((c) => c.id));
+    const facilities = [
+      ...curated,
+      ...osmFacilities.filter((f) => !curatedIds.has(f.id)),
+    ];
 
     return jsonResponse({
       facilities,
@@ -221,6 +275,7 @@ serve(async (req: Request) => {
         longitude,
         radiusMeters: radius,
         type,
+        disease: disease || null,
       },
       generatedAt: new Date().toISOString(),
     });

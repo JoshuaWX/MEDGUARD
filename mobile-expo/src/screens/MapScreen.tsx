@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -47,9 +48,14 @@ const CAN_MOUNT_NATIVE_MAP =
   Platform.OS !== 'android' || Constants.appOwnership === 'expo' || Boolean(ANDROID_MAPS_KEY);
 
 type FacilityFilter = 'all' | 'clinic' | 'pharmacy';
-type MapMode = 'facilities' | 'risk';
+type MapMode = 'facilities' | 'treatment' | 'risk';
 const RISK_LEVEL_LABEL: Record<string, string> = {
   low: 'Low', moderate: 'Moderate', elevated: 'Elevated', high: 'High',
+};
+const MODE_META: Record<MapMode, { label: string; icon: 'stethoscope' | 'heart-pulse' | 'activity' }> = {
+  facilities: { label: 'Clinics', icon: 'stethoscope' },
+  treatment: { label: 'Treatment', icon: 'heart-pulse' },
+  risk: { label: 'Risk', icon: 'activity' },
 };
 
 const MapScreen: React.FC = () => {
@@ -90,56 +96,63 @@ const MapScreen: React.FC = () => {
     };
   }, [location]);
 
-  const loadNearby = useCallback(async (targetRegion: Region, targetFilter: FacilityFilter) => {
-    const requestId = ++facilityRequestIdRef.current;
-    setLoadingFacilities(true);
-    setError(null);
-    setSelectedFacility(null);
-    setFacilityRadiusUsed(null);
+  const loadNearby = useCallback(
+    async (targetRegion: Region, targetFilter: FacilityFilter, disease?: string) => {
+      const requestId = ++facilityRequestIdRef.current;
+      setLoadingFacilities(true);
+      setError(null);
+      setSelectedFacility(null);
+      setFacilityRadiusUsed(null);
 
-    const first = await fetchNearbyFacilities({
-      latitude: targetRegion.latitude,
-      longitude: targetRegion.longitude,
-      radiusMeters: 5000,
-      type: targetFilter,
-    });
+      const first = await fetchNearbyFacilities({
+        latitude: targetRegion.latitude,
+        longitude: targetRegion.longitude,
+        radiusMeters: 5000,
+        type: disease ? 'clinic' : targetFilter,
+        disease,
+      });
 
-    if (requestId !== facilityRequestIdRef.current) return;
+      if (requestId !== facilityRequestIdRef.current) return;
 
-    if (first.error) {
-      setError(toUserMessage(first.error, 'facilities'));
-      setFacilities([]);
+      if (first.error) {
+        setError(toUserMessage(first.error, 'facilities'));
+        setFacilities([]);
+        setLoadingFacilities(false);
+        return;
+      }
+
+      // A curated NCDC centre alone shouldn't stop us widening for nearby hospitals.
+      const firstNearby = first.facilities.filter((f) => !f.ncdcDesignated).length;
+      if (firstNearby > 0) {
+        setFacilityRadiusUsed(5000);
+        setFacilities(first.facilities);
+        setLoadingFacilities(false);
+        return;
+      }
+
+      const wider = await fetchNearbyFacilities({
+        latitude: targetRegion.latitude,
+        longitude: targetRegion.longitude,
+        radiusMeters: 15000,
+        type: disease ? 'clinic' : targetFilter,
+        disease,
+      });
+
+      if (requestId !== facilityRequestIdRef.current) return;
+
+      if (wider.error) {
+        setError(toUserMessage(wider.error, 'facilities'));
+        setFacilities([]);
+        setLoadingFacilities(false);
+        return;
+      }
+
+      setFacilityRadiusUsed(15000);
+      setFacilities(wider.facilities);
       setLoadingFacilities(false);
-      return;
-    }
-
-    if (first.facilities.length > 0) {
-      setFacilityRadiusUsed(5000);
-      setFacilities(first.facilities);
-      setLoadingFacilities(false);
-      return;
-    }
-
-    const wider = await fetchNearbyFacilities({
-      latitude: targetRegion.latitude,
-      longitude: targetRegion.longitude,
-      radiusMeters: 15000,
-      type: targetFilter,
-    });
-
-    if (requestId !== facilityRequestIdRef.current) return;
-
-    if (wider.error) {
-      setError(toUserMessage(wider.error, 'facilities'));
-      setFacilities([]);
-      setLoadingFacilities(false);
-      return;
-    }
-
-    setFacilityRadiusUsed(15000);
-    setFacilities(wider.facilities);
-    setLoadingFacilities(false);
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!centerFromDevice) return;
@@ -151,8 +164,29 @@ const MapScreen: React.FC = () => {
     };
 
     setRegion(nextRegion);
-    loadNearby(nextRegion, facilityFilter);
-  }, [centerFromDevice, facilityFilter, loadNearby]);
+    if (mapMode === 'facilities') loadNearby(nextRegion, facilityFilter);
+    else if (mapMode === 'treatment') loadNearby(nextRegion, 'clinic', selectedDisease);
+  }, [centerFromDevice, facilityFilter, mapMode, selectedDisease, loadNearby]);
+
+  const openDirections = useCallback(
+    (facility: NearbyFacility) => {
+      const destination = facility.directionsQuery
+        ? encodeURIComponent(facility.directionsQuery)
+        : `${facility.latitude},${facility.longitude}`;
+      const origin = centerFromDevice
+        ? `&origin=${centerFromDevice.latitude},${centerFromDevice.longitude}`
+        : '';
+      const url = `https://www.google.com/maps/dir/?api=1${origin}&destination=${destination}&travelmode=driving`;
+      Linking.openURL(url).catch(() => setError('Could not open Google Maps for directions.'));
+    },
+    [centerFromDevice],
+  );
+
+  const openCall = useCallback((phone: string) => {
+    Linking.openURL(`tel:${phone.replace(/\s+/g, '')}`).catch(() =>
+      setError('Could not start a call on this device.'),
+    );
+  }, []);
 
   if (isGuest) {
     return (
@@ -188,14 +222,17 @@ const MapScreen: React.FC = () => {
 
     setRegion(next);
     mapRef.current?.animateToRegion(next, 500);
-    loadNearby(next, facilityFilter);
+    if (mapMode === 'treatment') loadNearby(next, 'clinic', selectedDisease);
+    else loadNearby(next, facilityFilter);
   };
 
   const handleSearchThisArea = () => {
-    loadNearby(region, facilityFilter);
+    if (mapMode === 'treatment') loadNearby(region, 'clinic', selectedDisease);
+    else loadNearby(region, facilityFilter);
   };
 
   const facilityColor = (kind: NearbyFacility['kind']) => (kind === 'pharmacy' ? '#8b5cf6' : Colors.primary);
+  const selectedDiseaseLabel = RISK_DISEASES.find((d) => d.key === selectedDisease)?.label ?? 'Treatment';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
@@ -263,8 +300,9 @@ const MapScreen: React.FC = () => {
         {/* Floating controls that sit ON the map (Maps-app style) */}
         <View style={[styles.floatingTop, { top: Spacing.sm }]} pointerEvents="box-none">
           <View style={[styles.toggle, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {(['facilities', 'risk'] as MapMode[]).map((m) => {
+            {(['facilities', 'treatment', 'risk'] as MapMode[]).map((m) => {
               const active = mapMode === m;
+              const meta = MODE_META[m];
               return (
                 <Pressable
                   key={m}
@@ -272,11 +310,17 @@ const MapScreen: React.FC = () => {
                   style={[styles.toggleHalf, active && { backgroundColor: colors.primary }]}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
-                  accessibilityLabel={m === 'facilities' ? 'Show clinics and pharmacies' : 'Show disease risk map'}
+                  accessibilityLabel={
+                    m === 'facilities'
+                      ? 'Show clinics and pharmacies'
+                      : m === 'treatment'
+                        ? 'Find treatment centres for a disease'
+                        : 'Show disease risk map'
+                  }
                 >
                   <Icon
-                    name={m === 'facilities' ? 'stethoscope' : 'activity'}
-                    size={18}
+                    name={meta.icon}
+                    size={17}
                     color={active ? Colors.textLight : colors.textSecondary}
                     strokeWidth={active ? 2.3 : 1.9}
                   />
@@ -284,7 +328,7 @@ const MapScreen: React.FC = () => {
                     style={[styles.toggleLabel, { color: active ? Colors.textLight : colors.textSecondary }]}
                     numberOfLines={1}
                   >
-                    {m === 'facilities' ? 'Clinics' : 'Disease risk'}
+                    {meta.label}
                   </Text>
                 </Pressable>
               );
@@ -309,6 +353,16 @@ const MapScreen: React.FC = () => {
                 ))}
                 <Chip label="Search this area" icon="search" onPress={handleSearchThisArea} />
               </>
+            ) : mapMode === 'treatment' ? (
+              RISK_DISEASES.map(({ key, label }) => (
+                <Chip
+                  key={key}
+                  label={label}
+                  active={key === selectedDisease}
+                  color={riskColor(key, 'elevated')}
+                  onPress={() => setSelectedDisease(key)}
+                />
+              ))
             ) : (
               RISK_DISEASES.map(({ key, label }) => (
                 <Chip
@@ -381,16 +435,56 @@ const MapScreen: React.FC = () => {
           <ErrorBanner message={error} title="Map needs attention" onRetry={handleSearchThisArea} />
         ) : (
           <>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Nearby Clinics and Pharmacies</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>
+              {mapMode === 'treatment' ? `${selectedDiseaseLabel} treatment centres` : 'Nearby Clinics and Pharmacies'}
+            </Text>
+            {mapMode === 'treatment' && (
+              <Text style={[styles.sheetHint, { color: colors.textMuted }]}>
+                NCDC-designated centres are listed first, then nearby hospitals. Guidance only — not a diagnosis.
+              </Text>
+            )}
+
             {selectedFacility ? (
               <View style={[styles.selectedCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[styles.selectedName, { color: colors.text }]} numberOfLines={1}>{selectedFacility.name}</Text>
+                {selectedFacility.ncdcDesignated && (
+                  <View style={[styles.ncdcBadge, { backgroundColor: `${Colors.primary}18` }]}>
+                    <Icon name="shield-check" size={12} color={Colors.primary} />
+                    <Text style={[styles.ncdcBadgeText, { color: Colors.primary }]}>NCDC-designated</Text>
+                  </View>
+                )}
+                <Text style={[styles.selectedName, { color: colors.text }]} numberOfLines={2}>{selectedFacility.name}</Text>
                 <Text style={[styles.selectedMeta, { color: colors.textSecondary }]}>
-                  {selectedFacility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(selectedFacility.distanceMeters)}m away
+                  {selectedFacility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(selectedFacility.distanceMeters / 100) / 10} km away
                 </Text>
+                {!!selectedFacility.description && (
+                  <Text style={[styles.selectedMeta, { color: colors.textSecondary }]}>{selectedFacility.description}</Text>
+                )}
                 {!!selectedFacility.address && (
                   <Text style={[styles.selectedMeta, { color: colors.textMuted }]} numberOfLines={2}>{selectedFacility.address}</Text>
                 )}
+
+                <View style={styles.actionRow}>
+                  <Pressable
+                    onPress={() => openDirections(selectedFacility)}
+                    style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Directions to ${selectedFacility.name}`}
+                  >
+                    <Icon name="navigation" size={15} color={Colors.textLight} />
+                    <Text style={[styles.actionBtnText, { color: Colors.textLight }]}>Directions</Text>
+                  </Pressable>
+                  {!!selectedFacility.phone && (
+                    <Pressable
+                      onPress={() => openCall(selectedFacility.phone!)}
+                      style={[styles.actionBtn, styles.actionBtnGhost, { borderColor: colors.border }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Call ${selectedFacility.name}`}
+                    >
+                      <Icon name="phone" size={15} color={colors.primary} />
+                      <Text style={[styles.actionBtnText, { color: colors.primary }]}>Call</Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             ) : null}
 
@@ -399,10 +493,12 @@ const MapScreen: React.FC = () => {
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                   {facilityRadiusUsed
                     ? `No facilities found within ${Math.round(facilityRadiusUsed / 1000)} km. Tap Search this area after moving the map, or Recenter to use your current location.`
-                    : 'Use Recenter or Search this area to look for nearby clinics and pharmacies.'}
+                    : mapMode === 'treatment'
+                      ? 'Pick a disease above, then Recenter or Search this area.'
+                      : 'Use Recenter or Search this area to look for nearby clinics and pharmacies.'}
                 </Text>
               ) : null}
-              {facilities.slice(0, 5).map((facility) => (
+              {facilities.slice(0, mapMode === 'treatment' ? 6 : 5).map((facility) => (
                 <Pressable
                   key={facility.id}
                   onPress={() => {
@@ -419,14 +515,29 @@ const MapScreen: React.FC = () => {
                   }}
                   style={[styles.listItem, { borderColor: colors.border }]}
                 >
-                  <View style={[styles.dot, { backgroundColor: facilityColor(facility.kind) }]} />
+                  <View style={[styles.dot, { backgroundColor: facility.ncdcDesignated ? Colors.primary : facilityColor(facility.kind) }]} />
                   <View style={styles.listMain}>
-                    <Text style={[styles.listName, { color: colors.text }]} numberOfLines={1}>{facility.name}</Text>
+                    <View style={styles.listNameRow}>
+                      <Text style={[styles.listName, { color: colors.text }]} numberOfLines={1}>{facility.name}</Text>
+                      {facility.ncdcDesignated && (
+                        <Icon name="shield-check" size={13} color={Colors.primary} />
+                      )}
+                    </View>
                     <Text style={[styles.listMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · {Math.round(facility.distanceMeters)}m
+                      {facility.ncdcDesignated
+                        ? `NCDC centre · ${Math.round(facility.distanceMeters / 100) / 10} km`
+                        : `${facility.kind === 'pharmacy' ? 'Pharmacy' : 'Clinic'} · ${Math.round(facility.distanceMeters)}m`}
                     </Text>
                   </View>
-                  <Icon name="chevron-right" size={16} color={colors.textMuted} />
+                  <Pressable
+                    onPress={() => openDirections(facility)}
+                    hitSlop={8}
+                    style={[styles.rowDirBtn, { backgroundColor: colors.surfaceSunken }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Directions to ${facility.name}`}
+                  >
+                    <Icon name="navigation" size={15} color={colors.primary} />
+                  </Pressable>
                 </Pressable>
               ))}
             </View>
@@ -596,6 +707,51 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     letterSpacing: -0.2,
     marginBottom: Spacing.sm,
+  },
+  sheetHint: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    lineHeight: 16,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  ncdcBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.pill,
+    marginBottom: 6,
+  },
+  ncdcBadgeText: { fontFamily: FontFamily.semibold, fontSize: 10, letterSpacing: 0.3 },
+  actionRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 9,
+    borderRadius: BorderRadius.pill,
+  },
+  actionBtnGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  actionBtnText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
+  listNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowDirBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchChip: { marginLeft: 'auto' },
   loadingRow: {
