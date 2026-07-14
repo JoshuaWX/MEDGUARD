@@ -637,6 +637,18 @@ const ProfileScreen: React.FC = () => {
                       <Text style={styles.cardTitle}>{t('personal_details')}</Text>
                       <Text style={styles.cardSubtitle}>{t('keep_details_updated')}</Text>
                     </View>
+                    {!editMode && (
+                      <Pressable
+                        onPress={() => setEditMode(true)}
+                        style={styles.editPill}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('edit_profile')}
+                        hitSlop={8}
+                      >
+                        <Icon name="pencil" size={13} color={Colors.primary} />
+                        <Text style={styles.editPillText}>{t('edit')}</Text>
+                      </Pressable>
+                    )}
                   </View>
 
                   <View style={styles.formGroup}>
@@ -872,9 +884,6 @@ const ProfileScreen: React.FC = () => {
             {/* Actions */}
             <Animated.View entering={FadeInUp.delay(430).duration(450)}>
               <View style={styles.actions}>
-                <Pressable onPress={() => setEditMode(true)} style={styles.editProfileBtn}>
-                  <Text style={styles.editProfileText}>{t('edit_profile')}</Text>
-                </Pressable>
                 <Pressable onPress={handleSignOut} style={styles.logoutBtn}>
                   <LogoutIcon size={18} color={Colors.danger} />
                   <Text style={styles.logoutText}>{t('log_out')}</Text>
@@ -1421,17 +1430,20 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingBottom: Spacing.base,
   },
-  editProfileBtn: {
+  editPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.pill,
     borderWidth: 1,
     borderColor: Colors.primary,
-    borderRadius: 18,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(17,180,212,0.08)',
   },
-  editProfileText: {
+  editPillText: {
     fontFamily: FontFamily.semibold,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.primary,
   },
   logoutBtn: {

@@ -11,7 +11,7 @@ import { Colors, BorderRadius, Spacing, Shadows, FontFamily, FontSize, useThemed
 import { useTheme } from '../hooks/useTheme';
 import { IntelV2 } from '../hooks/useIntel';
 import { AQILevel } from './AQICard';
-import Animated, { FadeIn, FadeInDown, SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface EnvironmentModalProps {
@@ -61,8 +61,7 @@ export const EnvironmentModal: React.FC<EnvironmentModalProps> = ({
         <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           
-          <Animated.View 
-            entering={SlideInDown.springify().damping(15)}
+          <Animated.View
             style={[styles.container, { backgroundColor: isDark ? themed.background : '#ffffff' }]}
           >
             {/* Handle Bar */}
@@ -110,6 +109,9 @@ export const EnvironmentModal: React.FC<EnvironmentModalProps> = ({
                     <Text style={[styles.aqiDesc, { color: themed.textSecondary }]}>
                       {data.airQuality.insight.healthImplications}
                     </Text>
+                    {!!data.airQuality.source && (
+                      <Text style={[styles.sourceText, { color: themed.textSecondary }]}>Source: {data.airQuality.source}</Text>
+                    )}
                   </View>
 
                   <Text style={[styles.sectionTitle, { color: themed.text }]}>
@@ -177,6 +179,9 @@ export const EnvironmentModal: React.FC<EnvironmentModalProps> = ({
                         <Text style={[styles.metricText, { color: themed.textSecondary }]}>{data.weather.current.windSpeed} m/s Wind</Text>
                       </View>
                     </View>
+                    {!!data.weather.source && (
+                      <Text style={[styles.sourceText, { color: themed.textSecondary }]}>Source: {data.weather.source}</Text>
+                    )}
                   </View>
 
                   {/* Forecast */}
@@ -308,6 +313,14 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
     textAlign: 'center',
+  },
+  sourceText: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 10,
+    opacity: 0.8,
   },
   sectionTitle: {
     fontFamily: FontFamily.bold,

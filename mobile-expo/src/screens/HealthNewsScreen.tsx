@@ -4,9 +4,8 @@
  * Official items are attributed relays (NCDC/WHO); MedGuard never self-declares.
  */
 
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, Platform } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, Pressable, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -36,74 +35,85 @@ const HealthNewsScreen: React.FC = () => {
     [posts, filter],
   );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refresh();
     setRefreshing(false);
-  };
+  }, [refresh]);
+
+  const openPost = useCallback((post: HealthPost) => navigation.navigate('HealthPost', { post }), [navigation]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: HealthPost }) => <PostRow post={item} onOpen={openPost} colors={colors} />,
+    [openPost, colors],
+  );
 
   const gradientColors = isDark
     ? ([colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string])
     : (Gradients.background.colors as unknown as [string, string, string]);
 
+  const header = (
+    <View>
+      <View style={styles.headerRow}>
+        <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} hitSlop={10}>
+          <Icon name="chevron-left" size={22} color={colors.text} />
+        </Pressable>
+      </View>
+      <Text style={[styles.title, { color: colors.text }]}>Health News</Text>
+      <Text style={[styles.sub, { color: colors.textSecondary }]}>Official updates from NCDC/WHO, and daily prevention tips.</Text>
+
+      <View style={styles.filterRow}>
+        {FILTERS.map((f) => {
+          const active = filter === f.key;
+          return (
+            <Pressable key={f.key} onPress={() => setFilter(f.key)}
+              style={[styles.filterChip, { backgroundColor: active ? Colors.primary : colors.surface, borderColor: active ? Colors.primary : colors.border }]}>
+              <Text style={[styles.filterText, { color: active ? '#fff' : colors.textSecondary }]}>{f.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const empty =
+    loading && !refreshing ? (
+      <View style={{ paddingTop: 80 }}><ScreenLoader label="Loading health news…" /></View>
+    ) : error ? (
+      <ErrorBanner title="News unavailable" message="MedGuard could not load health news. Pull down to try again." onRetry={onRefresh} />
+    ) : (
+      <Card style={styles.empty}>
+        <Icon name="info" size={22} color={colors.primary} />
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No posts here yet. Updates appear automatically as they're published.</Text>
+      </Card>
+    );
+
   return (
     <LinearGradient colors={gradientColors} start={Gradients.background.start} end={Gradients.background.end} style={styles.container}>
       <View style={styles.page}>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.sm, paddingBottom: Math.max(insets.bottom, 12) + 40 }]}
+        <FlatList
+          data={visible}
+          keyExtractor={(p) => p.id}
+          renderItem={renderItem}
+          ListHeaderComponent={header}
+          ListEmptyComponent={empty}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.sm, paddingBottom: Math.max(insets.bottom, 12) + 40, flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={Platform.OS === 'android'}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-        >
-          {/* Header */}
-          <View style={styles.headerRow}>
-            <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} hitSlop={10}>
-              <Icon name="chevron-left" size={22} color={colors.text} />
-            </Pressable>
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>Health News</Text>
-          <Text style={[styles.sub, { color: colors.textSecondary }]}>Official updates from NCDC/WHO, and daily prevention tips.</Text>
-
-          {/* Filters */}
-          <View style={styles.filterRow}>
-            {FILTERS.map((f) => {
-              const active = filter === f.key;
-              return (
-                <Pressable key={f.key} onPress={() => setFilter(f.key)}
-                  style={[styles.filterChip, { backgroundColor: active ? Colors.primary : colors.surface, borderColor: active ? Colors.primary : colors.border }]}>
-                  <Text style={[styles.filterText, { color: active ? '#fff' : colors.textSecondary }]}>{f.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Feed */}
-          {loading && !refreshing ? (
-            <View style={{ paddingTop: 80 }}><ScreenLoader label="Loading health news…" /></View>
-          ) : error ? (
-            <ErrorBanner title="News unavailable" message="MedGuard could not load health news. Pull down to try again." onRetry={onRefresh} />
-          ) : visible.length === 0 ? (
-            <Card style={styles.empty}>
-              <Icon name="info" size={22} color={colors.primary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No posts here yet. Updates appear automatically as they're published.</Text>
-            </Card>
-          ) : (
-            visible.map((post, i) => (
-              <Animated.View key={post.id} entering={FadeInUp.delay(Math.min(i, 8) * 50).duration(360)}>
-                <PostRow post={post} onPress={() => navigation.navigate('HealthPost', { post })} colors={colors} />
-              </Animated.View>
-            ))
-          )}
-        </ScrollView>
+        />
       </View>
     </LinearGradient>
   );
 };
 
-const PostRow: React.FC<{ post: HealthPost; onPress: () => void; colors: any }> = ({ post, onPress, colors }) => {
+const PostRow = React.memo(function PostRow({ post, onOpen, colors }: { post: HealthPost; onOpen: (p: HealthPost) => void; colors: any }) {
   const meta = CATEGORY_META[post.category];
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={() => onOpen(post)}>
       <Card style={styles.card}>
         <View style={[styles.iconChip, { backgroundColor: meta.color + '22' }]}>
           <Icon name={meta.icon} size={20} color={meta.color} />
@@ -123,7 +133,7 @@ const PostRow: React.FC<{ post: HealthPost; onPress: () => void; colors: any }> 
       </Card>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

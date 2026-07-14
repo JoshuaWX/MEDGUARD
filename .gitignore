@@ -23,3 +23,7 @@ CLAUDE_CODE_HANDOFF.md
 FIXES.md
 Future.txt
 mobile-expo/SETUP_REFERENCE.md
+
+# Separate local project accidentally committed as a bare gitlink (no .gitmodules)
+# — untracked here to stop the Actions "No url found for submodule" warning.
+End-to-end-Medical-Chatbot-Generative-AI/
