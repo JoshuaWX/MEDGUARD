@@ -73,6 +73,14 @@
           "project": "medguard",
           "url": "https://de.sentry.io/"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
       ]
     ],
     "extra": {
