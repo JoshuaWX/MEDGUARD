@@ -29,7 +29,6 @@ import {
   Avatar,
   Card,
   Icon,
-  LevelMeter,
   HomeHeroArt,
   SkeletonLoader,
   FloatingActionButton,
@@ -130,12 +129,22 @@ const HomeScreen: React.FC = () => {
   const location = geocoded?.city || geocoded?.region || user?.state || 'Nigeria';
   const showLocationPrompt = permissionStatus !== 'granted' && permissionStatus !== 'denied';
   const overallRisk = intel?.riskAssessment?.overallRiskLevel || 'low';
-  const riskMeta = getRiskMeta(overallRisk);
   const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive) || [];
   const topRecommendation = activeRisks[0]?.actions?.[0];
   const firstName = user?.name?.split(' ')[0] || 'Friend';
-  const riskIndex = overallRisk === 'high' ? 2 : overallRisk === 'medium' ? 1 : 0;
-  const riskLevelLabels = ['Low', 'Moderate', 'Elevated'];
+
+  // Welcoming, time-aware hero (replaces the old always-"Elevated" risk verdict —
+  // the calibrated area risk now lives in the Area Health Signal card just below).
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greetIcon: IconName = hour >= 18 || hour < 5 ? 'moon' : 'sun';
+  const todayLabel = now
+    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    .toUpperCase();
+  const heroTip: { icon: IconName; text: string } = topRecommendation
+    ? { icon: 'sparkles', text: topRecommendation }
+    : { icon: 'shield-check', text: `All clear in ${location} today — keep up your healthy habits.` };
 
   const bottomPadding = Math.max(insets.bottom, 12) + 100;
 
@@ -222,44 +231,34 @@ const HomeScreen: React.FC = () => {
               </Animated.View>
             )}
 
-            {/* Focal: area status */}
-            <Card variant="elevated" style={styles.statusCard}>
-              <View style={styles.statusHeader}>
-                <View style={[styles.statusIcon, { backgroundColor: `${riskMeta.tint}18` }]}>
-                  <Icon name={riskMeta.icon} size={26} color={riskMeta.tint} />
+            {/* Welcoming hero — warm greeting, date, and one friendly line (no risk verdict) */}
+            <Card variant="elevated" style={styles.heroCard}>
+              <View style={styles.heroRow}>
+                <View style={[styles.heroIcon, { backgroundColor: colors.primaryTint }]}>
+                  <Icon name={greetIcon} size={24} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.statusOverline, { color: colors.textMuted }]}>YOUR AREA · TODAY</Text>
-                  <Text style={[styles.statusTitle, { color: colors.text }]}>{riskMeta.title}</Text>
+                  <Text style={[styles.heroOverline, { color: colors.textMuted }]}>{todayLabel}</Text>
+                  <Text style={[styles.heroTitle, { color: colors.text }]} numberOfLines={1}>
+                    {greeting}, {firstName}
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.statusMeter}>
-                <LevelMeter segments={3} active={riskIndex} color={riskMeta.tint} height={8} />
-                <View style={styles.statusMeterLabels}>
-                  {riskLevelLabels.map((lbl, i) => (
-                    <Text
-                      key={lbl}
-                      style={[
-                        styles.statusMeterLabel,
-                        { color: i === riskIndex ? riskMeta.tint : colors.textMuted, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' },
-                      ]}
-                    >
-                      {lbl}
-                    </Text>
-                  ))}
+              <View style={[styles.heroTipRow, { borderTopColor: colors.border }]}>
+                <View style={[styles.heroTipIcon, { backgroundColor: colors.primaryTint }]}>
+                  <Icon name={heroTip.icon} size={13} color={colors.primary} />
                 </View>
+                <Text style={[styles.heroTipText, { color: colors.textSecondary }]}>{heroTip.text}</Text>
               </View>
-
-              {topRecommendation && (
-                <View style={[styles.tipContainer, { borderTopColor: colors.border }]}>
-                  <View style={[styles.tipIcon, { backgroundColor: colors.primaryTint }]}>
-                    <Icon name="sparkles" size={13} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.tipText, { color: colors.textSecondary }]}>{topRecommendation}</Text>
-                </View>
-              )}
             </Card>
+
+            {/* Area Health Signal — the calibrated, honest area risk (not permanently "Elevated") */}
+            {intel?.brain && (
+              <View style={{ marginBottom: Spacing.md }}>
+                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport')} />
+              </View>
+            )}
 
             {/* Current conditions */}
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>CURRENT CONDITIONS</Text>
@@ -294,13 +293,6 @@ const HomeScreen: React.FC = () => {
                 </Card>
               )}
             </View>
-
-            {/* Area health signal */}
-            {intel?.brain && (
-              <View style={{ marginBottom: Spacing.md }}>
-                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport')} />
-              </View>
-            )}
 
             {/* Disease outlook */}
             <View style={{ marginBottom: Spacing.md }}>
@@ -445,21 +437,18 @@ const styles = StyleSheet.create({
   alertTitle: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
   alertMessage: { fontFamily: FontFamily.regular, fontSize: FontSize.xs, marginTop: 2, lineHeight: 17 },
 
-  statusCard: { marginBottom: Spacing.xl },
-  statusHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  statusIcon: {
-    width: 52,
-    height: 52,
+  heroCard: { marginBottom: Spacing.xl },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  heroIcon: {
+    width: 48,
+    height: 48,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusOverline: { fontFamily: FontFamily.semibold, fontSize: FontSize.overline, letterSpacing: LetterSpacing.overline },
-  statusTitle: { fontFamily: FontFamily.display, fontSize: FontSize.xl, letterSpacing: LetterSpacing.tight, marginTop: 2 },
-  statusMeter: { marginTop: Spacing.lg, gap: 7 },
-  statusMeterLabels: { flexDirection: 'row' },
-  statusMeterLabel: { flex: 1, fontFamily: FontFamily.medium, fontSize: 11 },
-  tipContainer: {
+  heroOverline: { fontFamily: FontFamily.semibold, fontSize: FontSize.overline, letterSpacing: LetterSpacing.overline },
+  heroTitle: { fontFamily: FontFamily.display, fontSize: FontSize.xl, letterSpacing: LetterSpacing.tight, marginTop: 2 },
+  heroTipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -467,8 +456,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.base,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  tipIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  tipText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
+  heroTipIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  heroTipText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
 
   sectionLabel: {
     fontFamily: FontFamily.semibold,

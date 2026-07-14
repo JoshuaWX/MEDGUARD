@@ -656,6 +656,7 @@ const MyHealthScreenContent: React.FC = () => {
           <Animated.View entering={FadeInUp.delay(200).duration(450)}>
             <CommunityTrendCard
               trend={communityTrends.length > 0 ? communityTrends[0] : null}
+              prevTrend={communityTrends.length > 1 ? communityTrends[1] : null}
               message={trendMessage}
               state={user?.state || 'your area'}
             />

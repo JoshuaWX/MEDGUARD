@@ -42,6 +42,8 @@ import { CommunityTrend } from '../services/healthCheckin';
 
 interface CommunityTrendCardProps {
   trend: CommunityTrend | null;
+  /** Previous ISO week (for week-over-week symptom deltas). Optional. */
+  prevTrend?: CommunityTrend | null;
   message: string | null;
   state: string;
 }
@@ -108,6 +110,7 @@ const barStyles = StyleSheet.create({
 // =====================================================================
 const CommunityTrendCard: React.FC<CommunityTrendCardProps> = ({
   trend,
+  prevTrend,
   message,
   state,
 }) => {
@@ -201,6 +204,20 @@ const CommunityTrendCard: React.FC<CommunityTrendCardProps> = ({
     1,
   );
 
+  // Most reported symptom this week (informational, non-diagnostic)
+  const notable = SYMPTOM_BARS.map((s) => ({
+    ...s,
+    count: trend.symptomCounts[s.key],
+  })).sort((a, b) => b.count - a.count)[0];
+  const notablePct =
+    notable && notable.count > 0 && total > 0
+      ? Math.round((notable.count / total) * 100)
+      : 0;
+
+  // Week-over-week participation (uses prevWeekTotal from the aggregate)
+  const participationDelta =
+    trend.prevWeekTotal != null ? total - trend.prevWeekTotal : null;
+
   return (
     <Animated.View
       entering={FadeInUp.duration(450)}
@@ -292,16 +309,43 @@ const CommunityTrendCard: React.FC<CommunityTrendCardProps> = ({
         </Animated.View>
       )}
 
+      {/* ── Most reported callout ──────────────────────────────────── */}
+      {notable && notable.count > 0 && (
+        <Animated.View entering={FadeIn.delay(280).duration(300)}>
+          <View
+            style={[
+              styles.notableBox,
+              { backgroundColor: notable.color + (isDark ? '18' : '12') },
+            ]}
+          >
+            <Ionicons name={notable.icon as any} size={18} color={notable.color} />
+            <Text style={[styles.notableText, { color: themed.text }]}>
+              <Text style={styles.notableStrong}>Most reported this week:</Text>{' '}
+              {notable.label} · {notablePct}% of check-ins
+            </Text>
+          </View>
+        </Animated.View>
+      )}
+
       {/* ── Symptom breakdown bars ─────────────────────────────────── */}
       <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: themed.textSecondary }]}>
-          REPORTED SYMPTOMS
-        </Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionLabel, { color: themed.textSecondary }]}>
+            REPORTED SYMPTOMS
+          </Text>
+          {prevTrend && (
+            <Text style={[styles.sectionHint, { color: themed.textMuted }]}>
+              vs last week
+            </Text>
+          )}
+        </View>
         {SYMPTOM_BARS.map((s, i) => {
           const count = trend.symptomCounts[s.key];
           if (count === 0) return null;
           const pct =
             total > 0 ? Math.round((count / total) * 100) : 0;
+          const prevCount = prevTrend ? prevTrend.symptomCounts[s.key] : null;
+          const delta = prevCount != null ? count - prevCount : null;
           return (
             <Animated.View
               key={s.key}
@@ -321,10 +365,41 @@ const CommunityTrendCard: React.FC<CommunityTrendCardProps> = ({
                 <Text style={[styles.barPct, { color: themed.textSecondary }]}>
                   {pct}%
                 </Text>
+                {delta != null && (
+                  <View style={styles.deltaCell}>
+                    {delta === 0 ? (
+                      <Ionicons name="remove-outline" size={13} color={themed.textMuted} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name={delta > 0 ? 'arrow-up' : 'arrow-down'}
+                          size={12}
+                          color={delta > 0 ? '#f59e0b' : '#10b981'}
+                        />
+                        <Text
+                          style={[
+                            styles.deltaText,
+                            { color: delta > 0 ? '#f59e0b' : '#10b981' },
+                          ]}
+                        >
+                          {Math.abs(delta)}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                )}
               </View>
             </Animated.View>
           );
         })}
+        {participationDelta != null && (
+          <Text style={[styles.participationLine, { color: themed.textMuted }]}>
+            {total} check-in{total === 1 ? '' : 's'} this week
+            {participationDelta === 0
+              ? ' · same as last week'
+              : ` · ${participationDelta > 0 ? '+' : ''}${participationDelta} vs last week`}
+          </Text>
+        )}
       </View>
 
       {/* ── Risk distribution stacked bar ──────────────────────────── */}
@@ -468,14 +543,54 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Most reported callout
+  notableBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.base,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.base,
+  },
+  notableText: {
+    flex: 1,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.4,
+  },
+  notableStrong: { fontFamily: FontFamily.semibold },
+
   // Sections
   section: { marginBottom: Spacing.base },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   sectionLabel: {
     fontFamily: FontFamily.semibold,
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: Spacing.sm,
+  },
+  sectionHint: {
+    fontFamily: FontFamily.regular,
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+  deltaCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+    width: 30,
+    justifyContent: 'flex-end',
+  },
+  deltaText: { fontFamily: FontFamily.semibold, fontSize: 11 },
+  participationLine: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    marginTop: 4,
   },
 
   // Symptom bars
