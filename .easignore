@@ -1,0 +1,50 @@
+# .easignore — controls what gets uploaded to EAS Build.
+# NOTE: when this file exists it REPLACES .gitignore for the build archive,
+# so it must also list everything from .gitignore we still want excluded.
+# The mobile app lives in mobile-expo/ — everything else in this monorepo
+# (the Vite web app, backend, ML, pitch assets) is not needed to build the app.
+
+# ── Dependencies / build output (EAS reinstalls + regenerates these) ──
+node_modules
+mobile-expo/node_modules
+mobile-expo/.expo
+mobile-expo/android
+mobile-expo/ios
+mobile-expo/dist
+mobile-expo/web-build
+
+# ── Root Vite web app + tooling (not part of the mobile build) ──
+/src
+/dist
+/public
+/server
+/tools
+/scripts
+/codeimages
+/output
+/.idea
+/.vscode
+/.github
+/*.html
+/vite.config.ts
+/tailwind.config.js
+/postcss.config.js
+
+# ── Backend / data / docs (server-side, never shipped in the app) ──
+/supabase
+/db
+/ml
+/pitch
+/End-to-end-Medical-Chatbot-Generative-AI
+
+# ── Secrets (mirror .gitignore — .easignore overrides it) ──
+.env
+.env.local
+.env.*.local
+mobile-expo/.env
+mobile-expo/.env.local
+mobile-expo/.env.*.local
+
+# ── Keep these (do NOT ignore) — the build needs them ──
+# mobile-expo/google-services.json  ← required for FCM; make sure it uploads
+!mobile-expo/google-services.json
