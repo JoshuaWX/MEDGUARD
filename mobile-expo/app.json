@@ -3,7 +3,7 @@
     "name": "MedGuard",
     "slug": "medguard",
     "scheme": "medguard",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "MedGuard uses your location to personalize health alerts and verify your state."
       }
@@ -28,7 +28,7 @@
         "backgroundColor": "#0B7C8C"
       },
       "edgeToEdgeEnabled": true,
-      "versionCode": 1,
+      "versionCode": 2,
       "predictiveBackGestureEnabled": false,
       "package": "com.medguard.ng",
       "permissions": [
