@@ -12,7 +12,7 @@ update public.app_version_policy
        force_update        = true,
        -- Optional: a link where friends can grab the new build (Play Store,
        -- Expo internal-distribution URL, Drive link, etc.). Leave '' if none.
-       update_url          = '',
+       update_url          = 'https://drive.google.com/drive/folders/1_7eQvcWuw3TwA6MQvGofCgl22solBN65?usp=sharing',
        message             = 'This is an old test build of MedGuard and is no longer supported. Please install the latest version to continue.',
        updated_at          = now()
  where platform in ('android', 'ios');
