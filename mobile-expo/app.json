@@ -35,7 +35,8 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACTIVITY_RECOGNITION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.health.READ_STEPS"
       ],
       "intentFilters": [
         {
@@ -81,7 +82,9 @@
             "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "react-native-health-connect",
+      "./plugins/withHealthConnectPermissionDelegate"
     ],
     "extra": {
       "eas": {
