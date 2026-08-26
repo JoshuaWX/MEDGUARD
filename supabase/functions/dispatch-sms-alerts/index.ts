@@ -18,6 +18,7 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { readAtConfig, sendViaAfricasTalking } from '../_shared/sms.ts';
+import { requireCronSecret } from '../_shared/request-auth.ts';
 
 const COOLDOWN_HOURS = 24;
 const MAX_PER_RUN = 1000;
@@ -49,11 +50,8 @@ function forecastMsg(state: string, parts: string[]): string {
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Only the scheduler (or an authorised caller) may trigger a real dispatch.
-  const cronSecret = Deno.env.get('NOTIFY_CRON_SECRET');
-  if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
-    return json({ error: 'unauthorized' }, 401);
-  }
+  const auth = requireCronSecret(req);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
 
   const admin = tryCreateAdminClient();
   if (!admin) return json({ error: 'service role not configured' }, 500);

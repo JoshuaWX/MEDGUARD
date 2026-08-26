@@ -24,12 +24,14 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { normalizeState } from '../_shared/nigeria.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
+import { requireUssdCallbackSecret } from '../_shared/request-auth.ts';
 
 // USSD gateways expect a text/plain body. CORS is included so the local
 // demo simulator (a static HTML page) can call this too.
-function ussd(text: string) {
+function ussd(text: string, status = 200) {
   return new Response(text, {
-    status: 200,
+    status,
     headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
   });
 }
@@ -38,27 +40,70 @@ const RISK_EMOJI: Record<string, string> = {
   low: 'Low', moderate: 'Moderate', elevated: 'Elevated', high: 'High',
 };
 
-async function parseInput(req: Request): Promise<{ phone: string; text: string }> {
-  const ct = req.headers.get('content-type') || '';
-  if (ct.includes('application/json')) {
-    const b = await req.json().catch(() => ({}));
-    return { phone: String(b.phoneNumber ?? ''), text: String(b.text ?? '') };
-  }
-  // Africa's Talking posts application/x-www-form-urlencoded.
-  const form = await req.formData().catch(() => null);
+type UssdInput = { sessionId: string; phone: string; text: string };
+
+const MAX_USSD_BODY_BYTES = 4096;
+const MAX_USSD_TEXT_LENGTH = 240;
+const NIGERIAN_MSISDN = /^\+234[789]\d{9}$/;
+const USSD_SESSION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
+async function parseInput(req: Request): Promise<UssdInput | null> {
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().startsWith('application/x-www-form-urlencoded')) return null;
+
+  const contentLength = Number(req.headers.get('content-length') || '0');
+  if (!Number.isFinite(contentLength) || contentLength > MAX_USSD_BODY_BYTES) return null;
+
+  const raw = await req.text();
+  if (raw.length > MAX_USSD_BODY_BYTES) return null;
+  const form = new URLSearchParams(raw);
+
+  const sessionId = String(form.get('sessionId') ?? '').trim();
+  const phone = String(form.get('phoneNumber') ?? '').trim();
+  const text = String(form.get('text') ?? '');
+  if (!USSD_SESSION_ID.test(sessionId) || !NIGERIAN_MSISDN.test(phone)) return null;
+  if (text.length > MAX_USSD_TEXT_LENGTH || /[\u0000-\u001F]/.test(text)) return null;
+
   return {
-    phone: String(form?.get('phoneNumber') ?? ''),
-    text: String(form?.get('text') ?? ''),
+    sessionId,
+    phone,
+    text,
   };
 }
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return ussd('END Invalid request.', 405);
+
+  const auth = requireUssdCallbackSecret(req);
+  if (!auth.ok) {
+    return ussd('END Service temporarily unavailable. Please try again later.', auth.status);
+  }
 
   const admin = tryCreateAdminClient();
   if (!admin) return ussd('END Service temporarily unavailable. Please try again later.');
 
-  const { phone, text } = await parseInput(req);
+  const input = await parseInput(req);
+  if (!input) return ussd('END Invalid request. Please dial again.', 400);
+
+  const [sessionLimit, phoneLimit] = await Promise.all([
+    enforceRateLimit(req, {
+      bucket: 'ussd-session', windowSeconds: 90, maxRequests: 12, subjectId: input.sessionId,
+    }),
+    enforceRateLimit(req, {
+      bucket: 'ussd-phone', windowSeconds: 600, maxRequests: 30, subjectId: input.phone,
+    }),
+  ]);
+  // The rate limiter is an abuse-control dependency for this public callback.
+  // Do not process a request if it cannot enforce either limit.
+  if (!sessionLimit || !phoneLimit) {
+    return ussd('END Service temporarily unavailable. Please try again later.', 503);
+  }
+  if (!sessionLimit.allowed || !phoneLimit.allowed) {
+    return ussd('END Too many requests. Please try again shortly.', 429);
+  }
+
+  const { phone, text } = input;
   const parts = text === '' ? [] : text.split('*');
   const nowIso = new Date().toISOString();
 

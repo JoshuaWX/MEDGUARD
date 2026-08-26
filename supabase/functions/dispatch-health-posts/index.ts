@@ -16,6 +16,7 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { readAtConfig, sendViaAfricasTalking, smsClamp } from '../_shared/sms.ts';
+import { requireCronSecret } from '../_shared/request-auth.ts';
 
 const POST_WINDOW_DAYS = 3;      // only SMS posts published within this window (avoid backlog burst)
 const TIP_DIGEST_DAYS = 7;       // weekly tips cadence
@@ -37,10 +38,8 @@ function postMsg(source: string, title: string, body: string): string {
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const cronSecret = Deno.env.get('NOTIFY_CRON_SECRET');
-  if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
-    return json({ error: 'unauthorized' }, 401);
-  }
+  const auth = requireCronSecret(req);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
 
   const admin = tryCreateAdminClient();
   if (!admin) return json({ error: 'service role not configured' }, 500);

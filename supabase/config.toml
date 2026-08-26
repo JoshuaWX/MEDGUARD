@@ -29,3 +29,18 @@ verify_jwt = false
 # Called by the scheduler (pg_cron), guarded by NOTIFY_CRON_SECRET, not a user JWT.
 [functions.notify-area]
 verify_jwt = false
+
+# Machine-to-machine functions authenticate with a required shared secret.
+[functions.dispatch-sms-alerts]
+verify_jwt = false
+
+[functions.dispatch-health-posts]
+verify_jwt = false
+
+[functions.dispatch-risk-changes]
+verify_jwt = false
+
+# Africa's Talking callbacks have no Supabase JWT. The function validates a
+# required callback secret in the provider-configured URL instead.
+[functions.ussd]
+verify_jwt = false

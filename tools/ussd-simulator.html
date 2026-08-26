@@ -39,7 +39,7 @@
 
   <div class="config">
     <label>Function URL
-      <input id="url" placeholder="https://&lt;project&gt;.functions.supabase.co/ussd" />
+      <input id="url" placeholder="https://&lt;project&gt;.functions.supabase.co/ussd?callback_secret=…" />
     </label>
     <label>Phone number
       <input id="phone" value="+2348030000001" />
@@ -57,7 +57,7 @@
       <button class="dial" id="dialBtn">📞 Dial</button>
     </div>
   </div>
-  <div class="hint">Try: <b>1</b> → <b>Ondo</b> (risk) · <b>2</b> → <b>Lagos</b> (subscribe) · <b>3</b> (official)</div>
+  <div class="hint">Paste the complete protected callback URL. Do not share it. Try: <b>1</b> → <b>Ondo</b> (risk) · <b>2</b> → <b>Lagos</b> (subscribe) · <b>3</b> (official)</div>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -81,7 +81,7 @@
       const body = await res.text();
       handle(body);
     } catch (e) {
-      render('Network error: ' + e.message + '\n(Is the function deployed with --no-verify-jwt and CORS?)', false, true);
+      render('Network error: ' + e.message + '\n(Check the protected callback URL and network connection.)', false, true);
     }
   }
 

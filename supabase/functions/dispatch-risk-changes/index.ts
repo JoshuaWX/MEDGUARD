@@ -20,6 +20,7 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { ExpoMessage, isExpoToken, sendExpoPush } from '../_shared/push.ts';
+import { requireCronSecret } from '../_shared/request-auth.ts';
 
 const MAX_PER_STATE = 500;
 const LOOKBACK_DAYS = 45; // consider forecasts generated within this window
@@ -55,10 +56,8 @@ type Rise = {
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const cronSecret = Deno.env.get('NOTIFY_CRON_SECRET');
-  if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
-    return json({ error: 'unauthorized' }, 401);
-  }
+  const auth = requireCronSecret(req);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
 
   const admin = tryCreateAdminClient();
   if (!admin) return json({ error: 'service role not configured' }, 500);
