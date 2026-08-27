@@ -18,7 +18,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.verify-location]
-verify_jwt = true
+# Signup verification is intentionally unauthenticated; authenticated calls are
+# validated in the function before the owner-scoped RPC is used.
+verify_jwt = false
 
 [functions.nearby-facilities]
 # Guest users can search for nearby care. The function has bounded inputs and

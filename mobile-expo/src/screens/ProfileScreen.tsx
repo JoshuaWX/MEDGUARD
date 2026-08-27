@@ -67,6 +67,7 @@ import { useUser } from '../hooks/useUser';
 import { useNotifications } from '../hooks/useNotifications';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
+import { useLocationContext } from '../hooks/LocationContext';
 import { useI18n } from '../i18n';
 import { toUserMessage } from '../services/errorMessages';
 import {
@@ -91,6 +92,7 @@ const ProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const { user, loading, refresh, updateProfile, updateAvatar } = useUser();
+  const { alertArea, setManualAlertState } = useLocationContext();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const { isGuest } = useAuthGate();
@@ -354,14 +356,16 @@ const ProfileScreen: React.FC = () => {
       const ageNum = age ? Number(age) : null;
       const heightNum = height ? Number(height) : null;
       const weightNum = weight ? Number(weight) : null;
+      const { state: manualState, ...profileData } = formData;
       await updateProfile({
-        ...formData,
+        ...profileData,
         lga: lga.trim() || null,
         gender: gender || null,
         age: Number.isFinite(ageNum) ? ageNum : null,
         heightCm: heightNum && Number.isFinite(heightNum) ? heightNum : null,
         weightKg: weightNum && Number.isFinite(weightNum) ? weightNum : null,
       });
+      if (!(await setManualAlertState(manualState))) throw new Error('Unable to save your home state.');
       setEditMode(false);
       toast({ tone: 'success', title: 'Profile updated', message: 'Your changes have been saved.' });
     } catch (e) {
@@ -689,11 +693,11 @@ const ProfileScreen: React.FC = () => {
 
                     <View style={styles.twoColRow}>
                       <View style={styles.twoCol}>
-                        <Text style={styles.inputLabel}>{t('state')}</Text>
+                        <Text style={styles.inputLabel}>Home state (used when sharing is off)</Text>
                         <Input
                           value={formData.state}
                           onChangeText={(text) => setFormData({ ...formData, state: text })}
-                          placeholder="State"
+                          placeholder="Home state"
                           editable={editMode}
                           containerStyle={styles.compactInput}
                         />
@@ -709,6 +713,7 @@ const ProfileScreen: React.FC = () => {
                         />
                       </View>
                     </View>
+                    {alertArea ? <Text style={styles.cardSubtitle}>Current alert area: {alertArea.state}{alertArea.source === 'gps' ? ' (GPS verified)' : ' (home state)'}</Text> : null}
 
                     <View style={styles.twoColRow}>
                       <View style={styles.twoCol}>

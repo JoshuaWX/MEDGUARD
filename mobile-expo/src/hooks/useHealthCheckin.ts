@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { usePersonalHealthData } from './PersonalHealthDataContext';
+import { useLocationContext } from './LocationContext';
 import {
   CheckinAnswers,
   HealthCheckin,
@@ -70,7 +71,8 @@ export function useHealthCheckin(): UseHealthCheckinReturn {
   const [communityError, setCommunityError] = useState<string | null>(null);
   const communityRequestIdRef = useRef(0);
 
-  const userState = dashboard?.profile.state ?? null;
+  const { alertArea } = useLocationContext();
+  const userState = alertArea?.state ?? dashboard?.profile.state ?? null;
   const streak = dashboard?.streak ?? emptyStreak;
   const todayCheckin = dashboard?.todayCheckin ?? null;
 

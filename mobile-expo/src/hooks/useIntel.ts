@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useUser } from './useUser';
 import { useAuth } from './useAuth';
 import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
@@ -85,22 +84,20 @@ const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 export const useIntel = (): UseIntelReturn => {
   const { user: authUser, initialized: authInitialized } = useAuth();
-  const { user, loading: userLoading } = useUser();
-  const { location, geocoded, loading: locationLoading } = useLocationContext();
+  const { alertArea, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [intel, setIntel] = useState<IntelV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchIntel = useCallback(async () => {
-    if (!authInitialized || (authUser?.id && userLoading)) {
+    if (!authInitialized) {
       setLoading(true);
       return;
     }
 
-    const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
     const requestId = ++requestIdRef.current;
-    const state = geocoded?.state || user?.state || metaState || null;
+    const state = alertArea?.state ?? null;
 
     if (!state) {
       if (locationLoading) {
@@ -113,21 +110,13 @@ export const useIntel = (): UseIntelReturn => {
       return;
     }
     
-    // Get precise coordinates if available
-    const lat = location?.latitude ?? null;
-    const lon = location?.longitude ?? null;
-    const hasPreciseCoords = lat !== null && lon !== null;
-
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch fresh data from Edge Function (v2) with coordinates
-      const requestBody: { state: string; lat?: number; lon?: number } = { state };
-      if (hasPreciseCoords) {
-        requestBody.lat = lat!;
-        requestBody.lon = lon!;
-      }
+      // The canonical area alone powers intelligence. Raw device coordinates
+      // remain exclusively for nearby-map searches until server verification.
+      const requestBody = { state };
       
       const { data, error: edgeError } = await invokeEdgeFunction<IntelV2>('intel', requestBody);
       
@@ -148,7 +137,7 @@ export const useIntel = (): UseIntelReturn => {
         setLoading(false);
       }
     }
-  }, [authInitialized, authUser, user?.state, userLoading, geocoded?.state, location?.latitude, location?.longitude, locationLoading]);
+  }, [alertArea?.state, authInitialized, locationLoading]);
 
   useEffect(() => {
     fetchIntel();

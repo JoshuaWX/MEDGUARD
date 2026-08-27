@@ -79,7 +79,7 @@ const HomeScreen: React.FC = () => {
   const { user, loading: userLoading } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
   const { rows: riskRows, loading: riskLoading } = useRiskMap();
-  const { geocoded, refreshLocation, requestPermission, permissionStatus } = useLocationContext();
+  const { geocoded, alertArea, refreshLocation, requestPermission, permissionStatus } = useLocationContext();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
@@ -126,7 +126,7 @@ const HomeScreen: React.FC = () => {
     else requestPermission();
   };
 
-  const location = geocoded?.city || geocoded?.region || user?.state || 'Nigeria';
+  const location = alertArea?.state || geocoded?.city || 'Nigeria';
   const showLocationPrompt = permissionStatus !== 'granted' && permissionStatus !== 'denied';
   const overallRisk = intel?.riskAssessment?.overallRiskLevel || 'low';
   const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive) || [];
@@ -297,7 +297,7 @@ const HomeScreen: React.FC = () => {
             {/* Disease outlook */}
             <View style={{ marginBottom: Spacing.md }}>
               <DiseaseOutlookCard
-                state={intel?.location?.state || geocoded?.state || user?.state}
+                state={intel?.location?.state || alertArea?.state}
                 rows={riskRows}
                 loading={riskLoading}
                 onOpenMap={() => (navigation as any).navigate('Map')}

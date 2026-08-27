@@ -276,7 +276,8 @@ async function ensureProfileExists(user: User) {
   
   // Add optional fields only if they have values
   const stateVal = staged.state || meta.state;
-  if (stateVal) payload.state = stateVal;
+  if (stateVal) { payload.state = stateVal; payload.manual_state = stateVal; }
+  payload.use_location = Boolean(meta.use_location ?? meta.useLocation ?? true);
   
   const genderVal = staged.gender || meta.gender;
   if (genderVal) payload.gender = genderVal;
@@ -285,10 +286,10 @@ async function ensureProfileExists(user: User) {
   if (typeof ageVal === 'number' && Number.isFinite(ageVal)) payload.age = ageVal;
   
   const latVal = staged.latitude ?? (typeof meta.latitude === 'number' ? meta.latitude : null);
-  if (typeof latVal === 'number' && Number.isFinite(latVal)) payload.latitude = latVal;
+  if (Boolean(payload.use_location) && typeof latVal === 'number' && Number.isFinite(latVal)) payload.latitude = latVal;
   
   const lonVal = staged.longitude ?? (typeof meta.longitude === 'number' ? meta.longitude : null);
-  if (typeof lonVal === 'number' && Number.isFinite(lonVal)) payload.longitude = lonVal;
+  if (Boolean(payload.use_location) && typeof lonVal === 'number' && Number.isFinite(lonVal)) payload.longitude = lonVal;
 
   // 3) Upsert (RLS-safe when signed in)
   try {
@@ -584,8 +585,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         use_location: signUpData.useLocation,
         gender: signUpData.gender ?? null,
         age: typeof signUpData.age === 'number' ? signUpData.age : null,
-        latitude: typeof signUpData.latitude === 'number' ? signUpData.latitude : null,
-        longitude: typeof signUpData.longitude === 'number' ? signUpData.longitude : null,
+        latitude: signUpData.useLocation && typeof signUpData.latitude === 'number' ? signUpData.latitude : null,
+        longitude: signUpData.useLocation && typeof signUpData.longitude === 'number' ? signUpData.longitude : null,
       };
 
       const { data, error } = await supabase.auth.signUp({
@@ -618,13 +619,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           full_name: signUpData.name,
           name: signUpData.name,
           state: signUpData.state,
+          manual_state: signUpData.state,
+          use_location: signUpData.useLocation,
         };
         
         // Add optional fields only if they have values
         if (signUpData.gender) profilePayload.gender = signUpData.gender;
         if (typeof signUpData.age === 'number') profilePayload.age = signUpData.age;
-        if (typeof signUpData.latitude === 'number') profilePayload.latitude = signUpData.latitude;
-        if (typeof signUpData.longitude === 'number') profilePayload.longitude = signUpData.longitude;
+        if (signUpData.useLocation && typeof signUpData.latitude === 'number') profilePayload.latitude = signUpData.latitude;
+        if (signUpData.useLocation && typeof signUpData.longitude === 'number') profilePayload.longitude = signUpData.longitude;
 
         const { error: upsertError } = await supabase
           .from('profiles')

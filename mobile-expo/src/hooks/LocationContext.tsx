@@ -1,588 +1,124 @@
-/**
- * LocationContext
- * 
- * Provides secure, real-time location updates throughout the app with:
- * - Background-safe location tracking (respecting platform limits)
- * - AppState handling (foreground/background transitions)
- * - Network awareness and graceful degradation
- * - Permission revocation detection
- * - Throttled database updates to prevent battery drain
- * - Automatic sync with user profile
- */
-
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
+/** One canonical server-verified alert area; raw GPS remains available for maps. */
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
-import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../services/supabase';
 import { useAuth } from './useAuth';
+import { clearConfirmedLocationCache, readConfirmedLocationCache, type DeviceLocation, verifyAndPersistLocation, writeConfirmedLocationCache } from '../services/locationSync';
+import { registerBackgroundLocationTask, startBackgroundLocationUpdates, stopBackgroundLocationUpdates } from '../services/backgroundLocationTask';
 
-// Configuration constants
-const CONFIG = {
-  // Foreground updates
-  foregroundTimeInterval: 60 * 1000, // 1 minute minimum between updates
-  foregroundDistanceInterval: 50, // 50 meters minimum movement
-
-  // Database sync throttling
-  dbSyncMinInterval: 2 * 60 * 1000, // Sync to DB at most every 2 minutes
-  
-  // Cache keys
-  storageKeys: {
-    lastLocation: 'mg_last_location',
-    lastGeocoded: 'mg_last_geocoded',
-    lastDbSync: 'mg_last_db_sync',
-  },
-} as const;
-
-interface LocationData {
-  latitude: number;
-  longitude: number;
-  accuracy: number | null;
-  altitude: number | null;
-  timestamp: number;
-}
-
-interface GeocodedLocation {
-  address: string | null;
-  state: string | null;
-  city: string | null;
-  country: string | null;
-  region: string | null;
-}
-
+const FOREGROUND_TIME_MS = 60_000;
+const FOREGROUND_DISTANCE_M = 50;
+export type LocationData = DeviceLocation;
+export interface GeocodedLocation { address: string | null; state: string | null; city: string | null; country: string | null; region: string | null; }
+export interface AlertArea { state: string; source: 'gps' | 'manual'; updatedAt: string | null; }
 interface LocationContextValue {
-  // Current location data
-  location: LocationData | null;
-  geocoded: GeocodedLocation | null;
-  
-  // Status flags
-  loading: boolean;
-  error: string | null;
-  permissionStatus: Location.PermissionStatus | null;
-  isTracking: boolean;
-  isOnline: boolean;
-  
-  // Actions
-  requestPermission: () => Promise<boolean>;
-  refreshLocation: () => Promise<LocationData | null>;
-  startWatching: () => Promise<void>;
-  stopWatching: () => void;
-  
-  // Verification helper for signup
-  verifyLocation: () => Promise<{ 
-    success: boolean; 
-    location: LocationData | null; 
-    geocoded: GeocodedLocation | null;
-    error: string | null;
-  }>;
-
-  // Legacy compatibility
+  location: LocationData | null; geocoded: GeocodedLocation | null; alertArea: AlertArea | null;
+  locationSharingEnabled: boolean; backgroundLocationEnabled: boolean;
+  loading: boolean; error: string | null; permissionStatus: Location.PermissionStatus | null; isTracking: boolean; isOnline: boolean;
+  requestPermission: () => Promise<boolean>; refreshLocation: () => Promise<LocationData | null>; startWatching: () => Promise<void>; stopWatching: () => void;
+  setLocationSharing: (enabled: boolean) => Promise<boolean>; setBackgroundLocationEnabled: (enabled: boolean) => Promise<boolean>; setManualAlertState: (state: string) => Promise<boolean>;
+  verifyLocation: () => Promise<{ success: boolean; location: LocationData | null; geocoded: GeocodedLocation | null; error: string | null }>;
   permissionGranted: boolean;
 }
-
 const LocationContext = createContext<LocationContextValue | null>(null);
-
-// Nigerian state name normalization
-const NIGERIAN_STATES: Record<string, string> = {
-  'lagos': 'Lagos',
-  'lagos state': 'Lagos',
-  'fct': 'Federal Capital Territory',
-  'federal capital territory': 'Federal Capital Territory',
-  'abuja': 'Federal Capital Territory',
-  'kano': 'Kano',
-  'rivers': 'Rivers',
-  'oyo': 'Oyo',
-  'kaduna': 'Kaduna',
-  'delta': 'Delta',
-  'anambra': 'Anambra',
-  'enugu': 'Enugu',
-  'ogun': 'Ogun',
-  'ondo': 'Ondo',
-  'edo': 'Edo',
-  'katsina': 'Katsina',
-  'sokoto': 'Sokoto',
-  'borno': 'Borno',
-  'bauchi': 'Bauchi',
-  'plateau': 'Plateau',
-  'cross river': 'Cross River',
-  'akwa ibom': 'Akwa Ibom',
-  'abia': 'Abia',
-  'imo': 'Imo',
-  'kwara': 'Kwara',
-  'niger': 'Niger',
-  'benue': 'Benue',
-  'osun': 'Osun',
-  'ekiti': 'Ekiti',
-  'taraba': 'Taraba',
-  'adamawa': 'Adamawa',
-  'gombe': 'Gombe',
-  'yobe': 'Yobe',
-  'jigawa': 'Jigawa',
-  'zamfara': 'Zamfara',
-  'kebbi': 'Kebbi',
-  'kogi': 'Kogi',
-  'nasarawa': 'Nasarawa',
-  'ebonyi': 'Ebonyi',
-  'bayelsa': 'Bayelsa',
-};
-
-function normalizeNigerianState(region: string | null): string | null {
-  if (!region) return null;
-  const lower = region.toLowerCase().replace(/\s+state$/i, '').trim();
-  return NIGERIAN_STATES[lower] || region;
-}
+const toPoint = (p: Location.LocationObject): LocationData => ({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy, altitude: p.coords.altitude, timestamp: p.timestamp });
 
 export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const { user } = useAuth();
-  
-  // State
+  const { user, initialized } = useAuth();
   const [location, setLocation] = useState<LocationData | null>(null);
   const [geocoded, setGeocoded] = useState<GeocodedLocation | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [alertArea, setAlertArea] = useState<AlertArea | null>(null);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(true);
+  const [backgroundLocationEnabled, setBackgroundLocationEnabledState] = useState(false);
+  const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
-  const [isTracking, setIsTracking] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  
-  // Refs
-  const watchSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
-  const lastDbSyncRef = useRef<number>(0);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const mountedRef = useRef(true);
+  const [isTracking, setIsTracking] = useState(false); const [isOnline, setIsOnline] = useState(true);
+  const watcher = useRef<Location.LocationSubscription | null>(null); const mounted = useRef(true);
+  const activeUserId = useRef<string | null>(null); const observationRevision = useRef(0); const appState = useRef<AppStateStatus>(AppState.currentState);
 
-  // Derived state for legacy compatibility
-  const permissionGranted = permissionStatus === 'granted';
-
-  // Load cached location on mount
-  useEffect(() => {
-    mountedRef.current = true;
-    
-    const loadCached = async () => {
-      try {
-        const [cachedLocation, cachedGeocoded] = await Promise.all([
-          AsyncStorage.getItem(CONFIG.storageKeys.lastLocation),
-          AsyncStorage.getItem(CONFIG.storageKeys.lastGeocoded),
-        ]);
-
-        if (cachedLocation && mountedRef.current) {
-          setLocation(JSON.parse(cachedLocation));
-        }
-        if (cachedGeocoded && mountedRef.current) {
-          setGeocoded(JSON.parse(cachedGeocoded));
-        }
-      } catch {
-        // Ignore cache read errors
-      }
-    };
-
-    loadCached();
-    
-    return () => {
-      mountedRef.current = false;
-    };
+  const stopWatching = useCallback(() => { watcher.current?.remove(); watcher.current = null; if (mounted.current) setIsTracking(false); }, []);
+  const clearLocationState = useCallback(async (id?: string | null) => {
+    stopWatching(); await stopBackgroundLocationUpdates().catch(() => undefined); if (id) await clearConfirmedLocationCache(id);
+    if (mounted.current) { setLocation(null); setGeocoded(null); setAlertArea(null); setBackgroundLocationEnabledState(false); }
+  }, [stopWatching]);
+  const requestPermission = useCallback(async () => {
+    try { const { status } = await Location.requestForegroundPermissionsAsync(); if (mounted.current) { setPermissionStatus(status); setError(status === 'granted' ? null : 'Location permission denied. Your home state will be used for alerts.'); } return status === 'granted'; }
+    catch { if (mounted.current) setError('Unable to request location permission.'); return false; }
   }, []);
-
-  // Check permission on mount
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (mountedRef.current) {
-          setPermissionStatus(status);
-        }
-      } catch {
-        // Ignore
-      }
-    };
-
-    checkPermission();
-  }, []);
-
-  // Monitor network connectivity
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
-      if (mountedRef.current) {
-        setIsOnline(state.isConnected ?? true);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Handle AppState changes (foreground/background)
-  useEffect(() => {
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      const prevState = appStateRef.current;
-      appStateRef.current = nextAppState;
-
-      // Coming to foreground from background
-      if (prevState.match(/inactive|background/) && nextAppState === 'active') {
-        // Check if permission was revoked while in background
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (mountedRef.current) {
-          setPermissionStatus(status);
-          
-          if (status !== 'granted') {
-            setError('Location permission was revoked');
-            stopWatching();
-          } else if (user?.id && isTracking) {
-            // Refresh location when coming back to foreground
-            refreshLocation();
-          }
-        }
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription.remove();
-  }, [user?.id, isTracking]);
-
-  // Request permission
-  const requestPermission = useCallback(async (): Promise<boolean> => {
+  const confirmLocation = useCallback(async (point: LocationData) => {
+    const id = activeUserId.current; if (!id || !locationSharingEnabled || !isOnline) return;
+    const revision = ++observationRevision.current;
     try {
-      setError(null);
-      
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (mountedRef.current) {
-        setPermissionStatus(status);
-        
-        if (status !== 'granted') {
-          setError('Location permission denied. Please enable it in settings.');
-          return false;
-        }
-      }
-
-      // On Android, optionally request background permission
-      if (Platform.OS === 'android') {
-        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-        if (bgStatus === 'granted') {
-          console.log('Background location permission granted');
-        }
-      }
-
-      return status === 'granted';
-    } catch (err) {
-      console.error('Error requesting location permission:', err);
-      if (mountedRef.current) {
-        setError('Failed to request location permission');
-      }
-      return false;
-    }
-  }, []);
-
-  // Reverse geocode and update state
-  const reverseGeocodeAndSave = useCallback(async (lat: number, lon: number): Promise<GeocodedLocation | null> => {
-    try {
-      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-      
-      if (results.length > 0) {
-        const result = results[0];
-        
-        // Fix: Use subregion or district as city fallback (expo-location sometimes puts city in wrong field)
-        // On Android, the "city" field sometimes contains business names or POIs
-        const cityName = result.subregion || result.district || result.city;
-        
-        // Validate city name - skip if it looks like a business name (contains certain patterns)
-        const isValidCity = cityName && 
-          !cityName.includes('Advies') && 
-          !cityName.includes('Ltd') && 
-          !cityName.includes('Limited') &&
-          !cityName.includes('Inc') &&
-          !cityName.includes('Corp');
-        
-        const addressParts = [result.street, cityName, result.region, result.country].filter(Boolean);
-        
-        const newGeocoded: GeocodedLocation = {
-          address: addressParts.join(', ') || null,
-          state: normalizeNigerianState(result.region),
-          city: isValidCity ? cityName : null,
-          country: result.country || null,
-          region: result.region || null,
-        };
-
-        if (mountedRef.current) {
-          setGeocoded(newGeocoded);
-        }
-        await AsyncStorage.setItem(CONFIG.storageKeys.lastGeocoded, JSON.stringify(newGeocoded));
-
-        return newGeocoded;
-      }
-    } catch (err) {
-      console.warn('Reverse geocoding failed:', err);
-    }
-    return null;
-  }, []);
-
-  // Update profile in database with new location (throttled)
-  const syncLocationToProfile = useCallback(async (lat: number, lon: number, state: string | null) => {
-    if (!user?.id || !isOnline) return;
-
-    const now = Date.now();
-    if (now - lastDbSyncRef.current < CONFIG.dbSyncMinInterval) {
-      return; // Throttle database updates
-    }
-
-    try {
-      await supabase
-        .from('profiles')
-        .update({
-          latitude: lat,
-          longitude: lon,
-          state: state || undefined,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      lastDbSyncRef.current = now;
-      await AsyncStorage.setItem(CONFIG.storageKeys.lastDbSync, String(now));
-    } catch (err) {
-      console.warn('Failed to sync location to profile:', err);
-    }
-  }, [user?.id, isOnline]);
-
-  // Refresh location manually
+      const confirmed = await verifyAndPersistLocation(point);
+      if (!mounted.current || id !== activeUserId.current || revision !== observationRevision.current) return;
+      const geo = { address: confirmed.address, state: confirmed.state, city: null, country: 'Nigeria', region: confirmed.state };
+      setGeocoded(geo); setAlertArea({ state: confirmed.state, source: 'gps', updatedAt: confirmed.observedAt }); await writeConfirmedLocationCache(id, confirmed);
+    } catch { /* retain the last server-confirmed area */ }
+  }, [isOnline, locationSharingEnabled]);
   const refreshLocation = useCallback(async (): Promise<LocationData | null> => {
-    if (permissionStatus !== 'granted') {
-      const granted = await requestPermission();
-      if (!granted) return null;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const newLocation: LocationData = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        altitude: pos.coords.altitude,
-        timestamp: pos.timestamp,
-      };
-
-      if (mountedRef.current) {
-        setLocation(newLocation);
-      }
-      await AsyncStorage.setItem(CONFIG.storageKeys.lastLocation, JSON.stringify(newLocation));
-
-      // Reverse geocode
-      const geo = await reverseGeocodeAndSave(newLocation.latitude, newLocation.longitude);
-
-      // Sync to profile (throttled)
-      await syncLocationToProfile(newLocation.latitude, newLocation.longitude, geo?.state || null);
-
-      return newLocation;
-    } catch (err) {
-      console.error('Error getting location:', err);
-      if (mountedRef.current) {
-        setError('Failed to get current location');
-      }
-      return null;
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [permissionStatus, requestPermission, reverseGeocodeAndSave, syncLocationToProfile]);
-
-  // Verify location for signup (strict verification, not throttled)
-  const verifyLocation = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Step 1: Request permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        return {
-          success: false,
-          location: null,
-          geocoded: null,
-          error: 'Location permission is required to create an account. MedGuard needs your location to provide personalized health alerts.',
-        };
-      }
-
-      // Step 2: Get high-accuracy location
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const locationData: LocationData = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        altitude: pos.coords.altitude,
-        timestamp: pos.timestamp,
-      };
-
-      // Step 3: Reverse geocode
-      const geoResults = await Location.reverseGeocodeAsync({
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-      });
-
-      if (geoResults.length === 0) {
-        return {
-          success: false,
-          location: locationData,
-          geocoded: null,
-          error: 'Could not determine your location address. Please ensure you have a stable GPS signal.',
-        };
-      }
-
-      const result = geoResults[0];
-      const geocodedData: GeocodedLocation = {
-        address: [result.street, result.city, result.region, result.country].filter(Boolean).join(', '),
-        state: normalizeNigerianState(result.region),
-        city: result.city || null,
-        country: result.country || null,
-        region: result.region || null,
-      };
-
-      // Update state
-      if (mountedRef.current) {
-        setLocation(locationData);
-        setGeocoded(geocodedData);
-        setPermissionStatus(status);
-      }
-
-      // Cache
-      await Promise.all([
-        AsyncStorage.setItem(CONFIG.storageKeys.lastLocation, JSON.stringify(locationData)),
-        AsyncStorage.setItem(CONFIG.storageKeys.lastGeocoded, JSON.stringify(geocodedData)),
-      ]);
-
-      return {
-        success: true,
-        location: locationData,
-        geocoded: geocodedData,
-        error: null,
-      };
-    } catch (err) {
-      console.error('Location verification failed:', err);
-      return {
-        success: false,
-        location: null,
-        geocoded: null,
-        error: 'Failed to verify your location. Please check your GPS settings and try again.',
-      };
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  // Start watching location
+    try { setLoading(true); setError(null); let granted = permissionStatus === 'granted'; if (!granted) granted = await requestPermission(); if (!granted) return null;
+      const point = toPoint(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })); if (mounted.current) setLocation(point); if (locationSharingEnabled) void confirmLocation(point); return point;
+    } catch { if (mounted.current) setError('Unable to get your current location.'); return null; } finally { if (mounted.current) setLoading(false); }
+  }, [confirmLocation, locationSharingEnabled, permissionStatus, requestPermission]);
   const startWatching = useCallback(async () => {
-    if (watchSubscriptionRef.current) return; // Already watching
-
-    if (permissionStatus !== 'granted') {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
-
-    try {
-      const subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: CONFIG.foregroundTimeInterval,
-          distanceInterval: CONFIG.foregroundDistanceInterval,
-        },
-        async (pos) => {
-          const newLocation: LocationData = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            altitude: pos.coords.altitude,
-            timestamp: pos.timestamp,
-          };
-
-          if (mountedRef.current) {
-            setLocation(newLocation);
-          }
-          await AsyncStorage.setItem(CONFIG.storageKeys.lastLocation, JSON.stringify(newLocation));
-
-          // Reverse geocode
-          const geo = await reverseGeocodeAndSave(newLocation.latitude, newLocation.longitude);
-
-          // Sync to profile (throttled)
-          await syncLocationToProfile(newLocation.latitude, newLocation.longitude, geo?.state || null);
-        }
-      );
-
-      watchSubscriptionRef.current = subscription;
-      if (mountedRef.current) {
-        setIsTracking(true);
-      }
-    } catch (err) {
-      console.error('Error starting location watch:', err);
-      if (mountedRef.current) {
-        setError('Failed to start location tracking');
-      }
-    }
-  }, [permissionStatus, requestPermission, reverseGeocodeAndSave, syncLocationToProfile]);
-
-  // Stop watching location
-  const stopWatching = useCallback(() => {
-    if (watchSubscriptionRef.current) {
-      watchSubscriptionRef.current.remove();
-      watchSubscriptionRef.current = null;
-    }
-    if (mountedRef.current) {
-      setIsTracking(false);
-    }
+    if (watcher.current || !locationSharingEnabled || !activeUserId.current) return; let granted = permissionStatus === 'granted'; if (!granted) granted = await requestPermission(); if (!granted) return;
+    try { watcher.current = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, timeInterval: FOREGROUND_TIME_MS, distanceInterval: FOREGROUND_DISTANCE_M }, (position) => { const point = toPoint(position); if (mounted.current) setLocation(point); void confirmLocation(point); }); if (mounted.current) setIsTracking(true); }
+    catch { if (mounted.current) setError('Unable to start location updates.'); }
+  }, [confirmLocation, locationSharingEnabled, permissionStatus, requestPermission]);
+  const setLocationSharing = useCallback(async (enabled: boolean) => {
+    const id = activeUserId.current; if (!id) return false;
+    const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: enabled, p_background_location_enabled: enabled && backgroundLocationEnabled });
+    if (rpcError || !data) { if (mounted.current) setError('Unable to save your location setting.'); return false; }
+    const next = data as { state?: string; background_location_enabled?: boolean }; setLocationSharingEnabled(enabled); setBackgroundLocationEnabledState(Boolean(next.background_location_enabled));
+    if (!enabled) { await clearLocationState(id); if (next.state && mounted.current) setAlertArea({ state: next.state, source: 'manual', updatedAt: new Date().toISOString() }); return true; }
+    const granted = await requestPermission(); if (granted) { void refreshLocation(); void startWatching(); } return true;
+  }, [backgroundLocationEnabled, clearLocationState, refreshLocation, requestPermission, startWatching]);
+  const setBackgroundLocationEnabled = useCallback(async (enabled: boolean) => {
+    if (!activeUserId.current || (enabled && !locationSharingEnabled)) return false;
+    if (enabled) { const { status } = await Location.requestBackgroundPermissionsAsync(); if (status !== 'granted') { if (mounted.current) setError('Background location permission was not granted.'); return false; } }
+    const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: enabled }); if (rpcError || !data) return false;
+    try { if (enabled) await startBackgroundLocationUpdates(); else await stopBackgroundLocationUpdates(); if (mounted.current) setBackgroundLocationEnabledState(enabled); return true; }
+    catch { await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: false }); return false; }
+  }, [locationSharingEnabled]);
+  const setManualAlertState = useCallback(async (state: string) => {
+    const { data, error: rpcError } = await supabase.rpc('set_manual_alert_state', { p_manual_state: state }); if (rpcError || !data) return false;
+    const next = data as { state?: string; use_location?: boolean }; if (!next.use_location && next.state && mounted.current) setAlertArea({ state: next.state, source: 'manual', updatedAt: new Date().toISOString() }); return true;
   }, []);
+  const verifyLocation = useCallback(async () => { const point = await refreshLocation(); if (!point) return { success: false, location: null, geocoded: null, error: error ?? 'Location verification failed.' }; await confirmLocation(point); return { success: true, location: point, geocoded, error: null }; }, [confirmLocation, error, geocoded, refreshLocation]);
 
-  // Auto-start watching when user is authenticated and has granted permission
   useEffect(() => {
-    if (user?.id && permissionStatus === 'granted') {
-      // Get initial location and start watching
-      refreshLocation().then(() => {
-        startWatching();
-      });
-    } else {
-      stopWatching();
+    mounted.current = true; registerBackgroundLocationTask(); const id = user?.id ?? null; const previous = activeUserId.current; activeUserId.current = id;
+    if (previous && previous !== id) {
+      // Never leave one account's last location visible while another account loads.
+      stopWatching(); setLocation(null); setGeocoded(null); setAlertArea(null); setBackgroundLocationEnabledState(false);
+      void clearConfirmedLocationCache(previous); void stopBackgroundLocationUpdates().catch(() => undefined);
     }
+    if (!id) { if (previous) void clearLocationState(previous); return () => { mounted.current = false; }; }
+    let cancelled = false;
+    void (async () => {
+      const cached = await readConfirmedLocationCache(id); if (cancelled || activeUserId.current !== id) return;
+      if (cached) { setLocation(cached.location); setGeocoded({ address: cached.address, state: cached.state, city: null, country: 'Nigeria', region: cached.state }); setAlertArea({ state: cached.state, source: 'gps', updatedAt: cached.observedAt }); }
+      const { data } = await supabase.from('profiles').select('state, manual_state, use_location, background_location_enabled, location_observed_at, latitude, longitude, location_accuracy_meters').eq('id', id).maybeSingle();
+      if (cancelled || !data || activeUserId.current !== id) return;
+      const sharing = data.use_location !== false; setLocationSharingEnabled(sharing); setBackgroundLocationEnabledState(Boolean(data.background_location_enabled));
+      if (data.state) setAlertArea({ state: data.state, source: sharing && data.latitude != null ? 'gps' : 'manual', updatedAt: data.location_observed_at ?? null });
+      if (sharing && data.latitude != null && data.longitude != null && !cached) setLocation({ latitude: data.latitude, longitude: data.longitude, accuracy: data.location_accuracy_meters ?? null, altitude: null, timestamp: data.location_observed_at ? new Date(data.location_observed_at).getTime() : Date.now() });
+      const { status } = await Location.getForegroundPermissionsAsync(); if (!cancelled) setPermissionStatus(status);
+      if (sharing && status === 'granted') { void refreshLocation(); void startWatching(); if (data.background_location_enabled) void startBackgroundLocationUpdates().catch(() => undefined); }
+      else if (sharing && status !== 'granted') {
+        // A revoked/denied foreground permission immediately returns alerts to
+        // the persisted home state, including push targeting and Personal Brain.
+        const { data: fallback } = await supabase.rpc('set_location_preferences', { p_use_location: false, p_background_location_enabled: false });
+        if (!cancelled) { setLocationSharingEnabled(false); setBackgroundLocationEnabledState(false); if (fallback?.state ?? data.manual_state) setAlertArea({ state: fallback?.state ?? data.manual_state, source: 'manual', updatedAt: new Date().toISOString() }); }
+      }
+    })();
+    return () => { cancelled = true; mounted.current = false; stopWatching(); };
+  }, [clearLocationState, refreshLocation, startWatching, stopWatching, user?.id]);
+  useEffect(() => NetInfo.addEventListener((state) => setIsOnline(state.isConnected ?? true)), []);
+  useEffect(() => { const sub = AppState.addEventListener('change', (next) => { const prior = appState.current; appState.current = next; if (prior.match(/inactive|background/) && next === 'active' && locationSharingEnabled) void refreshLocation(); }); return () => sub.remove(); }, [locationSharingEnabled, refreshLocation]);
 
-    return () => {
-      stopWatching();
-    };
-  }, [user?.id, permissionStatus]);
-
-  const value: LocationContextValue = {
-    location,
-    geocoded,
-    loading,
-    error,
-    permissionStatus,
-    isTracking,
-    isOnline,
-    requestPermission,
-    refreshLocation,
-    startWatching,
-    stopWatching,
-    verifyLocation,
-    permissionGranted,
-  };
-
-  return (
-    <LocationContext.Provider value={value}>
-      {children}
-    </LocationContext.Provider>
-  );
+  return <LocationContext.Provider value={{ location, geocoded, alertArea, locationSharingEnabled, backgroundLocationEnabled, loading: loading || !initialized, error, permissionStatus, isTracking, isOnline, requestPermission, refreshLocation, startWatching, stopWatching, setLocationSharing, setBackgroundLocationEnabled, setManualAlertState, verifyLocation, permissionGranted: permissionStatus === 'granted' }}>{children}</LocationContext.Provider>;
 };
-
-export function useLocationContext() {
-  const ctx = useContext(LocationContext);
-  if (!ctx) {
-    throw new Error('useLocationContext must be used within <LocationProvider>.');
-  }
-  return ctx;
-}
+export function useLocationContext() { const context = useContext(LocationContext); if (!context) throw new Error('useLocationContext must be used within LocationProvider.'); return context; }

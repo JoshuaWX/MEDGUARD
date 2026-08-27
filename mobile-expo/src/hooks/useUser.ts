@@ -15,12 +15,14 @@ export interface UserProfile {
   name: string | null;
   email: string | null;
   state: string | null;
+  manualState: string | null;
   lga: string | null;
   gender: string | null;
   age: number | null;
   avatarUrl: string | null;
   avatarPath: string | null;
   useLocation: boolean;
+  backgroundLocationEnabled: boolean;
   healthScore: number | null;
   conditions: string[];
   allergies: string[];
@@ -160,12 +162,14 @@ export const useUser = (): UseUserReturn => {
           name: data.name ?? data.full_name ?? null,
           email: data.email ?? authUser.email ?? null,
           state: data.state,
+          manualState: data.manual_state ?? data.state ?? null,
           lga: data.lga ?? null,
           gender: data.gender ?? null,
           age: typeof data.age === 'number' ? data.age : null,
           avatarUrl: resolvedAvatarUrl,
           avatarPath: data.avatar_path,
           useLocation: data.use_location ?? false,
+          backgroundLocationEnabled: Boolean(data.background_location_enabled),
           healthScore: data.health_score,
           conditions: Array.isArray(data.conditions) ? data.conditions : [],
           allergies: Array.isArray(data.allergies) ? data.allergies : [],
@@ -189,12 +193,14 @@ export const useUser = (): UseUserReturn => {
           name: meta.full_name || meta.name || null,
           email: authUser.email ?? null,
           state: meta.state ?? null,
+          manualState: meta.state ?? null,
           lga: meta.lga ?? null,
           gender: meta.gender ?? null,
           age: toNum(meta.age),
           avatarUrl: null,
           avatarPath: null,
           useLocation: Boolean(meta.use_location ?? meta.useLocation ?? false),
+          backgroundLocationEnabled: false,
           healthScore: null,
           conditions: [],
           allergies: [],

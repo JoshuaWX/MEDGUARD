@@ -25,6 +25,7 @@ import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useNotifications } from '../hooks/useNotifications';
+import { useLocationContext } from '../hooks/LocationContext';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -58,17 +59,18 @@ const SettingsScreen: React.FC = () => {
     setReminderTime,
   } = useNotifications();
 
-  const [locationSharing, setLocationSharing] = useState(true);
+  const { locationSharingEnabled, backgroundLocationEnabled, setLocationSharing, setBackgroundLocationEnabled } = useLocationContext();
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Handler for location sharing toggle - requires auth for guests
-  const handleLocationToggle = (value: boolean) => {
+  const handleLocationToggle = async (value: boolean) => {
     if (isGuest) {
       // Show auth gate modal instead of toggling
       requireAuth('location sharing and personalized alerts');
       return;
     }
-    setLocationSharing(value);
+    const saved = await setLocationSharing(value);
+    if (!saved) toast({ tone: 'danger', title: 'Location setting not saved', message: 'Please try again.' });
   };
 
   // Handler for notification toggle
@@ -158,8 +160,8 @@ const SettingsScreen: React.FC = () => {
                 <View style={styles.toggleHeaderRow}>
                   <Text style={[styles.toggleLabel, { color: colors.text }]}>{t('share_location_toggle')}</Text>
                   <Switch
-                    value={isGuest ? false : locationSharing}
-                    onValueChange={handleLocationToggle}
+                    value={isGuest ? false : locationSharingEnabled}
+                    onValueChange={(value) => void handleLocationToggle(value)}
                     trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
                     thumbColor={Colors.surfaceLight}
                     disabled={isGuest}
@@ -168,6 +170,25 @@ const SettingsScreen: React.FC = () => {
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                   {isGuest ? 'Sign in to enable location sharing for personalized alerts.' : t('share_location_desc')}
                 </Text>
+              </View>
+            </View>
+          </GlassCard>
+
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowTop}>
+              <View style={styles.iconWrap}><ShieldOutlineIcon size={24} color={Colors.primary} /></View>
+              <View style={styles.cardBody}>
+                <View style={styles.toggleHeaderRow}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Background location updates</Text>
+                  <Switch
+                    value={isGuest ? false : backgroundLocationEnabled}
+                    onValueChange={(value) => void setBackgroundLocationEnabled(value)}
+                    trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
+                    thumbColor={Colors.surfaceLight}
+                    disabled={isGuest || !locationSharingEnabled}
+                  />
+                </View>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>Optional. Updates your alert area about every 15 minutes or 1 km while the app is closed. This can use more battery.</Text>
               </View>
             </View>
           </GlassCard>

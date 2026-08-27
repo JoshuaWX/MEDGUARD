@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useUser } from './useUser';
 import { useAuth } from './useAuth';
 import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
@@ -97,8 +96,7 @@ interface UseAlertsReturn {
 
 export const useAlerts = (): UseAlertsReturn => {
   const { user: authUser, initialized: authInitialized } = useAuth();
-  const { user, loading: userLoading } = useUser();
-  const { geocoded, loading: locationLoading } = useLocationContext();
+  const { alertArea, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,14 +112,13 @@ export const useAlerts = (): UseAlertsReturn => {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
   const fetchAlerts = useCallback(async () => {
-    if (!authInitialized || (authUser?.id && userLoading)) {
+    if (!authInitialized) {
       setLoading(true);
       return;
     }
 
-    const metaState = (authUser as any)?.user_metadata?.state as string | undefined;
     const requestId = ++requestIdRef.current;
-    const state = geocoded?.state || user?.state || metaState || null;
+    const state = alertArea?.state ?? null;
 
     if (!state) {
       if (locationLoading) {
@@ -221,7 +218,7 @@ export const useAlerts = (): UseAlertsReturn => {
         setLoading(false);
       }
     }
-  }, [authInitialized, authUser, geocoded?.state, user?.state, userLoading, locationLoading]);
+  }, [alertArea?.state, authInitialized, locationLoading]);
 
   useEffect(() => {
     fetchAlerts();
