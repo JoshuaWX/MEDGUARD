@@ -13,6 +13,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { AuthProvider } from './src/hooks/useAuth';
 import { LocationProvider } from './src/hooks/LocationContext';
 import { ThemeProvider } from './src/hooks/useTheme';
+import { PersonalHealthDataProvider } from './src/hooks/PersonalHealthDataContext';
 import { I18nProvider } from './src/i18n';
 import { configureNotifications } from './src/services/notifications';
 import { initSentry } from './src/services/sentry';
@@ -64,11 +65,13 @@ function App() {
           <I18nProvider>
             <FeedbackProvider>
               <AuthProvider>
-                <LocationProvider>
-                  <VersionGate>
-                    <RootNavigator />
-                  </VersionGate>
-                </LocationProvider>
+                <PersonalHealthDataProvider>
+                  <LocationProvider>
+                    <VersionGate>
+                      <RootNavigator />
+                    </VersionGate>
+                  </LocationProvider>
+                </PersonalHealthDataProvider>
               </AuthProvider>
             </FeedbackProvider>
           </I18nProvider>

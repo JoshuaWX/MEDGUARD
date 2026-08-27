@@ -1,28 +1,18 @@
 /**
- * useHealthCheckin Hook
- * 
- * React hook for managing daily health check-ins, streaks, and community trends.
- * 
- * PUBLIC HEALTH REASONING:
- * - Provides easy access to check-in functionality
- * - Manages loading/error states
- * - Caches data appropriately
- * - Enforces one check-in per day rule
+ * My Health state built on the single personal-health dashboard request.
+ * Community trends stay separate because they are anonymous, non-personal
+ * public-health data rather than part of a person's encrypted dashboard.
  */
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
-import { useUser } from './useUser';
+import { usePersonalHealthData } from './PersonalHealthDataContext';
 import {
   CheckinAnswers,
   HealthCheckin,
   HealthStreak,
   CommunityTrend,
   RiskLevel,
-  getTodayCheckin,
   submitCheckin,
-  getRecentCheckins,
-  getStreak,
   getCommunityTrends,
   calculateRiskLevel,
   getRiskLevelDisplay,
@@ -30,242 +20,145 @@ import {
   getStreakEmoji,
   getStreakMessage,
 } from '../services/healthCheckin';
+import type { PersonalHealthProfileSummary } from '../services/personalHealthDashboard';
+import type { ScorePoint } from '../services/healthScore';
+import type { StepPoint } from '../services/activity';
 import { toUserMessage } from '../services/errorMessages';
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
 interface UseHealthCheckinReturn {
-  // State
   loading: boolean;
   submitting: boolean;
   error: string | null;
-  
-  // Today's check-in
   hasCheckedIn: boolean;
   todayCheckin: HealthCheckin | null;
-  
-  // Streak data
   streak: HealthStreak;
   streakEmoji: string;
   streakMessage: string;
-  
-  // Community trends
   communityTrends: CommunityTrend[];
   trendMessage: string | null;
-  
-  // Recent history
   recentCheckins: HealthCheckin[];
-  
-  // Actions
+  profile: PersonalHealthProfileSummary | null;
+  scoreTrend: ScorePoint[];
+  activityTrend: StepPoint[];
+  personalDataLastUpdated: string | null;
+  usingCachedPersonalData: boolean;
   submitDailyCheckin: (answers: CheckinAnswers, otherSymptoms?: string) => Promise<void>;
   calculateRisk: (answers: CheckinAnswers) => RiskLevel;
   getRiskDisplay: (level: RiskLevel) => ReturnType<typeof getRiskLevelDisplay>;
   refresh: () => Promise<void>;
 }
 
-// ============================================================================
-// HOOK IMPLEMENTATION
-// ============================================================================
+const emptyStreak: HealthStreak = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastCheckinDate: null,
+};
 
 export function useHealthCheckin(): UseHealthCheckinReturn {
-  const { user: authUser, session, initialized } = useAuth();
-  const { user: profile } = useUser();
-  
-  // State
-  const [loading, setLoading] = useState(true);
+  const { user: authUser, session } = useAuth();
+  const {
+    dashboard,
+    loading,
+    error: dashboardError,
+    cacheFreshness,
+    lastUpdated,
+    refresh: refreshDashboard,
+  } = usePersonalHealthData();
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const [hasCheckedIn, setHasCheckedIn] = useState(false);
-  const [todayCheckin, setTodayCheckin] = useState<HealthCheckin | null>(null);
-  const [streak, setStreak] = useState<HealthStreak>({
-    currentStreak: 0,
-    longestStreak: 0,
-    lastCheckinDate: null,
-  });
-  const [recentCheckins, setRecentCheckins] = useState<HealthCheckin[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [communityTrends, setCommunityTrends] = useState<CommunityTrend[]>([]);
-  
-  const requestIdRef = useRef(0);
+  const [communityError, setCommunityError] = useState<string | null>(null);
+  const communityRequestIdRef = useRef(0);
 
-  const clearPersonalHealthState = useCallback(() => {
-    setHasCheckedIn(false);
-    setTodayCheckin(null);
-    setStreak({ currentStreak: 0, longestStreak: 0, lastCheckinDate: null });
-    setRecentCheckins([]);
-    setCommunityTrends([]);
-    setError(null);
-  }, []);
-  
-  // Get user's state for community trends
-  const userState = profile?.state || null;
-  
-  /**
-   * Fetch all check-in data
-   */
-  const fetchData = useCallback(async () => {
-    const hasUsableSession = Boolean(
-      initialized &&
-      authUser?.id &&
-      session?.access_token &&
-      session.user.id === authUser.id
-    );
+  const userState = dashboard?.profile.state ?? null;
+  const streak = dashboard?.streak ?? emptyStreak;
+  const todayCheckin = dashboard?.todayCheckin ?? null;
 
-    if (!hasUsableSession || !authUser?.id) {
-      requestIdRef.current += 1;
-      clearPersonalHealthState();
-      setLoading(!initialized);
+  useEffect(() => {
+    const requestId = ++communityRequestIdRef.current;
+    if (!userState) {
+      setCommunityTrends([]);
+      setCommunityError(null);
       return;
     }
-    
-    const requestId = ++requestIdRef.current;
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch in parallel for efficiency
-      const [today, streakData, recent] = await Promise.all([
-        getTodayCheckin(authUser.id),
-        getStreak(authUser.id),
-        getRecentCheckins(authUser.id, 7),
-      ]);
-      
-      if (requestId !== requestIdRef.current) return;
-
-      setHasCheckedIn(Boolean(today));
-      setTodayCheckin(today);
-      setStreak(streakData);
-      setRecentCheckins(recent);
-      
-      // Fetch community trends if user has a state
-      if (userState) {
+    void (async () => {
+      try {
         const trends = await getCommunityTrends(userState, 4);
-        if (requestId !== requestIdRef.current) return;
-        setCommunityTrends(trends);
-      } else {
-        setCommunityTrends([]);
+        if (requestId === communityRequestIdRef.current) {
+          setCommunityTrends(trends);
+          setCommunityError(null);
+        }
+      } catch (cause) {
+        if (requestId === communityRequestIdRef.current) {
+          setCommunityTrends([]);
+          setCommunityError(toUserMessage(cause, 'checkin'));
+        }
       }
-      
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      console.error('Error fetching health checkin data:', err);
-      setError(toUserMessage(err, 'checkin'));
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [authUser?.id, clearPersonalHealthState, initialized, session?.access_token, session?.user.id, userState]);
-  
-  // Never leave one account's health history visible while another account
-  // is becoming active.
-  useEffect(() => {
-    requestIdRef.current += 1;
-    clearPersonalHealthState();
-  }, [authUser?.id, clearPersonalHealthState]);
+    })();
+  }, [userState]);
 
-  /**
-   * Initial fetch on mount
-   */
-  useEffect(() => {
-    void fetchData();
-    return () => {
-      requestIdRef.current += 1;
-    };
-  }, [fetchData]);
-  
-  /**
-   * Submit daily check-in
-   */
+  const refresh = useCallback(async () => {
+    await refreshDashboard();
+    if (!userState) return;
+    const trends = await getCommunityTrends(userState, 4);
+    setCommunityTrends(trends);
+  }, [refreshDashboard, userState]);
+
   const submitDailyCheckin = useCallback(async (
     answers: CheckinAnswers,
-    otherSymptoms?: string
+    otherSymptoms?: string,
   ) => {
     if (!authUser?.id || !session?.access_token || session.user.id !== authUser.id) {
       throw new Error('You must be signed in to submit a check-in');
     }
-    
-    if (hasCheckedIn) {
+    if (todayCheckin) {
       throw new Error('You have already completed your check-in for today');
     }
-    
+
+    setSubmitting(true);
+    setSubmitError(null);
     try {
-      setSubmitting(true);
-      setError(null);
-      
-      const checkin = await submitCheckin(
-        authUser.id,
-        answers,
-        userState,
-        otherSymptoms
-      );
-      
-      // Update local state
-      setTodayCheckin(checkin);
-      setHasCheckedIn(true);
-      
-      // Refresh streak after check-in
-      const newStreak = await getStreak(authUser.id);
-      setStreak(newStreak);
-      
-      // Add to recent checkins
-      setRecentCheckins(prev => [checkin, ...prev.slice(0, 6)]);
-      
-    } catch (err: any) {
-      const message = toUserMessage(err, 'checkin');
-      setError(message);
-      throw err;
+      await submitCheckin(authUser.id, answers, userState, otherSymptoms);
+      // The insert is confirmed before this refresh. Only the confirmed RPC
+      // response is saved back into the encrypted device cache.
+      await refreshDashboard();
+    } catch (cause) {
+      const message = toUserMessage(cause, 'checkin');
+      setSubmitError(message);
+      throw cause;
     } finally {
       setSubmitting(false);
     }
-  }, [authUser?.id, hasCheckedIn, session?.access_token, session?.user.id, userState]);
-  
-  /**
-   * Get trend message for display
-   */
-  const trendMessage = communityTrends.length > 0 
-    ? getTrendMessage(communityTrends[0])
-    : null;
-  
-  /**
-   * Get streak display helpers
-   */
-  const streakEmoji = getStreakEmoji(streak.currentStreak);
-  const streakMessage = getStreakMessage(streak.currentStreak);
-  
+  }, [authUser?.id, refreshDashboard, session?.access_token, session?.user.id, todayCheckin, userState]);
+
+  const trendMessage = communityTrends.length > 0 ? getTrendMessage(communityTrends[0]) : null;
+  const error = submitError ?? communityError ?? (dashboardError ? toUserMessage(dashboardError, 'checkin') : null);
+
   return {
-    // State
     loading,
     submitting,
     error,
-    
-    // Today's check-in
-    hasCheckedIn,
+    hasCheckedIn: Boolean(todayCheckin),
     todayCheckin,
-    
-    // Streak
     streak,
-    streakEmoji,
-    streakMessage,
-    
-    // Community trends
+    streakEmoji: getStreakEmoji(streak.currentStreak),
+    streakMessage: getStreakMessage(streak.currentStreak),
     communityTrends,
     trendMessage,
-    
-    // History
-    recentCheckins,
-    
-    // Actions
+    recentCheckins: dashboard?.recentCheckins ?? [],
+    profile: dashboard?.profile ?? null,
+    scoreTrend: dashboard?.scoreTrend ?? [],
+    activityTrend: dashboard?.activityTrend ?? [],
+    personalDataLastUpdated: lastUpdated,
+    // Only call out the offline/stale-cache case. A fresh cached payload is
+    // normal on launch and is silently replaced by the background refresh.
+    usingCachedPersonalData: cacheFreshness === 'stale',
     submitDailyCheckin,
     calculateRisk: calculateRiskLevel,
     getRiskDisplay: getRiskLevelDisplay,
-    refresh: fetchData,
+    refresh,
   };
 }
 
-// Re-export types and helpers for convenience
 export type { CheckinAnswers, HealthCheckin, HealthStreak, CommunityTrend, RiskLevel };
 export { calculateRiskLevel, getRiskLevelDisplay, getStreakEmoji, getStreakMessage };

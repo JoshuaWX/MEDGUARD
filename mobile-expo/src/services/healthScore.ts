@@ -150,17 +150,18 @@ function isoDate(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Persist today's score so it can trend. Best-effort. */
-export async function upsertDailyScore(userId: string, result: HealthScoreResult): Promise<void> {
+/** Persist today's score so it can trend. Returns true only after Supabase confirms the write. */
+export async function upsertDailyScore(userId: string, result: HealthScoreResult): Promise<boolean> {
   try {
-    await supabase
+    const { error } = await supabase
       .from('health_score_daily')
       .upsert(
         { user_id: userId, score_date: isoDate(), score: result.score, breakdown: result.breakdown, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,score_date' }
       );
+    return !error;
   } catch {
-    // non-fatal
+    return false;
   }
 }
 

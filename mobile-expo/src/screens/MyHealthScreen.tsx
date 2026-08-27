@@ -75,10 +75,11 @@ import {
 import { toUserMessage } from '../services/errorMessages';
 import { notifyStreakMilestone } from '../services/notifications';
 import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
-import { useUser } from '../hooks/useUser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
+import { useAuth } from '../hooks/useAuth';
+import { usePersonalHealthData } from '../hooks/PersonalHealthDataContext';
 import { useSteps } from '../hooks/useSteps';
 import { useLocationContext } from '../hooks/LocationContext';
 import {
@@ -89,8 +90,6 @@ import {
   smoothScore,
   explainHealthScore,
   upsertDailyScore,
-  loadScoreTrend,
-  type ScorePoint,
 } from '../services/healthScore';
 import { useI18n } from '../i18n';
 import {
@@ -179,7 +178,8 @@ const MyHealthScreen: React.FC = () => {
 const MyHealthScreenContent: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, loading: userLoading } = useUser();
+  const { user: authUser } = useAuth();
+  const { updateAfterConfirmedWrite } = usePersonalHealthData();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
   const { toast } = useFeedback();
@@ -197,6 +197,10 @@ const MyHealthScreenContent: React.FC = () => {
     hasCheckedIn,
     todayCheckin,
     streak,
+    profile,
+    scoreTrend,
+    personalDataLastUpdated,
+    usingCachedPersonalData,
     communityTrends,
     trendMessage,
     submitDailyCheckin,
@@ -218,7 +222,7 @@ const MyHealthScreenContent: React.FC = () => {
 
   // Steps (Health Connect all-day, or live pedometer) + body metrics feed the score.
   const { steps, weeklySteps, available: stepsAvailable, needsPermission: stepsNeedPermission, connect: connectSteps } = useSteps();
-  const bmi = computeBmi(user?.heightCm ?? null, user?.weightKg ?? null);
+  const bmi = computeBmi(profile?.heightCm ?? null, profile?.weightKg ?? null);
   const bmiCat = bmiCategory(bmi);
   const scoreResult = computeHealthScore({
     todayRisk: todayCheckin?.riskLevel ?? null,
@@ -227,21 +231,37 @@ const MyHealthScreenContent: React.FC = () => {
     bmi,
   });
   const healthScore = scoreResult.score;
-  const [scoreTrend, setScoreTrend] = useState<ScorePoint[]>([]);
   const [showScoreInfo, setShowScoreInfo] = useState(false);
   // Headline number is smoothed against the recent trend so it doesn't whipsaw;
   // the raw daily score is still what we persist for history.
   const displayScore = smoothScore(healthScore, scoreTrend);
   const band = scoreBand(displayScore);
   const scoreFactors = explainHealthScore(scoreResult);
-  const displayName = user?.name || 'User';
+  const displayName = profile?.name || 'User';
 
-  // Persist today's score (best-effort) and refresh the trend when it changes.
+  // Persist only when the actual calculated score/breakdown changes. A render,
+  // an animation, or an unchanged refresh must not create another daily write.
+  const persistedScoreSignatureRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!user?.id || checkinLoading) return;
-    void upsertDailyScore(user.id, scoreResult);
-    loadScoreTrend(user.id).then(setScoreTrend).catch(() => {});
-  }, [user?.id, checkinLoading, healthScore]);
+    if (!authUser?.id || checkinLoading) return;
+    const signature = JSON.stringify({ userId: authUser.id, score: scoreResult.score, breakdown: scoreResult.breakdown });
+    if (persistedScoreSignatureRef.current === signature) return;
+    let active = true;
+    void (async () => {
+      const saved = await upsertDailyScore(authUser.id, scoreResult);
+      if (!saved || !active) return;
+      persistedScoreSignatureRef.current = signature;
+      const today = new Date().toISOString().slice(0, 10);
+      await updateAfterConfirmedWrite((current) => {
+        const withoutToday = current.scoreTrend.filter((point) => point.date !== today);
+        return {
+          ...current,
+          scoreTrend: [...withoutToday, { date: today, score: scoreResult.score }].slice(-7),
+        };
+      });
+    })();
+    return () => { active = false; };
+  }, [authUser?.id, checkinLoading, scoreResult, updateAfterConfirmedWrite]);
 
   // Celebrate streak milestones with a one-time local notification.
   const lastMilestoneRef = useRef(0);
@@ -419,9 +439,9 @@ const MyHealthScreenContent: React.FC = () => {
   // Tip of the day — rotates deterministically by date.
   const tipOfDay = HEALTH_TIPS[Math.floor(Date.now() / 86_400_000) % HEALTH_TIPS.length];
 
-  // Wait for the signed-in user's profile before rendering the hero, so we
-  // never flash a placeholder/previous name or avatar.
-  if (userLoading && !user) {
+  // The encrypted dashboard cache is displayed as soon as the persisted local
+  // session is validated; a first-time user sees this short loading state.
+  if (checkinLoading && !profile) {
     return (
       <LinearGradient
         colors={gradientColors}
@@ -451,7 +471,7 @@ const MyHealthScreenContent: React.FC = () => {
                 Hi, {displayName.split(' ')[0]}
               </Text>
             </View>
-            <Avatar source={user?.avatarUrl} size={46} />
+            <Avatar size={46} />
           </View>
 
           {/* Wellness score */}
@@ -476,6 +496,12 @@ const MyHealthScreenContent: React.FC = () => {
               </View>
             </Card>
           </Animated.View>
+          {personalDataLastUpdated && (
+            <Text style={[styles.personalDataUpdated, { color: colors.textMuted }]}>
+              {usingCachedPersonalData ? 'Personal data last updated' : 'Personal data updated'}{' '}
+              {new Date(personalDataLastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          )}
         </View>
 
         <ScrollView
@@ -658,7 +684,7 @@ const MyHealthScreenContent: React.FC = () => {
               trend={communityTrends.length > 0 ? communityTrends[0] : null}
               prevTrend={communityTrends.length > 1 ? communityTrends[1] : null}
               message={trendMessage}
-              state={user?.state || 'your area'}
+              state={profile?.state || 'your area'}
             />
           </Animated.View>
 
@@ -1002,6 +1028,13 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.medium,
     fontSize: FontSize.xs,
     marginTop: -2,
+  },
+  personalDataUpdated: {
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.xs,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.base,
+    textAlign: 'right',
   },
   wInfo: { flex: 1, gap: 5 },
   wLabel: {

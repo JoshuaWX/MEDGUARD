@@ -19,6 +19,10 @@ command.txt
 deno.lock
 supabase/functions/deno.lock
 
+# Supabase CLI local runtime state; start-secrets contains generated credentials.
+supabase/.temp/
+supabase/.branches/
+
 CLAUDE_CODE_HANDOFF.md
 FIXES.md
 Future.txt

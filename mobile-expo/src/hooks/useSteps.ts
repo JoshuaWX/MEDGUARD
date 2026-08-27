@@ -10,7 +10,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pedometer } from 'expo-sensors';
 import { AppState } from 'react-native';
 import { useAuth } from './useAuth';
-import { loadTodaySteps, upsertTodaySteps } from '../services/activity';
+import { usePersonalHealthData } from './PersonalHealthDataContext';
+import { upsertTodaySteps } from '../services/activity';
 import {
   isHealthConnectAvailable,
   hasStepsPermission,
@@ -37,6 +38,7 @@ const PERSIST_EVERY_STEPS = 25;
 
 export function useSteps(): UseStepsReturn {
   const { user } = useAuth();
+  const { dashboard, updateAfterConfirmedWrite } = usePersonalHealthData();
   const userId = user?.id ?? null;
 
   const [steps, setSteps] = useState(0);
@@ -52,6 +54,33 @@ export function useSteps(): UseStepsReturn {
   const totalRef = useRef(0);
   const lastPersistedRef = useRef(0);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const storedTodaySteps = dashboard?.activityTrend.find((point) => point.date === today)?.steps ?? 0;
+
+  const persistSteps = useCallback(async (value: number) => {
+    if (!userId) return false;
+    const rounded = Math.max(0, Math.round(value));
+    const saved = await upsertTodaySteps(userId, rounded);
+    if (!saved) return false;
+    await updateAfterConfirmedWrite((current) => {
+      const withoutToday = current.activityTrend.filter((point) => point.date !== today);
+      return {
+        ...current,
+        activityTrend: [...withoutToday, { date: today, steps: rounded }].slice(-7),
+      };
+    });
+    return true;
+  }, [today, updateAfterConfirmedWrite, userId]);
+
+  // When the encrypted dashboard cache arrives after the hook starts, use its
+  // confirmed total as the pedometer baseline without another table request.
+  useEffect(() => {
+    if (storedTodaySteps <= baseRef.current) return;
+    baseRef.current = storedTodaySteps;
+    totalRef.current = Math.max(totalRef.current, storedTodaySteps);
+    setSteps(totalRef.current);
+  }, [storedTodaySteps]);
+
   const loadFromHealthConnect = useCallback(async () => {
     const [today, hist] = await Promise.all([getTodaySteps(), getDailyHistory(7)]);
     setSteps(today);
@@ -59,8 +88,8 @@ export function useSteps(): UseStepsReturn {
     setWeeklySteps(hist.reduce((a, b) => a + b.steps, 0));
     setSource('health_connect');
     setAvailable(true);
-    if (userId) void upsertTodaySteps(userId, today);
-  }, [userId]);
+    void persistSteps(today);
+  }, [persistSteps]);
 
   const connect = useCallback(async () => {
     const granted = await requestStepsPermission();
@@ -82,10 +111,10 @@ export function useSteps(): UseStepsReturn {
       setSource(isAvail ? 'pedometer' : 'none');
       if (!userId) return;
 
-      const base = await loadTodaySteps(userId);
-      if (cancelled) return;
+      const base = baseRef.current;
       baseRef.current = base;
       totalRef.current = base;
+      lastPersistedRef.current = base;
       setSteps(base);
       if (!isAvail) return;
 
@@ -99,15 +128,18 @@ export function useSteps(): UseStepsReturn {
         totalRef.current = total;
         setSteps(total);
         if (total - lastPersistedRef.current >= PERSIST_EVERY_STEPS) {
-          void upsertTodaySteps(userId, total);
-          lastPersistedRef.current = total;
+          void persistSteps(total).then((saved) => {
+            if (saved) lastPersistedRef.current = total;
+          });
         }
       });
 
       appStateSub = AppState.addEventListener('change', (s) => {
         if (s !== 'active' && totalRef.current !== lastPersistedRef.current) {
-          void upsertTodaySteps(userId, totalRef.current);
-          lastPersistedRef.current = totalRef.current;
+          const total = totalRef.current;
+          void persistSteps(total).then((saved) => {
+            if (saved) lastPersistedRef.current = total;
+          });
         }
       });
     };
@@ -125,9 +157,8 @@ export function useSteps(): UseStepsReturn {
             await loadFromHealthConnect();
           } else {
             setNeedsPermission(true);
-            // Show last stored total as a placeholder until connected.
-            const base = await loadTodaySteps(userId);
-            if (!cancelled) setSteps(base);
+            // Show the confirmed dashboard total until Health Connect is linked.
+            if (!cancelled) setSteps(baseRef.current);
           }
         } else {
           await startPedometer();
@@ -144,11 +175,11 @@ export function useSteps(): UseStepsReturn {
       pedoSub?.remove();
       appStateSub?.remove();
       if (source === 'pedometer' && userId && totalRef.current !== lastPersistedRef.current) {
-        void upsertTodaySteps(userId, totalRef.current);
+        void persistSteps(totalRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, loadFromHealthConnect]);
+  }, [userId, loadFromHealthConnect, persistSteps]);
 
   return { steps, weeklySteps, history, available, source, needsPermission, connect, loading };
 }

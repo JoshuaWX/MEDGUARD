@@ -47,7 +47,8 @@ MedGuard is not a replacement for a doctor. The chatbot provides general guidanc
 
 ### Database migrations
 
-- `db/migrations/` — SQL migrations for the Supabase Postgres schema (profiles, chat tables, user_context, cache, etc.)
+- `supabase/migrations/` — the Supabase CLI migration ledger for all new schema changes.
+- `db/migrations/` — legacy historical SQL source material; do not add new files here or replay it against production.
 
 ### Legacy / reference artifacts
 
@@ -55,7 +56,7 @@ MedGuard is not a replacement for a doctor. The chatbot provides general guidanc
 - `server/` — older Node proxy + server-side RAG experiments (legacy; not used by the mobile app)
 - `End-to-end-Medical-Chatbot-Generative-AI/` — Flask-based research baseline and earlier chatbot prototype (legacy/reference)
 
-If you’re working on the production app, focus on `mobile-expo/`, `supabase/functions/`, and `db/migrations/`.
+If you’re working on the production app, focus on `mobile-expo/`, `supabase/functions/`, and `supabase/migrations/`.
 
 ---
 
@@ -232,7 +233,7 @@ supabase functions deploy avatar-sign
 supabase functions deploy nearby-facilities
 ```
 
-Function settings are source-controlled in `supabase/config.toml`; production functions should keep JWT verification enabled.
+Function settings are source-controlled in `supabase/config.toml`. Require JWTs by default; functions with a documented machine-to-machine or guest access model explicitly opt out and validate that access themselves.
 
 #### Required Edge secrets
 
@@ -282,9 +283,10 @@ We use deep links to support future auth flows like email confirmation redirect 
 
 ### Update the database
 
-1. Add a new numbered SQL file in `db/migrations/`
-2. Apply it via Supabase SQL Editor (or CLI if you use migrations tooling)
-3. Update any TypeScript types/queries if required
+1. Create a timestamped migration with `supabase migration new <description>`
+2. Test it locally and commit the file under `supabase/migrations/`
+3. Verify `supabase migration list --linked` is aligned, then deploy through the Supabase CLI
+4. Update any TypeScript types/queries if required
 
 ### Debug “it works on web but not on device”
 

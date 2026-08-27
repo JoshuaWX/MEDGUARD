@@ -21,7 +21,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.nearby-facilities]
-verify_jwt = true
+# Guest users can search for nearby care. The function has bounded inputs and
+# rate limiting, and uses an optional JWT only to improve rate-limit identity.
+verify_jwt = false
 
 [functions.app-version]
 verify_jwt = false
