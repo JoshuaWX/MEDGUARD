@@ -29,8 +29,9 @@ interface UseStepsReturn {
   history: StepHistoryPoint[]; // last 7 days, per day
   available: boolean;
   source: StepSource;
-  needsPermission: boolean;  // Health Connect present but not yet granted
-  connect: () => Promise<void>;
+  needsPermission: boolean;
+  permissionCanAskAgain: boolean;
+  connect: () => Promise<boolean>;
   loading: boolean;
 }
 
@@ -47,7 +48,9 @@ export function useSteps(): UseStepsReturn {
   const [available, setAvailable] = useState(false);
   const [source, setSource] = useState<StepSource>('none');
   const [needsPermission, setNeedsPermission] = useState(false);
+  const [permissionCanAskAgain, setPermissionCanAskAgain] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [permissionRevision, setPermissionRevision] = useState(0);
 
   // Pedometer fallback bookkeeping
   const baseRef = useRef(0);
@@ -91,11 +94,22 @@ export function useSteps(): UseStepsReturn {
     void persistSteps(today);
   }, [persistSteps]);
 
-  const connect = useCallback(async () => {
-    const granted = await requestStepsPermission();
-    if (granted) {
-      setNeedsPermission(false);
-      await loadFromHealthConnect();
+  const connect = useCallback(async (): Promise<boolean> => {
+    try {
+      if (await isHealthConnectAvailable()) {
+        const granted = await requestStepsPermission();
+        setNeedsPermission(!granted);
+        if (granted) await loadFromHealthConnect();
+        return granted;
+      }
+
+      const permission = await Pedometer.requestPermissionsAsync();
+      setPermissionCanAskAgain(permission.canAskAgain);
+      setNeedsPermission(!permission.granted);
+      if (permission.granted) setPermissionRevision((value) => value + 1);
+      return permission.granted;
+    } catch {
+      return false;
     }
   }, [loadFromHealthConnect]);
 
@@ -119,9 +133,17 @@ export function useSteps(): UseStepsReturn {
       if (!isAvail) return;
 
       try {
-        const perm = await Pedometer.getPermissionsAsync();
-        if (!perm.granted && perm.canAskAgain) await Pedometer.requestPermissionsAsync();
-      } catch { /* not all platforms */ }
+        const permission = await Pedometer.getPermissionsAsync();
+        setPermissionCanAskAgain(permission.canAskAgain);
+        if (!permission.granted) {
+          setNeedsPermission(true);
+          return;
+        }
+        setNeedsPermission(false);
+      } catch {
+        setNeedsPermission(true);
+        return;
+      }
 
       pedoSub = Pedometer.watchStepCount((result) => {
         const total = baseRef.current + (result?.steps ?? 0);
@@ -179,7 +201,7 @@ export function useSteps(): UseStepsReturn {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, loadFromHealthConnect, persistSteps]);
+  }, [userId, loadFromHealthConnect, persistSteps, permissionRevision]);
 
-  return { steps, weeklySteps, history, available, source, needsPermission, connect, loading };
+  return { steps, weeklySteps, history, available, source, needsPermission, permissionCanAskAgain, connect, loading };
 }

@@ -19,12 +19,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 
 import { Icon } from '../components';
 import { useIntel } from '../hooks/useIntel';
 import { useTheme } from '../hooks/useTheme';
 import type { BrainSignal, BrainSignalType } from '../services/brain';
+import type { RootStackParamList } from '../navigation/types';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
 const LEVEL_TINT: Record<string, string> = {
@@ -63,11 +64,13 @@ function timeAgo(iso?: string): string {
 
 const BrainReportScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<RootStackParamList, 'BrainReport'>>();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { intel, loading, refresh } = useIntel();
 
-  const brain = intel?.brain ?? null;
+  const isPersonal = route.params.scope === 'personal';
+  const brain = (isPersonal ? intel?.personalBrain : intel?.brain) ?? null;
 
   const forwardLook = useMemo(() => buildForwardLook(intel), [intel]);
 
@@ -87,7 +90,9 @@ const BrainReportScreen: React.FC = () => {
         <Pressable onPress={() => navigation.goBack()} style={[styles.headerBtn, styles.headerTile, { backgroundColor: colors.surfaceSunken, borderColor: colors.border }]} hitSlop={10} accessibilityLabel="Go back">
           <Icon name="chevron-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>Health Signal Report</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          {isPersonal ? 'Your Health Signal' : 'Area Health Signal'}
+        </Text>
         <View style={styles.headerBtn} />
       </View>
 
@@ -99,7 +104,11 @@ const BrainReportScreen: React.FC = () => {
       ) : !brain ? (
         <View style={styles.center}>
           <Icon name="wifi-off" size={34} color={colors.textMuted} />
-          <Text style={[styles.muted, { color: colors.textSecondary }]}>No health signal available for your area yet.</Text>
+          <Text style={[styles.muted, { color: colors.textSecondary }]}>
+            {isPersonal
+              ? 'Complete a daily check-in to start building your personal health signal.'
+              : 'No health signal is available for your area yet.'}
+          </Text>
           <Pressable onPress={refresh} style={[styles.retryBtn, { borderColor: colors.border }]}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>
           </Pressable>
@@ -110,7 +119,9 @@ const BrainReportScreen: React.FC = () => {
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.heroRow}>
               <View>
-                <Text style={[styles.heroArea, { color: colors.textSecondary }]}>{brain.area || 'Your area'}</Text>
+                <Text style={[styles.heroArea, { color: colors.textSecondary }]}>
+                  {isPersonal ? 'CHECK-IN-DERIVED AWARENESS' : (brain.area || 'Your area')}
+                </Text>
                 <Text style={[styles.heroLevel, { color: LEVEL_TINT[brain.riskLevel] ?? colors.text }]}>{brain.riskLevel} risk</Text>
               </View>
               <View style={[styles.confBadge, { backgroundColor: isDark ? Colors.whiteAlpha10 : '#f1f9f8' }]}>
@@ -146,7 +157,7 @@ const BrainReportScreen: React.FC = () => {
           </Section>
 
           {/* Forward look */}
-          {forwardLook && (
+          {!isPersonal && forwardLook && (
             <Section title="Forward look (next few days)" colors={colors}>
               <Text style={[styles.body, { color: colors.textSecondary }]}>{forwardLook}</Text>
               <Text style={[styles.projection, { color: colors.textMuted }]}>
@@ -156,7 +167,7 @@ const BrainReportScreen: React.FC = () => {
           )}
 
           {/* Official reports */}
-          <Section title="Official outbreak reports" colors={colors}>
+          {!isPersonal && <Section title="Official outbreak reports" colors={colors}>
             {officialSignals.length === 0 && whoAlerts.length === 0 ? (
               <Text style={[styles.body, { color: colors.textSecondary }]}>
                 No official outbreak has been reported for your area right now. We only show outbreaks confirmed by NCDC or WHO.
@@ -183,7 +194,24 @@ const BrainReportScreen: React.FC = () => {
                 ))}
               </>
             )}
-          </Section>
+          </Section>}
+
+          {isPersonal && (
+            <Section title="Data freshness" colors={colors}>
+              {Object.keys(brain.meta?.dataFreshness ?? {}).length === 0 ? (
+                <Text style={[styles.body, { color: colors.textSecondary }]}>Based on your latest available check-in data.</Text>
+              ) : (
+                Object.entries(brain.meta.dataFreshness).map(([name, updatedAt]) => (
+                  <View key={name} style={styles.sourceRow}>
+                    <Icon name="clock" size={14} color={colors.textMuted} />
+                    <Text style={[styles.body, { color: colors.textSecondary, flex: 1 }]}>
+                      {name.replace(/_/g, ' ')} · {timeAgo(updatedAt)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </Section>
+          )}
 
           {/* Recommended actions */}
           {(brain.recommendedActions ?? []).length > 0 && (
@@ -198,7 +226,7 @@ const BrainReportScreen: React.FC = () => {
           )}
 
           {/* Data sources */}
-          {Array.isArray(intel?.sources) && intel!.sources!.length > 0 && (
+          {!isPersonal && Array.isArray(intel?.sources) && intel!.sources!.length > 0 && (
             <Section title="Data sources" colors={colors}>
               {intel!.sources!.map((src, i) => (
                 <Pressable key={i} style={styles.sourceRow} onPress={() => open(src.url)} disabled={!src.url}>
@@ -212,9 +240,9 @@ const BrainReportScreen: React.FC = () => {
           )}
 
           <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
-            MedGuard provides health awareness only. It does not diagnose, and it never confirms an
-            outbreak on its own — official confirmation comes from NCDC and WHO. If you feel unwell,
-            seek care from a health professional.
+            {isPersonal
+              ? 'This signal is based on your own recent check-ins and is for awareness only. It is not a diagnosis and does not confirm an outbreak. If you feel unwell, seek care from a health professional.'
+              : 'MedGuard provides health awareness only. It does not diagnose, and it never confirms an outbreak on its own — official confirmation comes from NCDC and WHO. If you feel unwell, seek care from a health professional.'}
           </Text>
         </ScrollView>
       )}

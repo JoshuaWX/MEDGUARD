@@ -27,15 +27,15 @@ import { useLocationContext } from '../hooks/LocationContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../theme';
 
-/** AsyncStorage flag marking that the permission primer has been shown/handled. */
-export const PERMISSIONS_PRIMED_KEY = 'mg_perms_primed_v1';
-const SEEN_KEY = PERMISSIONS_PRIMED_KEY;
+/** Non-sensitive, account-scoped flag marking that the primer was handled. */
+export const PERMISSIONS_PRIMED_KEY = 'mg_perms_primed_v2';
+export const getPermissionsPrimedKey = (userId: string) => `${PERMISSIONS_PRIMED_KEY}:${userId}`;
 
 const PermissionsPrimerModal: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { isGuest, user } = useAuth();
-  const { permissionStatus, requestPermission: requestLocation } = useLocationContext();
+  const { permissionStatus, requestPermission: requestLocation, refreshLocation, startWatching } = useLocationContext();
   const { permissionAsked, permissionGranted, requestPermission: requestNotifications } = useNotifications();
 
   const [visible, setVisible] = useState(false);
@@ -48,15 +48,17 @@ const PermissionsPrimerModal: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    setVisible(false);
     // Only prime authenticated users, and only if something is actually needed.
     if (isGuest || !user?.id) return;
     if (!needsLocation && !needsNotifications) return;
 
     (async () => {
-      const seen = await AsyncStorage.getItem(SEEN_KEY).catch(() => null);
+      const seen = await AsyncStorage.getItem(getPermissionsPrimedKey(user.id)).catch(() => null);
       if (!cancelled && seen !== '1') {
         // Small delay so it doesn't collide with first paint / auth settling.
-        setTimeout(() => {
+        timer = setTimeout(() => {
           if (!cancelled) setVisible(true);
         }, 900);
       }
@@ -64,25 +66,33 @@ const PermissionsPrimerModal: React.FC = () => {
 
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [isGuest, user?.id, needsLocation, needsNotifications]);
 
   const markSeen = useCallback(async () => {
-    await AsyncStorage.setItem(SEEN_KEY, '1').catch(() => undefined);
-  }, []);
+    if (!user?.id) return;
+    await AsyncStorage.setItem(getPermissionsPrimedKey(user.id), '1').catch(() => undefined);
+  }, [user?.id]);
 
   const handleEnable = useCallback(async () => {
     setBusy(true);
     try {
       // Request sequentially so the OS dialogs don't overlap.
-      if (needsLocation) await requestLocation().catch(() => false);
+      if (needsLocation) {
+        const granted = await requestLocation().catch(() => false);
+        if (granted) {
+          await refreshLocation().catch(() => null);
+          await startWatching().catch(() => undefined);
+        }
+      }
       if (needsNotifications) await requestNotifications().catch(() => false);
     } finally {
       await markSeen();
       setBusy(false);
       setVisible(false);
     }
-  }, [needsLocation, needsNotifications, requestLocation, requestNotifications, markSeen]);
+  }, [needsLocation, needsNotifications, requestLocation, refreshLocation, startWatching, requestNotifications, markSeen]);
 
   const handleLater = useCallback(async () => {
     await markSeen();

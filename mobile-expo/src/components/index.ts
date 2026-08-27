@@ -15,6 +15,7 @@ export { default as Avatar } from './Avatar';
 export { default as SkeletonLoader } from './SkeletonLoader';
 export { default as ScreenLoader } from './ScreenLoader';
 export { default as PermissionsPrimerModal } from './PermissionsPrimerModal';
+export { default as PermissionExplainerModal } from './PermissionExplainerModal';
 export { default as Icon, type IconName } from './Icon';
 export { default as LevelMeter } from './LevelMeter';
 export { default as HomeHeroArt } from './HomeHeroArt';

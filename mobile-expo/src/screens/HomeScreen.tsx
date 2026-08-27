@@ -256,7 +256,7 @@ const HomeScreen: React.FC = () => {
             {/* Area Health Signal — the calibrated, honest area risk (not permanently "Elevated") */}
             {intel?.brain && (
               <View style={{ marginBottom: Spacing.md }}>
-                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport')} />
+                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport', { scope: 'area' })} />
               </View>
             )}
 

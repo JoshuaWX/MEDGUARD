@@ -184,7 +184,7 @@ const AlertsScreen: React.FC = () => {
             {/* MedGuard Brain v1: area health signal summary */}
           {brain && (
             <View style={{ marginBottom: Spacing.md }}>
-              <BrainCard brain={brain} onPress={() => (navigation as any).navigate('BrainReport')} />
+              <BrainCard brain={brain} onPress={() => (navigation as any).navigate('BrainReport', { scope: 'area' })} />
             </View>
           )}
 

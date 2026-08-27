@@ -23,7 +23,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button, GlassCard, ArrowRightIcon } from '../components';
-import { PERMISSIONS_PRIMED_KEY } from '../components/PermissionsPrimerModal';
+import { getPermissionsPrimedKey } from '../components/PermissionsPrimerModal';
 import { useUser } from '../hooks/useUser';
 import { useAuth } from '../hooks/useAuth';
 import { useLocationContext } from '../hooks/LocationContext';
@@ -92,7 +92,9 @@ const SignUp2Screen: React.FC = () => {
         await requestNotificationPermission().catch(() => false);
       }
       // Onboarding already primed permissions — don't re-prompt on Home.
-      await AsyncStorage.setItem(PERMISSIONS_PRIMED_KEY, '1').catch(() => undefined);
+      if (user?.id) {
+        await AsyncStorage.setItem(getPermissionsPrimedKey(user.id), '1').catch(() => undefined);
+      }
       await completeOnboarding();
     } finally {
       setFinishing(false);

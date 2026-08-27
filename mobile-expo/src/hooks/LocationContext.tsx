@@ -16,8 +16,10 @@ export interface AlertArea { state: string; source: 'gps' | 'manual'; updatedAt:
 interface LocationContextValue {
   location: LocationData | null; geocoded: GeocodedLocation | null; alertArea: AlertArea | null;
   locationSharingEnabled: boolean; backgroundLocationEnabled: boolean;
-  loading: boolean; error: string | null; permissionStatus: Location.PermissionStatus | null; isTracking: boolean; isOnline: boolean;
+  loading: boolean; error: string | null; permissionStatus: Location.PermissionStatus | null; permissionCanAskAgain: boolean;
+  backgroundPermissionStatus: Location.PermissionStatus | null; backgroundPermissionCanAskAgain: boolean; isTracking: boolean; isOnline: boolean;
   requestPermission: () => Promise<boolean>; refreshLocation: () => Promise<LocationData | null>; startWatching: () => Promise<void>; stopWatching: () => void;
+  refreshPermissionStatus: () => Promise<void>;
   setLocationSharing: (enabled: boolean) => Promise<boolean>; setBackgroundLocationEnabled: (enabled: boolean) => Promise<boolean>; setManualAlertState: (state: string) => Promise<boolean>;
   verifyLocation: () => Promise<{ success: boolean; location: LocationData | null; geocoded: GeocodedLocation | null; error: string | null }>;
   permissionGranted: boolean;
@@ -34,6 +36,9 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
   const [backgroundLocationEnabled, setBackgroundLocationEnabledState] = useState(false);
   const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
+  const [permissionCanAskAgain, setPermissionCanAskAgain] = useState(true);
+  const [backgroundPermissionStatus, setBackgroundPermissionStatus] = useState<Location.PermissionStatus | null>(null);
+  const [backgroundPermissionCanAskAgain, setBackgroundPermissionCanAskAgain] = useState(true);
   const [isTracking, setIsTracking] = useState(false); const [isOnline, setIsOnline] = useState(true);
   const watcher = useRef<Location.LocationSubscription | null>(null); const mounted = useRef(true);
   const activeUserId = useRef<string | null>(null); const observationRevision = useRef(0); const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -44,8 +49,19 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
     if (mounted.current) { setLocation(null); setGeocoded(null); setAlertArea(null); setBackgroundLocationEnabledState(false); }
   }, [stopWatching]);
   const requestPermission = useCallback(async () => {
-    try { const { status } = await Location.requestForegroundPermissionsAsync(); if (mounted.current) { setPermissionStatus(status); setError(status === 'granted' ? null : 'Location permission denied. Your home state will be used for alerts.'); } return status === 'granted'; }
+    try { const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync(); if (mounted.current) { setPermissionStatus(status); setPermissionCanAskAgain(canAskAgain); setError(status === 'granted' ? null : 'Location permission denied. Your home state will be used for alerts.'); } return status === 'granted'; }
     catch { if (mounted.current) setError('Unable to request location permission.'); return false; }
+  }, []);
+  const refreshPermissionStatus = useCallback(async () => {
+    const [foreground, background] = await Promise.all([
+      Location.getForegroundPermissionsAsync(),
+      Location.getBackgroundPermissionsAsync(),
+    ]);
+    if (!mounted.current) return;
+    setPermissionStatus(foreground.status);
+    setPermissionCanAskAgain(foreground.canAskAgain);
+    setBackgroundPermissionStatus(background.status);
+    setBackgroundPermissionCanAskAgain(background.canAskAgain);
   }, []);
   const confirmLocation = useCallback(async (point: LocationData) => {
     const id = activeUserId.current; if (!id || !locationSharingEnabled || !isOnline) return;
@@ -77,7 +93,7 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
   }, [backgroundLocationEnabled, clearLocationState, refreshLocation, requestPermission, startWatching]);
   const setBackgroundLocationEnabled = useCallback(async (enabled: boolean) => {
     if (!activeUserId.current || (enabled && !locationSharingEnabled)) return false;
-    if (enabled) { const { status } = await Location.requestBackgroundPermissionsAsync(); if (status !== 'granted') { if (mounted.current) setError('Background location permission was not granted.'); return false; } }
+    if (enabled) { const { status, canAskAgain } = await Location.requestBackgroundPermissionsAsync(); if (mounted.current) { setBackgroundPermissionStatus(status); setBackgroundPermissionCanAskAgain(canAskAgain); } if (status !== 'granted') { if (mounted.current) setError('Background location permission was not granted.'); return false; } }
     const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: enabled }); if (rpcError || !data) return false;
     try { if (enabled) await startBackgroundLocationUpdates(); else await stopBackgroundLocationUpdates(); if (mounted.current) setBackgroundLocationEnabledState(enabled); return true; }
     catch { await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: false }); return false; }
@@ -105,9 +121,10 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
       const sharing = data.use_location !== false; setLocationSharingEnabled(sharing); setBackgroundLocationEnabledState(Boolean(data.background_location_enabled));
       if (data.state) setAlertArea({ state: data.state, source: sharing && data.latitude != null ? 'gps' : 'manual', updatedAt: data.location_observed_at ?? null });
       if (sharing && data.latitude != null && data.longitude != null && !cached) setLocation({ latitude: data.latitude, longitude: data.longitude, accuracy: data.location_accuracy_meters ?? null, altitude: null, timestamp: data.location_observed_at ? new Date(data.location_observed_at).getTime() : Date.now() });
-      const { status } = await Location.getForegroundPermissionsAsync(); if (!cancelled) setPermissionStatus(status);
+      const [{ status, canAskAgain }, backgroundPermission] = await Promise.all([Location.getForegroundPermissionsAsync(), Location.getBackgroundPermissionsAsync()]);
+      if (!cancelled) { setPermissionStatus(status); setPermissionCanAskAgain(canAskAgain); setBackgroundPermissionStatus(backgroundPermission.status); setBackgroundPermissionCanAskAgain(backgroundPermission.canAskAgain); }
       if (sharing && status === 'granted') { void refreshLocation(); void startWatching(); if (data.background_location_enabled) void startBackgroundLocationUpdates().catch(() => undefined); }
-      else if (sharing && status !== 'granted') {
+      else if (sharing && status === 'denied') {
         // A revoked/denied foreground permission immediately returns alerts to
         // the persisted home state, including push targeting and Personal Brain.
         const { data: fallback } = await supabase.rpc('set_location_preferences', { p_use_location: false, p_background_location_enabled: false });
@@ -117,8 +134,8 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
     return () => { cancelled = true; mounted.current = false; stopWatching(); };
   }, [clearLocationState, refreshLocation, startWatching, stopWatching, user?.id]);
   useEffect(() => NetInfo.addEventListener((state) => setIsOnline(state.isConnected ?? true)), []);
-  useEffect(() => { const sub = AppState.addEventListener('change', (next) => { const prior = appState.current; appState.current = next; if (prior.match(/inactive|background/) && next === 'active' && locationSharingEnabled) void refreshLocation(); }); return () => sub.remove(); }, [locationSharingEnabled, refreshLocation]);
+  useEffect(() => { const sub = AppState.addEventListener('change', (next) => { const prior = appState.current; appState.current = next; if (prior.match(/inactive|background/) && next === 'active') { void refreshPermissionStatus(); if (locationSharingEnabled) void refreshLocation(); } }); return () => sub.remove(); }, [locationSharingEnabled, refreshLocation, refreshPermissionStatus]);
 
-  return <LocationContext.Provider value={{ location, geocoded, alertArea, locationSharingEnabled, backgroundLocationEnabled, loading: loading || !initialized, error, permissionStatus, isTracking, isOnline, requestPermission, refreshLocation, startWatching, stopWatching, setLocationSharing, setBackgroundLocationEnabled, setManualAlertState, verifyLocation, permissionGranted: permissionStatus === 'granted' }}>{children}</LocationContext.Provider>;
+  return <LocationContext.Provider value={{ location, geocoded, alertArea, locationSharingEnabled, backgroundLocationEnabled, loading: loading || !initialized, error, permissionStatus, permissionCanAskAgain, backgroundPermissionStatus, backgroundPermissionCanAskAgain, isTracking, isOnline, requestPermission, refreshPermissionStatus, refreshLocation, startWatching, stopWatching, setLocationSharing, setBackgroundLocationEnabled, setManualAlertState, verifyLocation, permissionGranted: permissionStatus === 'granted' }}>{children}</LocationContext.Provider>;
 };
 export function useLocationContext() { const context = useContext(LocationContext); if (!context) throw new Error('useLocationContext must be used within LocationProvider.'); return context; }

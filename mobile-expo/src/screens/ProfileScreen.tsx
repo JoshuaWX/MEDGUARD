@@ -24,6 +24,7 @@ import {
   Switch,
   Text,
   View,
+  Linking,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -60,6 +61,7 @@ import {
   FeatureBlockedScreen,
   ScreenLoader,
   Icon,
+  PermissionExplainerModal,
   useFeedback,
 } from '../components';
 import { useAuth } from '../hooks/useAuth';
@@ -100,6 +102,9 @@ const ProfileScreen: React.FC = () => {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
   const [avatarSourceOpen, setAvatarSourceOpen] = useState(false);
+  const [pendingAvatarSource, setPendingAvatarSource] = useState<'camera' | 'library' | null>(null);
+  const [avatarPermissionBlocked, setAvatarPermissionBlocked] = useState(false);
+  const [avatarPermissionBusy, setAvatarPermissionBusy] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -433,6 +438,33 @@ const ProfileScreen: React.FC = () => {
       }
   }, [notify, toast, updateAvatar]);
 
+  const handleAvatarSourceChoice = useCallback(async (source: 'camera' | 'library') => {
+    setAvatarSourceOpen(false);
+    const permission = source === 'camera'
+      ? await ImagePicker.getCameraPermissionsAsync()
+      : await ImagePicker.getMediaLibraryPermissionsAsync();
+    if (permission.granted) {
+      await handleAvatarSelection(source);
+      return;
+    }
+    setAvatarPermissionBlocked(!permission.canAskAgain);
+    setPendingAvatarSource(source);
+  }, [handleAvatarSelection]);
+
+  const handleAvatarPermissionContinue = useCallback(async () => {
+    if (!pendingAvatarSource) return;
+    if (avatarPermissionBlocked) {
+      setPendingAvatarSource(null);
+      await Linking.openSettings().catch(() => undefined);
+      return;
+    }
+    const source = pendingAvatarSource;
+    setAvatarPermissionBusy(true);
+    setPendingAvatarSource(null);
+    await handleAvatarSelection(source);
+    setAvatarPermissionBusy(false);
+  }, [avatarPermissionBlocked, handleAvatarSelection, pendingAvatarSource]);
+
   const handleAvatarPress = useCallback(() => setAvatarSourceOpen(true), []);
 
   // Guest users see sign-in required blocker after all hooks are registered.
@@ -566,14 +598,14 @@ const ProfileScreen: React.FC = () => {
                 <Text style={[styles.avatarSourceTitle, { color: colors.text }]}>Change profile picture</Text>
                 <Text style={[styles.avatarSourceMessage, { color: colors.textSecondary }]}>Choose where your new photo should come from.</Text>
                 <Pressable
-                  onPress={() => void handleAvatarSelection('camera')}
+                  onPress={() => void handleAvatarSourceChoice('camera')}
                   style={[styles.avatarSourceOption, { borderColor: colors.border }]}
                 >
                   <Icon name="camera" size={22} color={colors.primary} />
                   <Text style={[styles.avatarSourceOptionText, { color: colors.text }]}>Take a photo</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => void handleAvatarSelection('library')}
+                  onPress={() => void handleAvatarSourceChoice('library')}
                   style={[styles.avatarSourceOption, { borderColor: colors.border }]}
                 >
                   <Icon name="image" size={22} color={colors.primary} />
@@ -585,6 +617,19 @@ const ProfileScreen: React.FC = () => {
               </Pressable>
             </Pressable>
           </Modal>
+
+          <PermissionExplainerModal
+            visible={pendingAvatarSource !== null}
+            icon={pendingAvatarSource === 'camera' ? 'camera' : 'image'}
+            title={pendingAvatarSource === 'camera' ? 'Use your camera?' : 'Choose a profile photo?'}
+            description={pendingAvatarSource === 'camera'
+              ? 'MedGuard uses the camera only when you choose to take a profile picture. It never records audio.'
+              : 'MedGuard accesses your photos only when you choose a profile picture.'}
+            primaryLabel={avatarPermissionBlocked ? 'Open Settings' : (pendingAvatarSource === 'camera' ? 'Allow camera access' : 'Allow photo access')}
+            busy={avatarPermissionBusy}
+            onContinue={handleAvatarPermissionContinue}
+            onClose={() => setPendingAvatarSource(null)}
+          />
 
           <Modal
             visible={medicalModalOpen}

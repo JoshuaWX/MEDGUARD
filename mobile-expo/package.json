@@ -23,19 +23,19 @@
     "@zxcvbn-ts/language-en": "^3.0.2",
     "babel-preset-expo": "~54.0.9",
     "base64-arraybuffer": "^1.0.2",
-    "expo": "^54.0.31",
+    "expo": "~54.0.37",
     "expo-application": "~7.0.8",
     "expo-blur": "~15.0.8",
     "expo-build-properties": "~1.0.10",
-    "expo-constants": "~18.0.13",
+    "expo-constants": "~18.0.14",
     "expo-device": "~8.0.10",
-    "expo-file-system": "~19.0.21",
-    "expo-font": "~14.0.10",
-    "expo-image-picker": "~17.0.10",
+    "expo-file-system": "~19.0.24",
+    "expo-font": "~14.0.12",
+    "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
-    "expo-linking": "~8.0.11",
+    "expo-linking": "~8.0.12",
     "expo-location": "~19.0.8",
-    "expo-notifications": "~0.32.16",
+    "expo-notifications": "~0.32.17",
     "expo-secure-store": "~15.0.8",
     "expo-sensors": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
@@ -55,7 +55,8 @@
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-web": "^0.21.0",
-    "react-native-webview": "13.15.0"
+    "react-native-webview": "13.15.0",
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
@@ -63,8 +64,8 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "shell-quote": "1.8.4",
-    "tar": "7.5.16"
+    "shell-quote": "1.10.0",
+    "tar": "7.5.22"
   },
   "private": true
 }

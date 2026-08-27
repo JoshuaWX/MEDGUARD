@@ -135,7 +135,9 @@ const SignUpScreen: React.FC = () => {
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [isPasswordStrong, setIsPasswordStrong] = useState(false);
 
-  const [useLocation, setUseLocation] = useState(true);
+  // Optional and off until the user explicitly chooses it. Otherwise the
+  // post-sign-in primer explains location before the OS prompt.
+  const [useLocation, setUseLocation] = useState(false);
   
   // Location verification state (optional)
   const [locationVerifying, setLocationVerifying] = useState(false);
@@ -172,7 +174,7 @@ const SignUpScreen: React.FC = () => {
       
       if (status !== 'granted') {
         setPermissionDenied(true);
-        setLocationError('Location permission is required to create an account. MedGuard needs your location to provide personalized health alerts for your area.');
+        setLocationError('Location access was not enabled. Turn off this option to continue with your saved home state, or try again.');
         setLocationVerifying(false);
         return;
       }

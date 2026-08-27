@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Platform, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { ErrorBanner, GlassCard, MoonIcon, ThemeModeSelector, Icon, useFeedback } from '../components';
+import { ErrorBanner, GlassCard, MoonIcon, ThemeModeSelector, Icon, PermissionExplainerModal, useFeedback, type IconName } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { LangCode, useI18n } from '../i18n';
 import { useTheme } from '../hooks/useTheme';
@@ -51,6 +51,8 @@ const SettingsScreen: React.FC = () => {
     saving: notifSaving,
     error: notificationError,
     permissionGranted,
+    permissionStatus: notificationPermissionStatus,
+    permissionCanAskAgain: notificationCanAskAgain,
     reminderEnabled,
     reminderTime,
     reminderTimeDisplay,
@@ -58,10 +60,23 @@ const SettingsScreen: React.FC = () => {
     setReminderEnabled,
     setReminderTime,
     sendTestNotification,
+    requestPermission: requestNotificationPermission,
   } = useNotifications();
 
-  const { locationSharingEnabled, backgroundLocationEnabled, setLocationSharing, setBackgroundLocationEnabled } = useLocationContext();
+  const {
+    locationSharingEnabled,
+    backgroundLocationEnabled,
+    permissionStatus: locationPermissionStatus,
+    permissionCanAskAgain: locationCanAskAgain,
+    backgroundPermissionStatus,
+    backgroundPermissionCanAskAgain,
+    requestPermission: requestLocationPermission,
+    setLocationSharing,
+    setBackgroundLocationEnabled,
+  } = useLocationContext();
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [backgroundPrimerOpen, setBackgroundPrimerOpen] = useState(false);
+  const [backgroundPermissionBusy, setBackgroundPermissionBusy] = useState(false);
 
   // Handler for location sharing toggle - requires auth for guests
   const handleLocationToggle = async (value: boolean) => {
@@ -81,6 +96,40 @@ const SettingsScreen: React.FC = () => {
       return;
     }
     await setReminderEnabled(value);
+  };
+
+  const handleBackgroundToggle = async (value: boolean) => {
+    if (isGuest) return requireAuth('background location updates');
+    if (!value) {
+      await setBackgroundLocationEnabled(false);
+      return;
+    }
+    setBackgroundPrimerOpen(true);
+  };
+
+  const handleEnableBackgroundLocation = async () => {
+    if (!backgroundPermissionCanAskAgain && backgroundPermissionStatus !== 'granted') {
+      setBackgroundPrimerOpen(false);
+      await Linking.openSettings().catch(() => undefined);
+      return;
+    }
+    setBackgroundPermissionBusy(true);
+    const enabled = await setBackgroundLocationEnabled(true);
+    setBackgroundPermissionBusy(false);
+    setBackgroundPrimerOpen(false);
+    if (!enabled) toast({ tone: 'warning', title: 'Background location stays off', message: 'You can keep using your saved alert area without it.' });
+  };
+
+  const handleCorePermission = async (kind: 'location' | 'notifications') => {
+    const blocked = kind === 'location'
+      ? !locationCanAskAgain && locationPermissionStatus !== 'granted'
+      : !notificationCanAskAgain && notificationPermissionStatus !== 'granted';
+    if (blocked) {
+      await Linking.openSettings().catch(() => undefined);
+      return;
+    }
+    if (kind === 'location') await requestLocationPermission();
+    else await requestNotificationPermission();
   };
 
   const handleSendTest = async () => {
@@ -198,6 +247,60 @@ const SettingsScreen: React.FC = () => {
             </View>
           </GlassCard>
 
+          {/* Live permission centre. Optional permissions remain contextual. */}
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowCenter}>
+              <View style={styles.iconWrap}><Icon name="shield-check" size={24} color={Colors.primary} /></View>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Permissions</Text>
+            </View>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary, marginBottom: Spacing.md }]}>
+              MedGuard asks only when a feature needs access. You can keep using the app if you decline.
+            </Text>
+            <View style={[styles.permissionList, { borderColor: colors.border }]}>
+              <PermissionRow
+                icon="map-pin"
+                title="Foreground location"
+                description="Alert area and nearby facilities"
+                status={locationPermissionStatus === 'granted' ? 'Allowed' : 'Not allowed'}
+                actionLabel={locationPermissionStatus === 'granted' ? undefined : (!locationCanAskAgain ? 'Open Settings' : 'Allow')}
+                onAction={() => void handleCorePermission('location')}
+                colors={colors}
+              />
+              <PermissionRow
+                icon="bell"
+                title="Notifications"
+                description="Official alerts and reminders"
+                status={notificationPermissionStatus === 'granted' ? 'Allowed' : 'Not allowed'}
+                actionLabel={notificationPermissionStatus === 'granted' ? undefined : (!notificationCanAskAgain ? 'Open Settings' : 'Allow')}
+                onAction={() => void handleCorePermission('notifications')}
+                colors={colors}
+              />
+              <PermissionRow
+                icon="navigation"
+                title="Background location"
+                description="Optional · managed below"
+                status={backgroundPermissionStatus === 'granted' && backgroundLocationEnabled ? 'Allowed' : 'Off'}
+                colors={colors}
+              />
+              <PermissionRow
+                icon="footprints"
+                title="Step tracking"
+                description="Optional · requested in My Health"
+                status="Ask when used"
+                actionLabel="Open My Health"
+                onAction={() => navigation.navigate('MainTabs', { screen: 'MyHealth' })}
+                colors={colors}
+              />
+              <PermissionRow
+                icon="camera"
+                title="Camera and photos"
+                description="Optional · requested when changing your photo"
+                status="Ask when used"
+                colors={colors}
+              />
+            </View>
+          </GlassCard>
+
           <GlassCard padding={Spacing.cardPadding} style={styles.card}>
             <View style={styles.cardRowTop}>
               <View style={styles.iconWrap}><ShieldOutlineIcon size={24} color={Colors.primary} /></View>
@@ -206,7 +309,7 @@ const SettingsScreen: React.FC = () => {
                   <Text style={[styles.toggleLabel, { color: colors.text }]}>Background location updates</Text>
                   <Switch
                     value={isGuest ? false : backgroundLocationEnabled}
-                    onValueChange={(value) => void setBackgroundLocationEnabled(value)}
+                    onValueChange={(value) => void handleBackgroundToggle(value)}
                     trackColor={{ false: isDark ? Colors.blackAlpha20 : Colors.whiteAlpha30, true: Colors.primary }}
                     thumbColor={Colors.surfaceLight}
                     disabled={isGuest || !locationSharingEnabled}
@@ -348,9 +451,45 @@ const SettingsScreen: React.FC = () => {
 
       {/* Auth gate modal for guests trying to access restricted features */}
       <AuthGateModalComponent />
+      <PermissionExplainerModal
+        visible={backgroundPrimerOpen}
+        icon="navigation"
+        title="Allow background location?"
+        description="If you opt in, MedGuard can update your alert state after a verified move while the app is closed. Updates are conservative and may use more battery. This stays off unless you enable it."
+        primaryLabel={!backgroundPermissionCanAskAgain && backgroundPermissionStatus !== 'granted' ? 'Open Settings' : 'Allow background access'}
+        busy={backgroundPermissionBusy}
+        onContinue={handleEnableBackgroundLocation}
+        onClose={() => setBackgroundPrimerOpen(false)}
+      />
     </View>
   );
 };
+
+const PermissionRow: React.FC<{
+  icon: IconName;
+  title: string;
+  description: string;
+  status: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  colors: any;
+}> = ({ icon, title, description, status, actionLabel, onAction, colors }) => (
+  <View style={[styles.permissionRow, { borderBottomColor: colors.border }]}>
+    <Icon name={icon} size={19} color={colors.primary} />
+    <View style={styles.permissionRowBody}>
+      <Text style={[styles.permissionRowTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.permissionRowDescription, { color: colors.textSecondary }]}>{description}</Text>
+    </View>
+    <View style={styles.permissionRowAction}>
+      <Text style={[styles.permissionStatus, { color: status === 'Allowed' ? Colors.success : colors.textMuted }]}>{status}</Text>
+      {actionLabel && onAction && (
+        <Pressable onPress={onAction} accessibilityRole="button" hitSlop={6}>
+          <Text style={[styles.permissionActionText, { color: colors.primary }]}>{actionLabel}</Text>
+        </Pressable>
+      )}
+    </View>
+  </View>
+);
 
 function ShieldOutlineIcon({ size = 24, color = Colors.primary }: { size?: number; color?: string }) {
   return (
@@ -584,6 +723,23 @@ const styles = StyleSheet.create({
     color: Colors.warning,
     fontStyle: 'italic',
   },
+  permissionList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  permissionRow: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.sm,
+  },
+  permissionRowBody: { flex: 1 },
+  permissionRowTitle: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
+  permissionRowDescription: { fontFamily: FontFamily.regular, fontSize: FontSize.xs, lineHeight: 17, marginTop: 1 },
+  permissionRowAction: { maxWidth: 104, alignItems: 'flex-end', gap: 3 },
+  permissionStatus: { fontFamily: FontFamily.medium, fontSize: FontSize.xs },
+  permissionActionText: { fontFamily: FontFamily.semibold, fontSize: FontSize.xs, textAlign: 'right' },
 });
 
 export default SettingsScreen;

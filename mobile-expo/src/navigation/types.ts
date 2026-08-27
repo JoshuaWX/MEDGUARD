@@ -14,7 +14,7 @@ export type RootStackParamList = {
   Chatbot: undefined;
   Alerts: undefined;
   Settings: undefined;
-  BrainReport: undefined;
+  BrainReport: { scope: 'area' | 'personal' };
   CycleTracker: undefined;
   HealthNews: undefined;
   HealthPost: { post?: HealthPost; postId?: string };

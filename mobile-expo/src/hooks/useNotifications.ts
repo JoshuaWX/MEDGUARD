@@ -41,6 +41,8 @@ interface UseNotificationsReturn {
   // Permission status
   permissionGranted: boolean;
   permissionAsked: boolean;
+  permissionStatus: 'granted' | 'denied' | 'undetermined' | null;
+  permissionCanAskAgain: boolean;
   
   // Preferences
   preferences: NotificationPreferences | null;
@@ -74,6 +76,8 @@ export function useNotifications(): UseNotificationsReturn {
   
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null);
+  const [permissionCanAskAgain, setPermissionCanAskAgain] = useState(true);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   
   const fetchedUserRef = useRef<string | null>(null);
@@ -82,9 +86,11 @@ export function useNotifications(): UseNotificationsReturn {
    * Check current notification permission status
    */
   const checkPermission = useCallback(async () => {
-    const { status } = await Notifications.getPermissionsAsync();
+    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
     setPermissionGranted(status === 'granted');
     setPermissionAsked(status !== 'undetermined');
+    setPermissionStatus(status);
+    setPermissionCanAskAgain(canAskAgain);
   }, []);
 
   /**
@@ -123,11 +129,13 @@ export function useNotifications(): UseNotificationsReturn {
       const token = await registerForPushNotifications();
       
       // Check actual permission status (token being null doesn't mean denied)
-      const { status } = await Notifications.getPermissionsAsync();
+      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
       const granted = status === 'granted';
       
       setPermissionGranted(granted);
       setPermissionAsked(true);
+      setPermissionStatus(status);
+      setPermissionCanAskAgain(canAskAgain);
       
       // Store push token if we got one (for future server-side push)
       if (token && user?.id) {
@@ -289,6 +297,8 @@ export function useNotifications(): UseNotificationsReturn {
     error,
     permissionGranted,
     permissionAsked,
+    permissionStatus,
+    permissionCanAskAgain,
     preferences,
     reminderEnabled,
     reminderTime,
