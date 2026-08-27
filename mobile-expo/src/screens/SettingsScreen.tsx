@@ -57,6 +57,7 @@ const SettingsScreen: React.FC = () => {
     featureEnabled: notificationsFeatureEnabled,
     setReminderEnabled,
     setReminderTime,
+    sendTestNotification,
   } = useNotifications();
 
   const { locationSharingEnabled, backgroundLocationEnabled, setLocationSharing, setBackgroundLocationEnabled } = useLocationContext();
@@ -80,6 +81,16 @@ const SettingsScreen: React.FC = () => {
       return;
     }
     await setReminderEnabled(value);
+  };
+
+  const handleSendTest = async () => {
+    if (isGuest) return requireAuth('notification testing');
+    try {
+      const accepted = await sendTestNotification();
+      toast({ tone: accepted ? 'success' : 'danger', title: accepted ? 'Test sent' : 'Test not sent', message: accepted ? 'Expo accepted a test for this device. It may take a moment to appear.' : 'Enable device notifications and try again.' });
+    } catch {
+      toast({ tone: 'danger', title: 'Test not sent', message: 'Please check your connection and notification permission.' });
+    }
   };
 
   // Handler for time picker
@@ -170,6 +181,19 @@ const SettingsScreen: React.FC = () => {
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
                   {isGuest ? 'Sign in to enable location sharing for personalized alerts.' : t('share_location_desc')}
                 </Text>
+              </View>
+            </View>
+          </GlassCard>
+
+          <GlassCard padding={Spacing.cardPadding} style={styles.card}>
+            <View style={styles.cardRowTop}>
+              <View style={styles.iconWrap}><BellIcon size={24} color={Colors.primary} /></View>
+              <View style={styles.cardBody}>
+                <Text style={[styles.toggleLabel, { color: colors.text }]}>Test notifications</Text>
+                <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>Sends one clearly labelled test only to this signed-in device.</Text>
+                <Pressable onPress={() => void handleSendTest()} disabled={isGuest || notifSaving || !notificationsFeatureEnabled} style={styles.supportBtn}>
+                  <Text style={styles.supportBtnText}>Send test notification</Text>
+                </Pressable>
               </View>
             </View>
           </GlassCard>

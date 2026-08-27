@@ -13,10 +13,13 @@ import { useNavigation } from '@react-navigation/native';
 import { Card, Icon, ErrorBanner, ScreenLoader } from '../components';
 import { useHealthFeed, CATEGORY_META, relativeDate, type HealthPost, type PostCategory } from '../hooks/useHealthFeed';
 import { useTheme } from '../hooks/useTheme';
+import { useLocationContext } from '../hooks/LocationContext';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 
-const FILTERS: Array<{ key: 'all' | PostCategory; label: string }> = [
-  { key: 'all', label: 'All' },
+type FeedFilter = 'for_you' | 'nigeria' | PostCategory;
+const FILTERS: Array<{ key: FeedFilter; label: string }> = [
+  { key: 'for_you', label: 'For You' },
+  { key: 'nigeria', label: 'Nigeria' },
   { key: 'outbreak_news', label: 'Outbreaks' },
   { key: 'official_update', label: 'Official' },
   { key: 'prevention_tip', label: 'Tips' },
@@ -26,13 +29,17 @@ const HealthNewsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { colors, isDark } = useTheme();
-  const { posts, loading, error, refresh } = useHealthFeed();
+  const { posts, loading, error, lastUpdatedAt, refresh } = useHealthFeed();
+  const { alertArea } = useLocationContext();
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | PostCategory>('all');
+  const [filter, setFilter] = useState<FeedFilter>('for_you');
 
   const visible = useMemo(
-    () => (filter === 'all' ? posts : posts.filter((p) => p.category === filter)),
-    [posts, filter],
+    () => {
+      if (filter === 'nigeria') return posts;
+      if (filter === 'for_you') return posts.filter((post) => !post.state || post.state === alertArea?.state);
+      return posts.filter((post) => post.category === filter);
+    }, [posts, filter, alertArea?.state],
   );
 
   const onRefresh = useCallback(async () => {
@@ -60,7 +67,8 @@ const HealthNewsScreen: React.FC = () => {
         </Pressable>
       </View>
       <Text style={[styles.title, { color: colors.text }]}>Health News</Text>
-      <Text style={[styles.sub, { color: colors.textSecondary }]}>Official updates from NCDC/WHO, and daily prevention tips.</Text>
+      <Text style={[styles.sub, { color: colors.textSecondary }]}>Official updates from NCDC/WHO, with local relevance when a source names your alert area.</Text>
+      <Text style={[styles.freshness, { color: colors.textMuted }]}>{lastUpdatedAt ? `Sources last checked ${relativeDate(lastUpdatedAt)}` : 'Checking official sources regularly'}</Text>
 
       <View style={styles.filterRow}>
         {FILTERS.map((f) => {
@@ -143,6 +151,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
   title: { fontFamily: FontFamily.displayBold, fontSize: FontSize['3xl'], letterSpacing: -0.4 },
   sub: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, marginTop: 2, marginBottom: Spacing.md },
+  freshness: { fontFamily: FontFamily.regular, fontSize: FontSize.xs, marginTop: -Spacing.sm, marginBottom: Spacing.md },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md, flexWrap: 'wrap' },
   filterChip: { paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: BorderRadius.pill, borderWidth: StyleSheet.hairlineWidth },
   filterText: { fontFamily: FontFamily.semibold, fontSize: FontSize.xs },

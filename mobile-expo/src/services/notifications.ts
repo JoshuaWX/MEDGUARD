@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from './supabase';
 
 // ============================================================================
@@ -75,8 +76,16 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  // Android needs a notification channel for local notifications
+  // Android routes each kind of MedGuard message through a clear channel.
   if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('area-alerts', {
+      name: 'Area health alerts', importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 200, 250], lightColor: '#11b4d4', description: 'Verified area alerts and risk estimates',
+    });
+    await Notifications.setNotificationChannelAsync('health-news', {
+      name: 'Health News', importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 180], lightColor: '#11b4d4', description: 'Official NCDC and WHO updates',
+    });
     await Notifications.setNotificationChannelAsync('health-reminders', {
       name: 'Health Reminders',
       importance: Notifications.AndroidImportance.DEFAULT,
@@ -107,6 +116,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
     console.log('[Notifications] Push token unavailable (FCM not configured). Local notifications will still work.');
     return null;
   }
+}
+
+/** Get a token only when permission already exists; never prompts on app launch. */
+export async function getExistingPushToken(): Promise<string | null> {
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted' ? registerForPushNotifications() : null;
 }
 
 // ============================================================================
@@ -266,20 +281,24 @@ export async function updateNotificationPreferences(
  * 
  * NOTE: Tokens are stored but not used until notifications are enabled.
  */
-export async function registerPushToken(userId: string, token: string): Promise<void> {
-  const { error } = await supabase
-    .from('notification_preferences')
-    .upsert({
-      user_id: userId,
-      push_token: token,
-      push_token_updated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-
+export async function registerPushToken(_userId: string, token: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('register-push-device', {
+    body: { token, platform: Platform.OS },
+  });
   if (error) {
     console.error('Error registering push token:', error);
     throw new Error('Failed to register push token');
   }
+}
+
+export async function unregisterPushToken(token: string): Promise<void> {
+  await supabase.functions.invoke('register-push-device', { body: { action: 'unregister', token } });
+}
+
+export async function sendTestNotification(token: string): Promise<boolean> {
+  const { data, error } = await supabase.functions.invoke('send-test-notification', { body: { token } });
+  if (error) throw new Error('Could not send test notification');
+  return Boolean((data as { accepted?: boolean } | null)?.accepted);
 }
 
 // ============================================================================
@@ -291,11 +310,12 @@ export async function registerPushToken(userId: string, token: string): Promise<
  * Uses local notifications for reliability
  */
 export async function scheduleDailyReminder(
+  userId: string,
   reminderTime: string,
   enabled: boolean
 ): Promise<void> {
   // Cancel any existing reminders first
-  await cancelDailyReminder();
+  await cancelDailyReminder(userId);
 
   if (!enabled || !NOTIFICATIONS_ENABLED) {
     return;
@@ -305,12 +325,12 @@ export async function scheduleDailyReminder(
   const [hours, minutes] = reminderTime.split(':').map(Number);
 
   // Schedule daily repeating notification
-  await Notifications.scheduleNotificationAsync({
+  const identifier = await Notifications.scheduleNotificationAsync({
     content: {
       title: NOTIFICATION_TEMPLATES.checkinReminder.title,
       body: NOTIFICATION_TEMPLATES.checkinReminder.body,
       sound: 'default',
-      data: { type: 'checkin_reminder' },
+      data: { type: 'checkin_reminder', medguardReminder: true, userId },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -318,6 +338,7 @@ export async function scheduleDailyReminder(
       minute: minutes,
     },
   });
+  await SecureStore.setItemAsync(`mg:reminder:${userId}`, identifier);
 
   console.log(`[Notifications] Daily reminder scheduled for ${hours}:${minutes}`);
 }
@@ -325,9 +346,11 @@ export async function scheduleDailyReminder(
 /**
  * Cancel daily check-in reminder
  */
-export async function cancelDailyReminder(): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  console.log('[Notifications] All scheduled notifications cancelled');
+export async function cancelDailyReminder(userId: string): Promise<void> {
+  const key = `mg:reminder:${userId}`;
+  const identifier = await SecureStore.getItemAsync(key);
+  if (identifier) await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => undefined);
+  await SecureStore.deleteItemAsync(key);
 }
 
 /**

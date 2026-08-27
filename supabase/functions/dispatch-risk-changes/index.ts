@@ -19,7 +19,8 @@
 import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
-import { ExpoMessage, isExpoToken, sendExpoPush } from '../_shared/push.ts';
+import { ExpoMessage, sendExpoPush } from '../_shared/push.ts';
+import { activeRecipientsForState, PushRecipient } from '../_shared/push-recipients.ts';
 import { requireCronSecret } from '../_shared/request-auth.ts';
 
 const MAX_PER_STATE = 500;
@@ -124,26 +125,12 @@ serve(async (req: Request) => {
     if (better) topByState.set(k, rise);
   }
 
-  const messages: ExpoMessage[] = [];
-  const logRows: Array<Record<string, unknown>> = [];
+  const queued: Array<{ recipient: PushRecipient; message: ExpoMessage; log: Record<string, unknown> }> = [];
 
   for (const rise of topByState.values()) {
     const refId = `risk:${rise.state.toLowerCase()}:${rise.period}`;
 
-    // Opted-in recipients in this state with a valid push token.
-    const { data: recips, error: recErr } = await db
-      .from('notification_preferences')
-      .select('user_id, push_token, profiles!inner(state)')
-      .eq('community_alerts_enabled', true)
-      .eq('notifications_paused', false)
-      .not('push_token', 'is', null)
-      .ilike('profiles.state', rise.state)
-      .limit(MAX_PER_STATE);
-    if (recErr || !Array.isArray(recips)) continue;
-
-    const recipients = (recips as Array<Record<string, unknown>>)
-      .map((r) => ({ user_id: String(r.user_id), push_token: String(r.push_token || '') }))
-      .filter((r) => isExpoToken(r.push_token));
+    const recipients = await activeRecipientsForState(db, rise.state, MAX_PER_STATE);
     if (recipients.length === 0) continue;
 
     // Dedupe: who already got this state+period risk push?
@@ -152,7 +139,7 @@ serve(async (req: Request) => {
       .select('user_id')
       .eq('notification_type', 'risk_change')
       .eq('ref_id', refId)
-      .in('user_id', recipients.map((r) => r.user_id));
+      .in('user_id', [...new Set(recipients.map((r) => r.userId))]);
     const already = new Set((sent ?? []).map((s: Record<string, unknown>) => String(s.user_id)));
 
     const kind = forecastKind(rise.modelVersion);
@@ -160,21 +147,21 @@ serve(async (req: Request) => {
     const title = `Risk update — ${rise.state}`;
     const body = `${disease} ${kind} for your area has risen to ${rise.level}. This is a projection, not a confirmed outbreak — tap to see what it means.`;
 
-    for (const r of recipients) {
-      if (already.has(r.user_id)) continue;
-      messages.push({ to: r.push_token, title, body, sound: 'default', channelId: 'health-reminders', data: { type: 'risk_change', state: rise.state, disease: rise.disease } });
-      logRows.push({
-        user_id: r.user_id, notification_type: 'risk_change', ref_id: refId,
-        title, body, status: 'sent', scheduled_for: nowIso, sent_at: nowIso,
-      });
+    for (const recipient of recipients) {
+      if (already.has(recipient.userId)) continue;
+      queued.push({ recipient, message: { to: recipient.token, title, body, sound: 'default', channelId: 'area-alerts', data: { type: 'risk_change', state: rise.state, disease: rise.disease } }, log: {
+        user_id: recipient.userId, push_device_id: recipient.deviceId, notification_type: 'risk_change', ref_id: refId, title, body, scheduled_for: nowIso,
+      } });
     }
   }
 
-  if (messages.length === 0) return json({ sent: 0, reason: 'no_recipients' });
+  if (queued.length === 0) return json({ sent: 0, reason: 'no_recipients' });
 
-  const delivered = await sendExpoPush(messages);
+  const tickets = await sendExpoPush(queued.map((item) => item.message));
+  const logRows = tickets.map((ticket, index) => ({ ...queued[index].log, status: ticket.status, expo_ticket_id: ticket.ticketId ?? null, error_message: ticket.error ?? null, sent_at: ticket.status === 'accepted' ? nowIso : null }));
   if (logRows.length > 0) await db.from('notification_log').insert(logRows);
 
-  console.log(JSON.stringify({ event: 'dispatch_risk_changes_done', rises: rises.length, states: topByState.size, queued: messages.length, delivered }));
-  return json({ sent: delivered, queued: messages.length, states: topByState.size });
+  const accepted = tickets.filter((ticket) => ticket.status === 'accepted').length;
+  console.log(JSON.stringify({ event: 'dispatch_risk_changes_done', rises: rises.length, states: topByState.size, queued: queued.length, accepted }));
+  return json({ accepted, queued: queued.length, states: topByState.size });
 });

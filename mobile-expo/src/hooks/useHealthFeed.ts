@@ -45,7 +45,7 @@ export interface HealthPost {
 
 const CATEGORIES: PostCategory[] = ['official_update', 'outbreak_news', 'prevention_tip', 'announcement'];
 
-function mapRow(r: Record<string, unknown>): HealthPost | null {
+export function mapHealthPost(r: Record<string, unknown>): HealthPost | null {
   const category = String(r.category ?? '') as PostCategory;
   if (!CATEGORIES.includes(category) || !r.id || !r.title || !r.body) return null;
   return {
@@ -67,6 +67,7 @@ export function useHealthFeed(limit = 50) {
   const [posts, setPosts] = useState<HealthPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -77,16 +78,20 @@ export function useHealthFeed(limit = 50) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
+      const [{ data, error: err }, { data: statusRows }] = await Promise.all([
+        supabase
         .from('health_posts')
         .select('id, category, title, summary, body, disease, state, source, source_url, image_url, published_at')
         .order('published_at', { ascending: false })
-        .limit(limit);
+        .limit(limit),
+        supabase.from('health_feed_status').select('last_success_at').not('last_success_at', 'is', null).order('last_success_at', { ascending: false }).limit(1),
+      ]);
       if (err) throw err;
       const out = ((data ?? []) as Array<Record<string, unknown>>)
-        .map(mapRow)
+        .map(mapHealthPost)
         .filter((p): p is HealthPost => p !== null);
       setPosts(out);
+      setLastUpdatedAt(statusRows?.[0]?.last_success_at ? String(statusRows[0].last_success_at) : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load health news');
     } finally {
@@ -98,7 +103,23 @@ export function useHealthFeed(limit = 50) {
     load();
   }, [load]);
 
-  return { posts, loading, error, refresh: load };
+  return { posts, loading, error, lastUpdatedAt, refresh: load };
+}
+
+/** Load one exact post for notification deep links, including cold app launches. */
+export function useHealthPost(postId?: string, initialPost?: HealthPost) {
+  const [post, setPost] = useState<HealthPost | undefined>(initialPost);
+  const [loading, setLoading] = useState(Boolean(postId && !initialPost));
+  useEffect(() => {
+    if (!postId || initialPost?.id === postId) return;
+    let active = true;
+    setLoading(true);
+    supabase.from('health_posts').select('id, category, title, summary, body, disease, state, source, source_url, image_url, published_at').eq('id', postId).maybeSingle()
+      .then(({ data }: { data: Record<string, unknown> | null }) => { if (active) setPost(data ? mapHealthPost(data) ?? undefined : undefined); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [initialPost?.id, postId]);
+  return { post, loading };
 }
 
 /** Latest post of a given category (e.g. the daily prevention tip). */

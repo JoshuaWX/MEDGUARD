@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 
 import { Card, Icon } from '../components';
-import { CATEGORY_META, relativeDate, type HealthPost } from '../hooks/useHealthFeed';
+import { CATEGORY_META, relativeDate, useHealthPost } from '../hooks/useHealthFeed';
 import { useTheme } from '../hooks/useTheme';
 import { Colors, Spacing, BorderRadius, FontFamily, FontSize, Gradients } from '../../theme';
 import type { RootStackParamList } from '../navigation/types';
@@ -20,7 +20,7 @@ const HealthPostScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'HealthPost'>>();
   const { colors, isDark } = useTheme();
-  const post = route.params?.post as HealthPost | undefined;
+  const { post } = useHealthPost(route.params?.postId, route.params?.post);
 
   const gradientColors = isDark
     ? ([colors.gradientFrom, colors.gradientVia, colors.gradientTo] as unknown as [string, string, string])

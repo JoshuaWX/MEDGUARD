@@ -17,7 +17,7 @@ export type RootStackParamList = {
   BrainReport: undefined;
   CycleTracker: undefined;
   HealthNews: undefined;
-  HealthPost: { post: HealthPost };
+  HealthPost: { post?: HealthPost; postId?: string };
 };
 
 export type MainTabParamList = {

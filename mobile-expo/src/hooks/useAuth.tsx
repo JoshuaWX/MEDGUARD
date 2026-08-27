@@ -9,6 +9,7 @@ import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../services/supabase';
+import { cancelDailyReminder, getExistingPushToken, unregisterPushToken } from '../services/notifications';
 import { AuthChangeEvent, Session, User, AuthError } from '@supabase/supabase-js';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -505,6 +506,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [state.user?.id]);
 
   const beginFreshAuthAttempt = useCallback(async () => {
+    const previousUserId = state.user?.id;
+    if (previousUserId) {
+      const token = await getExistingPushToken().catch(() => null);
+      if (token) await unregisterPushToken(token).catch(() => undefined);
+      await cancelDailyReminder(previousUserId).catch(() => undefined);
+    }
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
     await AsyncStorage.removeItem('mg_guest_mode');
@@ -515,7 +522,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       isGuest: false,
       loading: true,
     }));
-  }, []);
+  }, [state.user?.id]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
     try {
@@ -702,6 +709,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const signOut = useCallback(async () => {
     try {
+      const signingOutUserId = state.user?.id;
+      // Remove only this account's MedGuard reminder and this device's remote
+      // registration while the JWT is still valid. A later account can safely
+      // register the same physical token for itself.
+      if (signingOutUserId) {
+        const token = await getExistingPushToken().catch(() => null);
+        if (token) await unregisterPushToken(token).catch(() => undefined);
+        await cancelDailyReminder(signingOutUserId).catch(() => undefined);
+      }
       await clearStagedOnboardingData();
       // Clear guest mode flag on sign out
       await AsyncStorage.removeItem('mg_guest_mode');
@@ -786,7 +802,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       isGuest: false,
       loading: false,
     }));
-  }, []);
+  }, [state.user?.id]);
 
   const completeOnboarding = useCallback(async () => {
     const { error } = await supabase.auth.updateUser({ data: { profile_complete: true } });

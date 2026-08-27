@@ -20,6 +20,8 @@ import {
   updateNotificationPreferences,
   registerPushToken,
   registerForPushNotifications,
+  getExistingPushToken,
+  sendTestNotification as sendTestPush,
   scheduleDailyReminder,
   cancelDailyReminder,
   formatTimeDisplay,
@@ -55,6 +57,7 @@ interface UseNotificationsReturn {
   setReminderEnabled: (enabled: boolean) => Promise<void>;
   setReminderTime: (time: string) => Promise<void>;
   setCommunityAlertsEnabled: (enabled: boolean) => Promise<void>;
+  sendTestNotification: () => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -73,7 +76,7 @@ export function useNotifications(): UseNotificationsReturn {
   const [permissionAsked, setPermissionAsked] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   
-  const hasFetchedRef = useRef(false);
+  const fetchedUserRef = useRef<string | null>(null);
 
   /**
    * Check current notification permission status
@@ -99,7 +102,7 @@ export function useNotifications(): UseNotificationsReturn {
       
       // If reminders are enabled, ensure they're scheduled
       if (prefs.checkinReminderEnabled && permissionGranted) {
-        await scheduleDailyReminder(prefs.checkinReminderTime, true);
+        await scheduleDailyReminder(user.id, prefs.checkinReminderTime, true);
       }
     } catch (err) {
       console.error('Error fetching notification preferences:', err);
@@ -165,9 +168,9 @@ export function useNotifications(): UseNotificationsReturn {
       
       // Schedule or cancel reminder
       if (enabled) {
-        await scheduleDailyReminder(updated.checkinReminderTime, true);
+        await scheduleDailyReminder(user.id, updated.checkinReminderTime, true);
       } else {
-        await cancelDailyReminder();
+        await cancelDailyReminder(user.id);
       }
     } catch (err) {
       console.error('Error updating reminder setting:', err);
@@ -194,7 +197,7 @@ export function useNotifications(): UseNotificationsReturn {
       
       // Reschedule if enabled
       if (updated.checkinReminderEnabled) {
-        await scheduleDailyReminder(time, true);
+        await scheduleDailyReminder(user.id, time, true);
       }
     } catch (err) {
       console.error('Error updating reminder time:', err);
@@ -238,12 +241,28 @@ export function useNotifications(): UseNotificationsReturn {
     await fetchPreferences();
   }, [checkPermission, fetchPreferences]);
 
+  const sendTestNotification = useCallback(async (): Promise<boolean> => {
+    if (!user?.id) return false;
+    const token = await getExistingPushToken();
+    if (!token) {
+      setError('Enable device notifications first, then try the test again.');
+      return false;
+    }
+    await registerPushToken(user.id, token);
+    return sendTestPush(token);
+  }, [user?.id]);
+
   // Initial load
   useEffect(() => {
-    if (!hasFetchedRef.current && user?.id) {
-      hasFetchedRef.current = true;
+    if (user?.id && fetchedUserRef.current !== user.id) {
+      fetchedUserRef.current = user.id;
       checkPermission();
       fetchPreferences();
+      getExistingPushToken().then((token) => token ? registerPushToken(user.id, token) : undefined).catch(() => undefined);
+    } else if (!user?.id) {
+      fetchedUserRef.current = null;
+      setPreferences(null);
+      setLoading(false);
     }
   }, [user?.id, checkPermission, fetchPreferences]);
 
@@ -280,6 +299,7 @@ export function useNotifications(): UseNotificationsReturn {
     setReminderEnabled,
     setReminderTime,
     setCommunityAlertsEnabled,
+    sendTestNotification,
     refresh,
   };
 }

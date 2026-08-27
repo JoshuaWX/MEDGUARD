@@ -44,6 +44,18 @@ verify_jwt = false
 [functions.dispatch-risk-changes]
 verify_jwt = false
 
+[functions.register-push-device]
+verify_jwt = true
+
+[functions.send-test-notification]
+verify_jwt = true
+
+[functions.process-push-receipts]
+verify_jwt = false
+
+[functions.ingest-health-news]
+verify_jwt = false
+
 # Africa's Talking callbacks have no Supabase JWT. The function validates a
 # required callback secret in the provider-configured URL instead.
 [functions.ussd]
