@@ -26,6 +26,8 @@
     "mobile:start": "npm --prefix mobile-expo start",
     "mobile:android": "npm --prefix mobile-expo run android",
     "mobile:typecheck": "cd mobile-expo && npx tsc --noEmit",
+    "mobile:test:contracts": "node --import tsx --test mobile-expo/scripts/runtime-contracts.test.ts",
+    "edge:test:notifications": "node --import tsx --test supabase/functions/_shared/__tests__/push.test.ts",
     "supabase:bundle:intel": "node scripts/build-intel-bundle.mjs",
     "legacy:dev": "vite",
     "legacy:server": "node server/proxy.js",

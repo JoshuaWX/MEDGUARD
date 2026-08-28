@@ -3,7 +3,7 @@
  * Health intelligence and advisory data (v2)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { useLocationContext } from './LocationContext';
 import { invokeEdgeFunction } from '../services/edge';
@@ -82,8 +82,10 @@ interface UseIntelReturn {
 
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
-export const useIntel = (): UseIntelReturn => {
-  const { user: authUser, initialized: authInitialized } = useAuth();
+const IntelContext = createContext<UseIntelReturn | null>(null);
+
+export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { initialized: authInitialized } = useAuth();
   const { alertArea, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [intel, setIntel] = useState<IntelV2 | null>(null);
@@ -124,6 +126,11 @@ export const useIntel = (): UseIntelReturn => {
       if (!data) throw new Error('No data returned from intel service');
       if (requestId !== requestIdRef.current) return;
 
+      // Refuse an unexpected state payload so a stale server/cache response can
+      // never appear under the user's newly verified alert area.
+      if (data.location?.state && data.location.state !== state) {
+        throw new Error('Intel response did not match the current alert area');
+      }
       setIntel(data);
 
       // We rely on the Edge Function to upsert the cache server-side.
@@ -143,10 +150,15 @@ export const useIntel = (): UseIntelReturn => {
     fetchIntel();
   }, [fetchIntel]);
 
-  return {
-    intel,
-    loading,
-    error,
-    refresh: fetchIntel,
-  };
+  return React.createElement(
+    IntelContext.Provider,
+    { value: { intel, loading, error, refresh: fetchIntel } },
+    children,
+  );
+};
+
+export const useIntel = (): UseIntelReturn => {
+  const context = useContext(IntelContext);
+  if (!context) throw new Error('useIntel must be used within IntelProvider.');
+  return context;
 };

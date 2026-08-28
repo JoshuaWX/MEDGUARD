@@ -5,9 +5,9 @@ import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { ExpoMessage, sendExpoPush } from '../_shared/push.ts';
 import { activeRecipientsForState, PushRecipient } from '../_shared/push-recipients.ts';
 import { requireCronSecret } from '../_shared/request-auth.ts';
+import { dispatchHealthNews } from '../_shared/health-news-delivery.ts';
 
 const COOLDOWN_HOURS = 24;
-const POST_WINDOW_DAYS = 3;
 type Queued = { recipient: PushRecipient; message: ExpoMessage; log: Record<string, unknown> };
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }); }
 
@@ -28,7 +28,12 @@ serve(async (req) => {
     const state = String(report.state ?? '').trim(); if (!state) continue;
     const recipients = await activeRecipientsForState(admin, state);
     const users = [...new Set(recipients.map((r) => r.userId))]; if (!users.length) continue;
-    const { data: recent } = await admin.from('notification_log').select('user_id').eq('notification_type', 'community_trend').in('user_id', users).gte('created_at', cooldown);
+    const { data: recent, error: recentError } = await admin.from('notification_log').select('user_id')
+      .eq('notification_type', 'community_trend')
+      .in('status', ['pending', 'accepted', 'receipt_ok'])
+      .in('user_id', users)
+      .gte('created_at', cooldown);
+    if (recentError) return json({ error: 'notification_deduplication_failed' }, 500);
     const blocked = new Set((recent ?? []).map((row: Record<string, unknown>) => String(row.user_id)));
     for (const recipient of recipients) {
       if (blocked.has(recipient.userId)) continue;
@@ -38,29 +43,18 @@ serve(async (req) => {
     }
   }
 
-  const since = new Date(Date.now() - POST_WINDOW_DAYS * 86_400_000).toISOString();
-  const { data: posts } = await admin.from('health_posts').select('id, title, source, state').eq('status', 'published').eq('category', 'official_update').gte('published_at', since).order('published_at', { ascending: false });
-  for (const post of (posts ?? []) as Array<Record<string, unknown>>) {
-    const recipients = await activeRecipientsForState(admin, post.state ? String(post.state) : null);
-    const users = [...new Set(recipients.map((r) => r.userId))]; if (!users.length) continue;
-    const postId = String(post.id);
-    const { data: alreadyRows } = await admin.from('notification_log').select('user_id').eq('notification_type', 'health_post').eq('ref_id', postId).in('user_id', users);
-    const sent = new Set((alreadyRows ?? []).map((row: Record<string, unknown>) => String(row.user_id)));
-    // A normal Health News push is capped once per user per 24h. Verified reports above retain priority.
-    const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const { data: cappedRows } = await admin.from('notification_log').select('user_id').eq('notification_type', 'health_post').in('user_id', users).gte('created_at', cutoff);
-    const capped = new Set((cappedRows ?? []).map((row: Record<string, unknown>) => String(row.user_id)));
-    for (const recipient of recipients) {
-      if (sent.has(recipient.userId) || capped.has(recipient.userId)) continue;
-      const title = `${String(post.source ?? 'Official')} update`;
-      const body = String(post.title ?? 'A new official health update is available.');
-      queued.push({ recipient, message: { to: recipient.token, title, body, sound: 'default', channelId: 'health-news', data: { type: 'health_post', postId } }, log: { user_id: recipient.userId, push_device_id: recipient.deviceId, notification_type: 'health_post', ref_id: postId, title, body, scheduled_for: now } });
-    }
+  let verifiedAccepted = 0;
+  if (queued.length) {
+    const tickets = await sendExpoPush(queued.map((item) => item.message));
+    verifiedAccepted = tickets.filter((ticket) => ticket.status === 'accepted').length;
+    const rows = tickets.map((ticket, index) => ({ ...queued[index].log, status: ticket.status, expo_ticket_id: ticket.ticketId ?? null, error_message: ticket.error ?? null, sent_at: ticket.status === 'accepted' ? now : null }));
+    const { error: logError } = await admin.from('notification_log').insert(rows);
+    if (logError) return json({ error: 'notification_log_failed' }, 500);
   }
 
-  if (!queued.length) return json({ queued: 0 });
-  const tickets = await sendExpoPush(queued.map((item) => item.message));
-  const rows = tickets.map((ticket, index) => ({ ...queued[index].log, status: ticket.status, expo_ticket_id: ticket.ticketId ?? null, error_message: ticket.error ?? null, sent_at: ticket.status === 'accepted' ? now : null }));
-  await admin.from('notification_log').insert(rows);
-  return json({ queued: queued.length, accepted: tickets.filter((ticket) => ticket.status === 'accepted').length });
+  const healthNews = await dispatchHealthNews(admin, { auditJob: 'notify_area_fallback' });
+  return json({
+    verifiedReports: { queued: queued.length, accepted: verifiedAccepted },
+    healthNews,
+  });
 });

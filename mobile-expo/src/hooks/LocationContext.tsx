@@ -6,7 +6,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../services/supabase';
 import { useAuth } from './useAuth';
 import { clearConfirmedLocationCache, readConfirmedLocationCache, type DeviceLocation, verifyAndPersistLocation, writeConfirmedLocationCache } from '../services/locationSync';
-import { registerBackgroundLocationTask, startBackgroundLocationUpdates, stopBackgroundLocationUpdates } from '../services/backgroundLocationTask';
+import { startBackgroundLocationUpdates, stopBackgroundLocationUpdates, type BackgroundLocationStartResult } from '../services/backgroundLocationTask';
 
 const FOREGROUND_TIME_MS = 60_000;
 const FOREGROUND_DISTANCE_M = 50;
@@ -20,7 +20,7 @@ interface LocationContextValue {
   backgroundPermissionStatus: Location.PermissionStatus | null; backgroundPermissionCanAskAgain: boolean; isTracking: boolean; isOnline: boolean;
   requestPermission: () => Promise<boolean>; refreshLocation: () => Promise<LocationData | null>; startWatching: () => Promise<void>; stopWatching: () => void;
   refreshPermissionStatus: () => Promise<void>;
-  setLocationSharing: (enabled: boolean) => Promise<boolean>; setBackgroundLocationEnabled: (enabled: boolean) => Promise<boolean>; setManualAlertState: (state: string) => Promise<boolean>;
+  setLocationSharing: (enabled: boolean) => Promise<boolean>; setBackgroundLocationEnabled: (enabled: boolean) => Promise<BackgroundLocationStartResult>; setManualAlertState: (state: string) => Promise<boolean>;
   verifyLocation: () => Promise<{ success: boolean; location: LocationData | null; geocoded: GeocodedLocation | null; error: string | null }>;
   permissionGranted: boolean;
 }
@@ -91,12 +91,34 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
     if (!enabled) { await clearLocationState(id); if (next.state && mounted.current) setAlertArea({ state: next.state, source: 'manual', updatedAt: new Date().toISOString() }); return true; }
     const granted = await requestPermission(); if (granted) { void refreshLocation(); void startWatching(); } return true;
   }, [backgroundLocationEnabled, clearLocationState, refreshLocation, requestPermission, startWatching]);
-  const setBackgroundLocationEnabled = useCallback(async (enabled: boolean) => {
-    if (!activeUserId.current || (enabled && !locationSharingEnabled)) return false;
-    if (enabled) { const { status, canAskAgain } = await Location.requestBackgroundPermissionsAsync(); if (mounted.current) { setBackgroundPermissionStatus(status); setBackgroundPermissionCanAskAgain(canAskAgain); } if (status !== 'granted') { if (mounted.current) setError('Background location permission was not granted.'); return false; } }
-    const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: enabled }); if (rpcError || !data) return false;
-    try { if (enabled) await startBackgroundLocationUpdates(); else await stopBackgroundLocationUpdates(); if (mounted.current) setBackgroundLocationEnabledState(enabled); return true; }
-    catch { await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: false }); return false; }
+  const setBackgroundLocationEnabled = useCallback(async (enabled: boolean): Promise<BackgroundLocationStartResult> => {
+    if (!activeUserId.current || (enabled && !locationSharingEnabled)) return { ok: false, reason: 'start_failed' };
+    if (!enabled) {
+      await stopBackgroundLocationUpdates().catch(() => undefined);
+      const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: false });
+      if (rpcError || !data) return { ok: false, reason: 'start_failed' };
+      if (mounted.current) setBackgroundLocationEnabledState(false);
+      return { ok: true, reason: 'started' };
+    }
+    const { status, canAskAgain } = await Location.requestBackgroundPermissionsAsync();
+    if (mounted.current) { setBackgroundPermissionStatus(status); setBackgroundPermissionCanAskAgain(canAskAgain); }
+    if (status !== 'granted') {
+      if (mounted.current) setError('Allow location all the time in device settings to use background updates.');
+      return { ok: false, reason: 'start_failed' };
+    }
+    const started = await startBackgroundLocationUpdates();
+    if (!started.ok) {
+      await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: false });
+      if (mounted.current) { setBackgroundLocationEnabledState(false); setError('Background updates could not start on this build.'); }
+      return started;
+    }
+    const { data, error: rpcError } = await supabase.rpc('set_location_preferences', { p_use_location: locationSharingEnabled, p_background_location_enabled: true });
+    if (rpcError || !data) {
+      await stopBackgroundLocationUpdates().catch(() => undefined);
+      return { ok: false, reason: 'start_failed' };
+    }
+    if (mounted.current) { setBackgroundLocationEnabledState(true); setError(null); }
+    return started;
   }, [locationSharingEnabled]);
   const setManualAlertState = useCallback(async (state: string) => {
     const { data, error: rpcError } = await supabase.rpc('set_manual_alert_state', { p_manual_state: state }); if (rpcError || !data) return false;
@@ -105,7 +127,7 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
   const verifyLocation = useCallback(async () => { const point = await refreshLocation(); if (!point) return { success: false, location: null, geocoded: null, error: error ?? 'Location verification failed.' }; await confirmLocation(point); return { success: true, location: point, geocoded, error: null }; }, [confirmLocation, error, geocoded, refreshLocation]);
 
   useEffect(() => {
-    mounted.current = true; registerBackgroundLocationTask(); const id = user?.id ?? null; const previous = activeUserId.current; activeUserId.current = id;
+    mounted.current = true; const id = user?.id ?? null; const previous = activeUserId.current; activeUserId.current = id;
     if (previous && previous !== id) {
       // Never leave one account's last location visible while another account loads.
       stopWatching(); setLocation(null); setGeocoded(null); setAlertArea(null); setBackgroundLocationEnabledState(false);
@@ -123,7 +145,17 @@ export const LocationProvider: React.FC<React.PropsWithChildren> = ({ children }
       if (sharing && data.latitude != null && data.longitude != null && !cached) setLocation({ latitude: data.latitude, longitude: data.longitude, accuracy: data.location_accuracy_meters ?? null, altitude: null, timestamp: data.location_observed_at ? new Date(data.location_observed_at).getTime() : Date.now() });
       const [{ status, canAskAgain }, backgroundPermission] = await Promise.all([Location.getForegroundPermissionsAsync(), Location.getBackgroundPermissionsAsync()]);
       if (!cancelled) { setPermissionStatus(status); setPermissionCanAskAgain(canAskAgain); setBackgroundPermissionStatus(backgroundPermission.status); setBackgroundPermissionCanAskAgain(backgroundPermission.canAskAgain); }
-      if (sharing && status === 'granted') { void refreshLocation(); void startWatching(); if (data.background_location_enabled) void startBackgroundLocationUpdates().catch(() => undefined); }
+      if (sharing && status === 'granted') {
+        void refreshLocation();
+        void startWatching();
+        if (data.background_location_enabled) {
+          void startBackgroundLocationUpdates().then(async (result) => {
+            if (result.ok || cancelled) return;
+            await supabase.rpc('set_location_preferences', { p_use_location: true, p_background_location_enabled: false });
+            if (!cancelled && mounted.current) setBackgroundLocationEnabledState(false);
+          });
+        }
+      }
       else if (sharing && status === 'denied') {
         // A revoked/denied foreground permission immediately returns alerts to
         // the persisted home state, including push targeting and Personal Brain.

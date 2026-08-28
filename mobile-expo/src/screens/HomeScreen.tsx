@@ -2,9 +2,8 @@
  * HomeScreen — "Calm Clinical" dashboard.
  *
  * Flat background, generous grid, display-font headings, big-number data, and a
- * single confident accent. One focal card (area status) leads; environment,
- * area health signal, disease outlook, and personal-area risks follow in a calm
- * rhythm. Logic (intel/user/risk hooks, alerts, modals) is unchanged.
+ * single confident accent. A welcoming overview leads; live environment,
+ * official news, and response-driven area estimates follow in a calm rhythm.
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -32,8 +31,6 @@ import {
   HomeHeroArt,
   SkeletonLoader,
   FloatingActionButton,
-  BrainCard,
-  DiseaseOutlookCard,
   HealthNewsCard,
   PermissionsPrimerModal,
   ScreenLoader,
@@ -43,7 +40,6 @@ import { EnvironmentModal } from '../components/EnvironmentModal';
 
 import { useUser } from '../hooks/useUser';
 import { useIntel } from '../hooks/useIntel';
-import { useRiskMap } from '../hooks/useRiskMap';
 import { useLocationContext } from '../hooks/LocationContext';
 import { useTheme } from '../hooks/useTheme';
 import { useI18n } from '../i18n';
@@ -78,8 +74,7 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user, loading: userLoading } = useUser();
   const { intel, loading: intelLoading, refresh } = useIntel();
-  const { rows: riskRows, loading: riskLoading } = useRiskMap();
-  const { geocoded, alertArea, refreshLocation, requestPermission, permissionStatus } = useLocationContext();
+  const { alertArea, refreshLocation, requestPermission, permissionStatus } = useLocationContext();
   const { t } = useI18n();
   const { isDark, colors } = useTheme();
 
@@ -102,8 +97,8 @@ const HomeScreen: React.FC = () => {
     if (precip >= 50) {
       return {
         icon: 'droplets' as IconName,
-        title: 'Flood warning',
-        message: 'Heavy rainfall detected. Stay away from low-lying areas.',
+        title: 'Heavy rainfall conditions',
+        message: 'Current rainfall may increase flood exposure. Avoid low-lying areas where possible.',
         action: () => openModal('weather'),
       };
     }
@@ -126,15 +121,13 @@ const HomeScreen: React.FC = () => {
     else requestPermission();
   };
 
-  const location = alertArea?.state || geocoded?.city || 'Nigeria';
+  const location = alertArea?.state || 'Your saved area';
   const showLocationPrompt = permissionStatus !== 'granted' && permissionStatus !== 'denied';
-  const overallRisk = intel?.riskAssessment?.overallRiskLevel || 'low';
-  const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive) || [];
+  const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive && d.riskLevel !== 'low') || [];
   const topRecommendation = activeRisks[0]?.actions?.[0];
   const firstName = user?.name?.split(' ')[0] || 'Friend';
 
-  // Welcoming, time-aware hero (replaces the old always-"Elevated" risk verdict —
-  // the calibrated area risk now lives in the Area Health Signal card just below).
+  // Welcoming, time-aware hero without an unverified risk verdict.
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -144,7 +137,7 @@ const HomeScreen: React.FC = () => {
     .toUpperCase();
   const heroTip: { icon: IconName; text: string } = topRecommendation
     ? { icon: 'sparkles', text: topRecommendation }
-    : { icon: 'shield-check', text: `All clear in ${location} today — keep up your healthy habits.` };
+    : { icon: 'shield-check', text: 'Keep your check-ins current and follow official health guidance for your area.' };
 
   const bottomPadding = Math.max(insets.bottom, 12) + 100;
 
@@ -200,7 +193,6 @@ const HomeScreen: React.FC = () => {
               onPress={() => navigation.navigate('Alerts')}
             >
               <Icon name="bell" size={19} color={colors.text} />
-              {overallRisk === 'high' && <View style={styles.badge} />}
             </Pressable>
           </View>
         </View>
@@ -253,13 +245,6 @@ const HomeScreen: React.FC = () => {
               </View>
             </Card>
 
-            {/* Area Health Signal — the calibrated, honest area risk (not permanently "Elevated") */}
-            {intel?.brain && (
-              <View style={{ marginBottom: Spacing.md }}>
-                <BrainCard brain={intel.brain} onPress={() => navigation.navigate('BrainReport', { scope: 'area' })} />
-              </View>
-            )}
-
             {/* Current conditions */}
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>CURRENT CONDITIONS</Text>
             <View style={styles.envRow}>
@@ -294,23 +279,25 @@ const HomeScreen: React.FC = () => {
               )}
             </View>
 
-            {/* Disease outlook */}
-            <View style={{ marginBottom: Spacing.md }}>
-              <DiseaseOutlookCard
-                state={intel?.location?.state || alertArea?.state}
-                rows={riskRows}
-                loading={riskLoading}
-                onOpenMap={() => (navigation as any).navigate('Map')}
-              />
-            </View>
-
             {/* Health News (auto-ingested official updates + tips) */}
             <HealthNewsCard />
 
-            {/* Personal-area disease risks */}
-            {activeRisks.length > 0 && (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>HEALTH RISKS IN YOUR AREA</Text>
+            {/* Live response-driven outlook. These are estimates, not official alerts. */}
+            <>
+                <View style={styles.outlookHeader}>
+                  <View>
+                    <Text style={[styles.sectionLabel, { color: colors.textMuted, marginBottom: 3 }]}>CURRENT AREA OUTLOOK</Text>
+                    <Text style={[styles.outlookMeta, { color: colors.textMuted }]}>
+                      {location} · MedGuard risk estimate
+                      {intel?.generatedAt ? ` · ${new Date(intel.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </Text>
+                  </View>
+                  <View style={[styles.estimatePill, { backgroundColor: colors.primaryTint }]}>
+                    <Text style={[styles.estimatePillText, { color: colors.primary }]}>Estimate</Text>
+                  </View>
+                </View>
+              {activeRisks.length > 0 ? (
+                <>
                 <View style={styles.riskList}>
                   {activeRisks.slice(0, 3).map((risk) => {
                     const m = getRiskMeta(risk.riskLevel);
@@ -333,13 +320,19 @@ const HomeScreen: React.FC = () => {
                   })}
                 </View>
                 {activeRisks.length > 3 && (
-                  <Pressable style={styles.viewAllBtn} onPress={() => navigation.navigate('Alerts')}>
+                  <Pressable style={styles.viewAllBtn} onPress={() => navigation.navigate('MainTabs', { screen: 'MyHealth' })}>
                     <Text style={[styles.viewAllText, { color: colors.primary }]}>View all {activeRisks.length} risks</Text>
                     <Icon name="arrow-right" size={14} color={colors.primary} />
                   </Pressable>
                 )}
-              </>
-            )}
+                </>
+              ) : (
+                <Card variant="sunken" padding={Spacing.base} style={styles.outlookEmpty}>
+                  <Icon name="shield-check" size={18} color={colors.primary} />
+                  <Text style={[styles.outlookEmptyText, { color: colors.textSecondary }]}>No elevated modelled risks are active for {location} right now.</Text>
+                </Card>
+              )}
+            </>
 
             {/* Location prompt */}
             {showLocationPrompt && (
@@ -406,15 +399,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  badge: {
-    position: 'absolute',
-    top: 9,
-    right: 9,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.danger,
-  },
 
   loadingContainer: { marginTop: Spacing.sm },
 
@@ -465,6 +449,12 @@ const styles = StyleSheet.create({
     letterSpacing: LetterSpacing.overline,
     marginBottom: Spacing.md,
   },
+  outlookHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, marginBottom: Spacing.md },
+  outlookMeta: { fontFamily: FontFamily.regular, fontSize: 10, lineHeight: 14 },
+  estimatePill: { borderRadius: BorderRadius.pill, paddingHorizontal: 9, paddingVertical: 5 },
+  estimatePillText: { fontFamily: FontFamily.semibold, fontSize: 10 },
+  outlookEmpty: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl },
+  outlookEmptyText: { flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 19 },
 
   envRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.xl },
   envCard: { flex: 1 },

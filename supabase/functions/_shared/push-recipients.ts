@@ -7,14 +7,16 @@ export async function activeRecipientsForState(db: any, state: string | null, li
   const { data: devices, error: deviceError } = await db
     .from('push_devices').select('id, user_id, expo_push_token').is('disabled_at', null)
     .order('last_seen_at', { ascending: false }).limit(limit);
-  if (deviceError || !Array.isArray(devices) || devices.length === 0) return [];
+  if (deviceError) throw new Error('push_devices_lookup_failed');
+  if (!Array.isArray(devices) || devices.length === 0) return [];
 
   const userIds = [...new Set(devices.map((device: Record<string, unknown>) => String(device.user_id)))];
   const { data: prefs, error: preferenceError } = await db
     .from('notification_preferences')
     .select('user_id, community_alerts_enabled, notifications_paused, profiles!inner(state)')
     .in('user_id', userIds).eq('community_alerts_enabled', true).eq('notifications_paused', false);
-  if (preferenceError || !Array.isArray(prefs)) return [];
+  if (preferenceError) throw new Error('notification_preferences_lookup_failed');
+  if (!Array.isArray(prefs)) return [];
 
   const optedIn = new Set(prefs
     .filter((pref: Record<string, any>) => !state || String(pref.profiles?.state ?? '') === state)

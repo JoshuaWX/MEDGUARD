@@ -63,3 +63,10 @@ export function initSentry(): void {
 export function setSentryUser(userId: string | null | undefined): void {
   Sentry.setUser(userId ? { id: userId } : null);
 }
+
+/** Report a technical failure without attaching coordinates, symptoms, or copy. */
+export function captureOperationalError(scope: string, error: unknown): void {
+  Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+    tags: { medguard_scope: scope },
+  });
+}

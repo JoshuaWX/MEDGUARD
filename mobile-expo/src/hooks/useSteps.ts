@@ -8,20 +8,35 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pedometer } from 'expo-sensors';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import { useAuth } from './useAuth';
 import { usePersonalHealthData } from './PersonalHealthDataContext';
 import { upsertTodaySteps } from '../services/activity';
 import {
-  isHealthConnectAvailable,
+  getHealthConnectCapability,
   hasStepsPermission,
   requestStepsPermission,
+  openHealthConnectInstallOrUpdate,
+  openHealthConnectPermissions,
   getTodaySteps,
   getDailyHistory,
   type StepHistoryPoint,
 } from '../services/healthConnect';
 
 type StepSource = 'health_connect' | 'pedometer' | 'none';
+
+export type StepAccessState =
+  | 'checking'
+  | 'health_connect_permission'
+  | 'health_connect_connected'
+  | 'health_connect_empty'
+  | 'health_connect_update_required'
+  | 'foreground_permission'
+  | 'foreground_connected'
+  | 'unavailable'
+  | 'error';
+
+export type StepConnectResult = { ok: boolean; state: StepAccessState };
 
 interface UseStepsReturn {
   steps: number;             // today
@@ -31,7 +46,10 @@ interface UseStepsReturn {
   source: StepSource;
   needsPermission: boolean;
   permissionCanAskAgain: boolean;
-  connect: () => Promise<boolean>;
+  accessState: StepAccessState;
+  statusMessage: string;
+  connect: () => Promise<StepConnectResult>;
+  openSettings: () => Promise<void>;
   loading: boolean;
 }
 
@@ -49,6 +67,7 @@ export function useSteps(): UseStepsReturn {
   const [source, setSource] = useState<StepSource>('none');
   const [needsPermission, setNeedsPermission] = useState(false);
   const [permissionCanAskAgain, setPermissionCanAskAgain] = useState(true);
+  const [accessState, setAccessState] = useState<StepAccessState>('checking');
   const [loading, setLoading] = useState(true);
   const [permissionRevision, setPermissionRevision] = useState(0);
 
@@ -91,27 +110,58 @@ export function useSteps(): UseStepsReturn {
     setWeeklySteps(hist.reduce((a, b) => a + b.steps, 0));
     setSource('health_connect');
     setAvailable(true);
+    setNeedsPermission(false);
+    setPermissionCanAskAgain(false);
+    setAccessState(today > 0 || hist.some((point) => point.steps > 0) ? 'health_connect_connected' : 'health_connect_empty');
     void persistSteps(today);
   }, [persistSteps]);
 
-  const connect = useCallback(async (): Promise<boolean> => {
+  const connect = useCallback(async (): Promise<StepConnectResult> => {
     try {
-      if (await isHealthConnectAvailable()) {
+      const capability = await getHealthConnectCapability();
+      if (capability === 'available') {
         const granted = await requestStepsPermission();
         setNeedsPermission(!granted);
-        if (granted) await loadFromHealthConnect();
-        return granted;
+        setPermissionCanAskAgain(false);
+        if (granted) {
+          await loadFromHealthConnect();
+          return { ok: true, state: 'health_connect_connected' };
+        }
+        setAccessState('health_connect_permission');
+        return { ok: false, state: 'health_connect_permission' };
+      }
+      if (capability === 'update_required') {
+        setAccessState('health_connect_update_required');
+        return { ok: false, state: 'health_connect_update_required' };
       }
 
       const permission = await Pedometer.requestPermissionsAsync();
       setPermissionCanAskAgain(permission.canAskAgain);
       setNeedsPermission(!permission.granted);
-      if (permission.granted) setPermissionRevision((value) => value + 1);
-      return permission.granted;
+      if (permission.granted) {
+        setAccessState('foreground_connected');
+        setPermissionRevision((value) => value + 1);
+        return { ok: true, state: 'foreground_connected' };
+      }
+      setAccessState('foreground_permission');
+      return { ok: false, state: 'foreground_permission' };
     } catch {
-      return false;
+      setAccessState('error');
+      return { ok: false, state: 'error' };
     }
   }, [loadFromHealthConnect]);
+
+  const openSettings = useCallback(async () => {
+    if (accessState === 'health_connect_update_required' || accessState === 'unavailable') {
+      await openHealthConnectInstallOrUpdate();
+      return;
+    }
+    if (accessState === 'health_connect_permission' || source === 'health_connect') {
+      await openHealthConnectPermissions();
+      return;
+    }
+    await Linking.openSettings();
+  }, [accessState, source]);
 
   useEffect(() => {
     let pedoSub: { remove: () => void } | null = null;
@@ -123,6 +173,7 @@ export function useSteps(): UseStepsReturn {
       if (cancelled) return;
       setAvailable(isAvail);
       setSource(isAvail ? 'pedometer' : 'none');
+      if (!isAvail) setAccessState('unavailable');
       if (!userId) return;
 
       const base = baseRef.current;
@@ -137,11 +188,14 @@ export function useSteps(): UseStepsReturn {
         setPermissionCanAskAgain(permission.canAskAgain);
         if (!permission.granted) {
           setNeedsPermission(true);
+          setAccessState('foreground_permission');
           return;
         }
         setNeedsPermission(false);
+        setAccessState('foreground_connected');
       } catch {
         setNeedsPermission(true);
+        setAccessState('error');
         return;
       }
 
@@ -169,9 +223,9 @@ export function useSteps(): UseStepsReturn {
     (async () => {
       if (!userId) { setLoading(false); return; }
       try {
-        const hcAvail = await isHealthConnectAvailable();
+        const capability = await getHealthConnectCapability();
         if (cancelled) return;
-        if (hcAvail) {
+        if (capability === 'available') {
           const granted = await hasStepsPermission();
           if (cancelled) return;
           setAvailable(true);
@@ -179,14 +233,21 @@ export function useSteps(): UseStepsReturn {
             await loadFromHealthConnect();
           } else {
             setNeedsPermission(true);
+            setPermissionCanAskAgain(false);
+            setAccessState('health_connect_permission');
             // Show the confirmed dashboard total until Health Connect is linked.
             if (!cancelled) setSteps(baseRef.current);
           }
+        } else if (capability === 'update_required') {
+          setAvailable(false);
+          setNeedsPermission(true);
+          setPermissionCanAskAgain(false);
+          setAccessState('health_connect_update_required');
         } else {
           await startPedometer();
         }
       } catch {
-        // ignore
+        if (!cancelled) setAccessState('error');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -203,5 +264,17 @@ export function useSteps(): UseStepsReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadFromHealthConnect, persistSteps, permissionRevision]);
 
-  return { steps, weeklySteps, history, available, source, needsPermission, permissionCanAskAgain, connect, loading };
+  const statusMessage: Record<StepAccessState, string> = {
+    checking: 'Checking step access…',
+    health_connect_permission: 'Allow Steps inside Health Connect. Android activity permission alone is not enough.',
+    health_connect_connected: 'All-day steps are connected through Health Connect.',
+    health_connect_empty: 'Connected. Health Connect has no step data for today yet.',
+    health_connect_update_required: 'Install or update Health Connect to read all-day steps.',
+    foreground_permission: 'Allow physical activity to count live steps while MedGuard is open.',
+    foreground_connected: 'Live steps are available while MedGuard is open.',
+    unavailable: 'Step counting is not available on this device.',
+    error: 'MedGuard could not read step access. Open settings and try again.',
+  };
+
+  return { steps, weeklySteps, history, available, source, needsPermission, permissionCanAskAgain, accessState, statusMessage: statusMessage[accessState], connect, openSettings, loading };
 }

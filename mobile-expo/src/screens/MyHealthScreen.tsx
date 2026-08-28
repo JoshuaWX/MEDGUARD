@@ -36,7 +36,6 @@ import {
   TextInput,
   RefreshControl,
   Platform,
-  Linking,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -71,7 +70,7 @@ import {
   CommunityTrendCard,
   ErrorBanner,
   ScreenLoader,
-  BrainCard,
+  HealthSignalsCard,
   PermissionExplainerModal,
   useFeedback,
 } from '../components';
@@ -191,6 +190,7 @@ const MyHealthScreenContent: React.FC = () => {
   const {
     location,
     geocoded,
+    alertArea,
     loading: locationLoading,
     refreshLocation,
   } = useLocationContext();
@@ -233,8 +233,10 @@ const MyHealthScreenContent: React.FC = () => {
     weeklySteps,
     available: stepsAvailable,
     needsPermission: stepsNeedPermission,
-    permissionCanAskAgain: stepsCanAskAgain,
+    accessState: stepAccessState,
+    statusMessage: stepStatusMessage,
     connect: connectSteps,
+    openSettings: openStepSettings,
   } = useSteps();
   const bmi = computeBmi(profile?.heightCm ?? null, profile?.weightKg ?? null);
   const bmiCat = bmiCategory(bmi);
@@ -437,19 +439,26 @@ const MyHealthScreenContent: React.FC = () => {
   }, [refresh, refreshIntel, location, loadHealthFacilities]);
 
   const handleConnectSteps = useCallback(async () => {
-    if (!stepsCanAskAgain) {
+    if (stepAccessState === 'health_connect_permission'
+      || stepAccessState === 'health_connect_update_required'
+      || stepAccessState === 'error') {
       setStepsPrimerOpen(false);
-      await Linking.openSettings().catch(() => undefined);
+      await openStepSettings().catch(() => undefined);
       return;
     }
     setStepsPermissionBusy(true);
-    const connected = await connectSteps();
+    const result = await connectSteps();
     setStepsPermissionBusy(false);
     setStepsPrimerOpen(false);
-    if (!connected) {
-      toast({ tone: 'warning', title: 'Step access not enabled', message: 'You can keep using My Health without connecting your steps.' });
+    if (!result.ok) {
+      const title = result.state === 'health_connect_update_required' ? 'Health Connect needs attention' : 'Step access not enabled';
+      toast({ tone: 'warning', title, message: result.state === 'health_connect_permission'
+        ? 'Open Health Connect and allow MedGuard to read Steps.'
+        : result.state === 'health_connect_update_required'
+          ? 'Install or update Health Connect, then return to My Health.'
+          : 'You can keep using My Health without connecting your steps.' });
     }
-  }, [connectSteps, stepsCanAskAgain, toast]);
+  }, [connectSteps, openStepSettings, stepAccessState, toast]);
 
   // Calculate current risk preview
   const currentRisk = calculateRisk(checkinAnswers as CheckinAnswers);
@@ -553,36 +562,17 @@ const MyHealthScreenContent: React.FC = () => {
           }
         >
           <Animated.View entering={FadeInUp.delay(130).duration(450)} style={styles.brainSection}>
-            {intel?.personalBrain ? (
-              <BrainCard
-                brain={intel.personalBrain}
-                compact
-                onPress={() => navigation.navigate('BrainReport', { scope: 'personal' })}
-              />
-            ) : (
-              <View style={[styles.brainEmptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                {intelLoading ? (
-                  <ActivityIndicator color={colors.primary} />
-                ) : (
-                  <Icon name={intelError ? 'wifi-off' : 'activity'} size={23} color={colors.primary} />
-                )}
-                <View style={styles.brainEmptyBody}>
-                  <Text style={[styles.brainEmptyTitle, { color: colors.text }]}>Your Health Signal</Text>
-                  <Text style={[styles.brainEmptyText, { color: colors.textSecondary }]}>
-                    {intelLoading
-                      ? 'Updating your personal signal…'
-                      : intelError
-                        ? 'Your personal signal could not be refreshed. Your health data remains private.'
-                        : 'Complete a daily check-in to start building your personal health signal.'}
-                  </Text>
-                  {intelError && (
-                    <Pressable onPress={() => void refreshIntel()} accessibilityRole="button">
-                      <Text style={[styles.brainRetry, { color: colors.primary }]}>Try again</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            )}
+            <HealthSignalsCard
+              personal={intel?.personalBrain}
+              area={intel?.brain}
+              areaName={intel?.location?.state || alertArea?.state}
+              generatedAt={intel?.generatedAt}
+              loading={intelLoading}
+              error={Boolean(intelError)}
+              onRetry={() => void refreshIntel()}
+              onOpenPersonal={() => navigation.navigate('BrainReport', { scope: 'personal' })}
+              onOpenArea={() => navigation.navigate('BrainReport', { scope: 'area' })}
+            />
           </Animated.View>
 
           {/* ============================================================== */}
@@ -762,8 +752,10 @@ const MyHealthScreenContent: React.FC = () => {
                 {stepsNeedPermission ? (
                   <>
                     <Text style={[styles.metricValue, { color: colors.textMuted }]}>—</Text>
-                    <Pressable onPress={() => setStepsPrimerOpen(true)}>
-                      <Text style={[styles.metricSub, { color: Colors.primary }]}>Connect all-day steps</Text>
+                    <Pressable onPress={() => setStepsPrimerOpen(true)} accessibilityRole="button" hitSlop={8}>
+                      <Text style={[styles.metricSub, { color: Colors.primary }]}>
+                        {stepAccessState === 'health_connect_update_required' ? 'Update Health Connect' : stepAccessState === 'foreground_permission' ? 'Enable live steps' : 'Connect all-day steps'}
+                      </Text>
                     </Pressable>
                   </>
                 ) : stepsAvailable ? (
@@ -934,8 +926,14 @@ const MyHealthScreenContent: React.FC = () => {
           visible={stepsPrimerOpen}
           icon="footprints"
           title="Connect all-day steps"
-          description="MedGuard will read only your step count after you choose to connect it. This helps your wellness score reflect activity recorded while the app is closed."
-          primaryLabel={stepsCanAskAgain ? 'Allow step access' : 'Open Settings'}
+          description={stepStatusMessage}
+          primaryLabel={stepAccessState === 'health_connect_update_required'
+            ? 'Update Health Connect'
+            : stepAccessState === 'health_connect_permission' || stepAccessState === 'error'
+              ? 'Open step settings'
+              : stepAccessState === 'foreground_permission'
+                ? 'Allow live steps'
+                : 'Allow step access'}
           busy={stepsPermissionBusy}
           onContinue={handleConnectSteps}
           onClose={() => setStepsPrimerOpen(false)}
@@ -1058,19 +1056,6 @@ const ClinicCard: React.FC<ClinicCardProps> = ({ name, address, distance, status
 
 const styles = StyleSheet.create({
   brainSection: { marginBottom: Spacing.base },
-  brainEmptyCard: {
-    minHeight: 116,
-    borderRadius: BorderRadius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-  },
-  brainEmptyBody: { flex: 1, gap: Spacing.xs },
-  brainEmptyTitle: { fontFamily: FontFamily.display, fontSize: FontSize.lg },
-  brainEmptyText: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 20 },
-  brainRetry: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm, marginTop: Spacing.xs },
   container: {
     flex: 1,
   },

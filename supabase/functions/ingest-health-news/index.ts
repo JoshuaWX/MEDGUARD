@@ -3,6 +3,7 @@ import { serve } from 'std/http/server';
 import { corsHeaders } from '../_shared/cors.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { requireCronSecret } from '../_shared/request-auth.ts';
+import { dispatchHealthNews } from '../_shared/health-news-delivery.ts';
 
 const NCDC_URL = 'https://www.ncdc.gov.ng/diseases/sitreps';
 const WHO_RSS_URL = 'https://www.who.int/feeds/entity/csr/don/en/rss.xml';
@@ -53,26 +54,31 @@ function whoItems(xml: string): Item[] {
   });
 }
 
-async function ingestSource(admin: any, source: string, load: () => Promise<Item[]>) {
+async function ingestSource(admin: any, source: string, load: () => Promise<Item[]>): Promise<string[]> {
   const attempted = new Date().toISOString();
   try {
     const items = await load();
-    let added = 0;
+    let addedIds: string[] = [];
     if (items.length) {
       const externalIds = items.map((item) => item.external_id);
       const { data: existing, error: existingError } = await admin.from('health_posts').select('external_id').in('external_id', externalIds);
       if (existingError) throw existingError;
       const known = new Set((existing ?? []).map((row: { external_id: string }) => row.external_id));
-      added = externalIds.filter((id) => !known.has(id)).length;
+      const newExternalIds = externalIds.filter((id) => !known.has(id));
       const { error } = await admin.from('health_posts').upsert(items.map((item) => ({ ...item, category: 'official_update', status: 'published' })), { onConflict: 'external_id', ignoreDuplicates: true });
       if (error) throw error;
+      if (newExternalIds.length) {
+        const { data: inserted, error: insertedError } = await admin.from('health_posts').select('id').in('external_id', newExternalIds);
+        if (insertedError) throw insertedError;
+        addedIds = (inserted ?? []).map((row: { id: string }) => String(row.id));
+      }
     }
-    await admin.from('health_feed_status').upsert({ source, last_attempt_at: attempted, last_success_at: new Date().toISOString(), last_error: null, items_added: added, updated_at: new Date().toISOString() });
-    return added;
+    await admin.from('health_feed_status').upsert({ source, last_attempt_at: attempted, last_success_at: new Date().toISOString(), last_error: null, items_added: addedIds.length, updated_at: new Date().toISOString() });
+    return addedIds;
   } catch (error) {
     await admin.from('health_feed_status').upsert({ source, last_attempt_at: attempted, last_error: 'source fetch or parse failed', items_added: 0, updated_at: new Date().toISOString() });
     console.error(JSON.stringify({ event: 'health_news_source_failed', source }));
-    return 0;
+    return [];
   }
 }
 
@@ -83,5 +89,14 @@ serve(async (req) => {
   const admin = tryCreateAdminClient(); if (!admin) return json({ error: 'service_role_not_configured' }, 500);
   const ncdc = await ingestSource(admin, 'NCDC', ncdcItems);
   const who = await ingestSource(admin, 'WHO Disease Outbreak News', async () => whoItems(await (await fetch(WHO_RSS_URL, { headers: { Accept: 'application/rss+xml, application/xml' } })).text()));
-  return json({ added: ncdc + who });
+  const newPostIds = [...ncdc, ...who];
+  try {
+    const delivery = await dispatchHealthNews(admin, {
+      postIds: newPostIds.length ? newPostIds : undefined,
+      auditJob: 'health_news_ingest',
+    });
+    return json({ added: newPostIds.length, delivery });
+  } catch {
+    return json({ added: newPostIds.length, error: 'health_news_delivery_failed' }, 500);
+  }
 });

@@ -8,7 +8,7 @@
  * unavailable or empty, callers fall back to the live foreground pedometer.
  */
 
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 type StepHistoryPoint = { date: string; steps: number };
 
@@ -25,13 +25,22 @@ async function hc() {
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
+  return (await getHealthConnectCapability()) === 'available';
+}
+
+export type HealthConnectCapability = 'available' | 'update_required' | 'unavailable' | 'unsupported' | 'error';
+
+export async function getHealthConnectCapability(): Promise<HealthConnectCapability> {
+  if (Platform.OS !== 'android') return 'unsupported';
   const lib = await hc();
-  if (!lib) return false;
+  if (!lib) return 'unsupported';
   try {
     const status = await lib.getSdkStatus();
-    return status === lib.SdkAvailabilityStatus.SDK_AVAILABLE;
+    if (status === lib.SdkAvailabilityStatus.SDK_AVAILABLE) return 'available';
+    if (status === lib.SdkAvailabilityStatus.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED) return 'update_required';
+    return 'unavailable';
   } catch {
-    return false;
+    return 'error';
   }
 }
 
@@ -67,19 +76,26 @@ export async function requestStepsPermission(): Promise<boolean> {
   }
 }
 
+export async function openHealthConnectPermissions(): Promise<void> {
+  const lib = await hc();
+  if (lib) lib.openHealthConnectSettings();
+}
+
+export async function openHealthConnectInstallOrUpdate(): Promise<void> {
+  const market = 'market://details?id=com.google.android.apps.healthdata';
+  const web = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
+  await Linking.openURL(market).catch(() => Linking.openURL(web));
+}
+
 async function aggregateSteps(start: Date, end: Date): Promise<number> {
   const lib = await hc();
-  if (!lib || !(await ensureInit(lib))) return 0;
-  try {
-    const res = await lib.aggregateRecord({
-      recordType: 'Steps',
-      timeRangeFilter: { operator: 'between', startTime: start.toISOString(), endTime: end.toISOString() },
-    });
-    const total = (res as any)?.COUNT_TOTAL ?? 0;
-    return Number(total) || 0;
-  } catch {
-    return 0;
-  }
+  if (!lib || !(await ensureInit(lib))) throw new Error('Health Connect could not initialize');
+  const res = await lib.aggregateRecord({
+    recordType: 'Steps',
+    timeRangeFilter: { operator: 'between', startTime: start.toISOString(), endTime: end.toISOString() },
+  });
+  const total = (res as any)?.COUNT_TOTAL ?? 0;
+  return Number(total) || 0;
 }
 
 function startOfDay(d: Date): Date {

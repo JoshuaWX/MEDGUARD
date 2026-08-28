@@ -68,7 +68,16 @@
     },
     "plugins": [
       "expo-font",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MedGuard uses your location to personalize health alerts and verify your state.",
+          "locationAlwaysAndWhenInUsePermission": "If you opt in, MedGuard updates your health alert area while the app is closed.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
       [
         "expo-sensors",
         {

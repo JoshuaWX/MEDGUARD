@@ -1,5 +1,9 @@
 import { registerRootComponent } from 'expo';
 
+// Expo must see the background task definition while the JavaScript bundle is
+// loading. React providers are not mounted when the OS launches a headless task.
+import './src/services/backgroundLocationTask';
+
 import App from './App';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

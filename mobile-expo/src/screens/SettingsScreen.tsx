@@ -114,10 +114,19 @@ const SettingsScreen: React.FC = () => {
       return;
     }
     setBackgroundPermissionBusy(true);
-    const enabled = await setBackgroundLocationEnabled(true);
+    const result = await setBackgroundLocationEnabled(true);
     setBackgroundPermissionBusy(false);
     setBackgroundPrimerOpen(false);
-    if (!enabled) toast({ tone: 'warning', title: 'Background location stays off', message: 'You can keep using your saved alert area without it.' });
+    if (!result.ok) {
+      const message = result.reason === 'task_manager_unavailable'
+        ? 'Background tasks are unavailable in this app environment. Use the installed MedGuard test build, not Expo Go.'
+        : result.reason === 'background_location_unavailable'
+          ? 'This device does not support background location for MedGuard.'
+          : result.reason === 'task_definition_missing'
+            ? 'This build is missing the background task. Install the next MedGuard test build.'
+            : 'Background updates could not start. Confirm “Allow all the time” and try again.';
+      toast({ tone: 'warning', title: 'Background location stays off', message });
+    }
   };
 
   const handleCorePermission = async (kind: 'location' | 'notifications') => {
@@ -139,6 +148,20 @@ const SettingsScreen: React.FC = () => {
       toast({ tone: accepted ? 'success' : 'danger', title: accepted ? 'Test sent' : 'Test not sent', message: accepted ? 'Expo accepted a test for this device. It may take a moment to appear.' : 'Enable device notifications and try again.' });
     } catch {
       toast({ tone: 'danger', title: 'Test not sent', message: 'Please check your connection and notification permission.' });
+    }
+  };
+
+  const handleSendHealthNewsTest = async () => {
+    if (isGuest) return requireAuth('Health News notification testing');
+    try {
+      const accepted = await sendTestNotification('health_news');
+      toast({
+        tone: accepted ? 'success' : 'danger',
+        title: accepted ? 'Health News test sent' : 'Health News test not sent',
+        message: accepted ? 'Tap the notification to verify that the exact official post opens.' : 'Enable device notifications and try again.',
+      });
+    } catch {
+      toast({ tone: 'danger', title: 'Health News test not sent', message: 'Please check your connection and try again.' });
     }
   };
 
@@ -242,6 +265,9 @@ const SettingsScreen: React.FC = () => {
                 <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>Sends one clearly labelled test only to this signed-in device.</Text>
                 <Pressable onPress={() => void handleSendTest()} disabled={isGuest || notifSaving || !notificationsFeatureEnabled} style={styles.supportBtn}>
                   <Text style={styles.supportBtnText}>Send test notification</Text>
+                </Pressable>
+                <Pressable onPress={() => void handleSendHealthNewsTest()} disabled={isGuest || notifSaving || !notificationsFeatureEnabled} style={styles.supportBtn}>
+                  <Text style={styles.supportBtnText}>Send Health News test</Text>
                 </Pressable>
               </View>
             </View>

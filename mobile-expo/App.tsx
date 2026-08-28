@@ -12,6 +12,7 @@ import * as Sentry from '@sentry/react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { AuthProvider } from './src/hooks/useAuth';
 import { LocationProvider } from './src/hooks/LocationContext';
+import { IntelProvider } from './src/hooks/useIntel';
 import { ThemeProvider } from './src/hooks/useTheme';
 import { PersonalHealthDataProvider } from './src/hooks/PersonalHealthDataContext';
 import { I18nProvider } from './src/i18n';
@@ -67,9 +68,11 @@ function App() {
               <AuthProvider>
                 <PersonalHealthDataProvider>
                   <LocationProvider>
-                    <VersionGate>
-                      <RootNavigator />
-                    </VersionGate>
+                    <IntelProvider>
+                      <VersionGate>
+                        <RootNavigator />
+                      </VersionGate>
+                    </IntelProvider>
                   </LocationProvider>
                 </PersonalHealthDataProvider>
               </AuthProvider>

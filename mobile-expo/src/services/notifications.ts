@@ -295,8 +295,8 @@ export async function unregisterPushToken(token: string): Promise<void> {
   await supabase.functions.invoke('register-push-device', { body: { action: 'unregister', token } });
 }
 
-export async function sendTestNotification(token: string): Promise<boolean> {
-  const { data, error } = await supabase.functions.invoke('send-test-notification', { body: { token } });
+export async function sendTestNotification(token: string, kind: 'general' | 'health_news' = 'general'): Promise<boolean> {
+  const { data, error } = await supabase.functions.invoke('send-test-notification', { body: { token, kind } });
   if (error) throw new Error('Could not send test notification');
   return Boolean((data as { accepted?: boolean } | null)?.accepted);
 }

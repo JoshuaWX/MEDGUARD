@@ -59,7 +59,7 @@ interface UseNotificationsReturn {
   setReminderEnabled: (enabled: boolean) => Promise<void>;
   setReminderTime: (time: string) => Promise<void>;
   setCommunityAlertsEnabled: (enabled: boolean) => Promise<void>;
-  sendTestNotification: () => Promise<boolean>;
+  sendTestNotification: (kind?: 'general' | 'health_news') => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -249,7 +249,7 @@ export function useNotifications(): UseNotificationsReturn {
     await fetchPreferences();
   }, [checkPermission, fetchPreferences]);
 
-  const sendTestNotification = useCallback(async (): Promise<boolean> => {
+  const sendTestNotification = useCallback(async (kind: 'general' | 'health_news' = 'general'): Promise<boolean> => {
     if (!user?.id) return false;
     const token = await getExistingPushToken();
     if (!token) {
@@ -257,7 +257,7 @@ export function useNotifications(): UseNotificationsReturn {
       return false;
     }
     await registerPushToken(user.id, token);
-    return sendTestPush(token);
+    return sendTestPush(token, kind);
   }, [user?.id]);
 
   // Initial load

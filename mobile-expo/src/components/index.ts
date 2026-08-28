@@ -27,6 +27,7 @@ export { default as ThemeModeSelector } from './ThemeModeSelector';
 export { default as PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 export { default as RiskCard } from './RiskCard';
 export { default as BrainCard } from './BrainCard';
+export { default as HealthSignalsCard } from './HealthSignalsCard';
 export { default as DiseaseOutlookCard } from './DiseaseOutlookCard';
 export { default as HealthNewsCard } from './HealthNewsCard';
 export { default as AQICard } from './AQICard';

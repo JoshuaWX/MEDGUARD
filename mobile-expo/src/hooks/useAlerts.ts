@@ -1,15 +1,8 @@
-/**
- * useAlerts hook
- * Health alerts, disease risks, and AQI data
- */
-
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from './useAuth';
-import { useLocationContext } from './LocationContext';
-import { invokeEdgeFunction } from '../services/edge';
-import { DiseaseRisk, AQIInsight } from '../components';
-import { toUserMessage } from '../services/errorMessages';
-import { BrainResult } from '../services/brain';
+/** Verified area alerts derived from the app-wide Intel response. */
+import { useMemo } from 'react';
+import { useIntel } from './useIntel';
+import type { DiseaseRisk, AQIInsight } from '../components';
+import type { BrainResult } from '../services/brain';
 
 interface Alert {
   id: string;
@@ -20,71 +13,16 @@ interface Alert {
   timestamp: string;
 }
 
-interface WeatherData {
-  temp: number;
-  humidity: number;
-  precipitation: number;
-  windSpeed?: number;
-}
-
-interface AirQualityData {
-  aqi: number;
-  insight: AQIInsight | null;
-  pollutants: {
-    pm2_5?: number;
-    pm10?: number;
-    o3?: number;
-    no2?: number;
-    co?: number;
-  };
-  source: string;
-}
-
-interface RiskAssessmentData {
-  overallRiskLevel: 'low' | 'medium' | 'high';
-  diseases: DiseaseRisk[];
-  disclaimer: string;
-}
-
-interface SeasonData {
-  label: string;
-  description: string;
-  confidence: number;
-}
-
-interface IntelResponse {
-  generatedAt: string;
-  version: string;
-  location: {
-    state: string;
-    stateNormalized: string;
-    isKnownState: boolean;
-    region: 'north' | 'south' | 'middle-belt' | null;
-  };
-  season: SeasonData;
-  weather: {
-    current: WeatherData;
-    source: string;
-  } | null;
-  airQuality: AirQualityData | null;
-  riskAssessment: RiskAssessmentData | null;
-  brain?: BrainResult | null;
-  personalBrain?: BrainResult | null;
-  advisories: any[];
-  outbreaks: any[];
-  whoAlerts: any[];
-  meta: {
-    disclaimer: string;
-    dataFreshness: Record<string, string>;
-  };
-}
+interface WeatherData { temp: number; humidity: number; precipitation: number; windSpeed?: number }
+interface AirQualityData { aqi: number; insight: AQIInsight | null; pollutants: Record<string, unknown>; source: string }
+interface RiskAssessmentData { overallRiskLevel: 'low' | 'medium' | 'high'; diseases: DiseaseRisk[]; disclaimer: string }
+interface SeasonData { label: string; description: string; confidence: number }
 
 interface UseAlertsReturn {
   alerts: Alert[];
   loading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
-  // New v2 data
   riskAssessment: RiskAssessmentData | null;
   brain: BrainResult | null;
   airQuality: AirQualityData | null;
@@ -94,148 +32,55 @@ interface UseAlertsReturn {
   generatedAt: string | null;
 }
 
+function severity(value: unknown): Alert['severity'] {
+  const normalized = String(value ?? '').toLowerCase();
+  if (normalized === 'high' || normalized === 'urgent') return 'urgent';
+  if (normalized === 'moderate' || normalized === 'medium') return 'caution';
+  return 'info';
+}
+
 export const useAlerts = (): UseAlertsReturn => {
-  const { user: authUser, initialized: authInitialized } = useAuth();
-  const { alertArea, loading: locationLoading } = useLocationContext();
-  const requestIdRef = useRef(0);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  
-  // New v2 state
-  const [riskAssessment, setRiskAssessment] = useState<RiskAssessmentData | null>(null);
-  const [brain, setBrain] = useState<BrainResult | null>(null);
-  const [airQuality, setAirQuality] = useState<AirQualityData | null>(null);
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [season, setSeason] = useState<SeasonData | null>(null);
-  const [location, setLocation] = useState<{ state: string; region: string | null } | null>(null);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const { intel, loading, error, refresh } = useIntel();
 
-  const fetchAlerts = useCallback(async () => {
-    if (!authInitialized) {
-      setLoading(true);
-      return;
-    }
+  const alerts = useMemo<Alert[]>(() => {
+    if (!intel) return [];
+    const timestamp = intel.generatedAt || new Date().toISOString();
+    const outbreaks = Array.isArray(intel.outbreaks) ? intel.outbreaks : [];
+    const whoAlerts = Array.isArray(intel.whoAlerts) ? intel.whoAlerts : [];
 
-    const requestId = ++requestIdRef.current;
-    const state = alertArea?.state ?? null;
-
-    if (!state) {
-      if (locationLoading) {
-        setLoading(true);
-        return;
-      }
-      setAlerts([]);
-      setRiskAssessment(null);
-      setBrain(null);
-      setAirQuality(null);
-      setWeather(null);
-      setSeason(null);
-      setLocation(null);
-      setGeneratedAt(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data: raw, error: invokeErr } = await invokeEdgeFunction<IntelResponse>('intel', { state });
-      if (invokeErr || !raw) {
-        throw new Error(toUserMessage(invokeErr || 'Failed to fetch alerts', 'general'));
-      }
-      if (requestId !== requestIdRef.current) return;
-
-      // Store v2 data
-      setGeneratedAt(raw.generatedAt || null);
-      setLocation(raw.location ? { state: raw.location.state, region: raw.location.region } : null);
-      setSeason(raw.season || null);
-      setWeather(raw.weather?.current || null);
-      setAirQuality(raw.airQuality || null);
-      setRiskAssessment(raw.riskAssessment || null);
-      setBrain(raw.brain || null);
-
-      // Process alerts (backward compatible)
-      const advisories: any[] = Array.isArray(raw?.advisories) ? raw.advisories : [];
-      const outbreaks: any[] = Array.isArray(raw?.outbreaks) ? raw.outbreaks : [];
-      const whoAlerts: any[] = Array.isArray(raw?.whoAlerts) ? raw.whoAlerts : [];
-
-      const mapSeverity = (sev: string): Alert['severity'] => {
-        const s = String(sev || '').toLowerCase();
-        if (s === 'high' || s === 'urgent') return 'urgent';
-        if (s === 'moderate' || s === 'medium') return 'caution';
-        return 'info';
-      };
-
-      const timestamp = String(raw?.generatedAt || new Date().toISOString());
-
-      const freshAlerts: Alert[] = [
-        ...advisories.map((a, idx): Alert => ({
-          id: `adv-${idx}-${timestamp}`,
-          title: `${a?.disease || 'Health advisory'}`,
-          message: [a?.summary, a?.recommendation].filter(Boolean).join(' '),
-          severity: mapSeverity(a?.severity || a?.riskLevel),
-          source: a?.source ? String(a.source) : undefined,
-          timestamp,
-        })),
-        ...outbreaks.map((o, idx): Alert => ({
-          id: `out-${idx}-${timestamp}`,
-          title: `${o?.disease || o?.name || 'Outbreak update'}`,
-          message: String(o?.summary || o?.description || 'Outbreak update available.'),
-          severity: 'caution',
-          source: o?.source ? String(o.source) : 'Outbreak feed',
-          timestamp,
-        })),
-        ...whoAlerts.map((w, idx): Alert => ({
-          id: `who-${idx}-${timestamp}`,
-          title: `${w?.title || w?.disease || 'WHO alert'}`,
-          message: String(w?.summary || w?.description || w?.content || 'WHO alert available.'),
-          severity: 'info',
-          source: w?.source ? String(w.source) : 'WHO',
-          timestamp,
-        })),
-      ].filter((a) => a.message && a.title);
-
-      setAlerts(freshAlerts);
-
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      console.error('Error fetching alerts:', err);
-      setError(err as Error);
-      
-      setAlerts([]);
-      setRiskAssessment(null);
-      setBrain(null);
-      setAirQuality(null);
-      setWeather(null);
-      setSeason(null);
-      setLocation(null);
-      setGeneratedAt(null);
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [alertArea?.state, authInitialized, locationLoading]);
-
-  useEffect(() => {
-    fetchAlerts();
-  }, [fetchAlerts]);
+    // Model advisories are deliberately excluded. This screen and badge are
+    // reserved for attributable official/verified reports.
+    return [
+      ...outbreaks.map((report: any, index): Alert => ({
+        id: String(report?.id ?? `verified-${index}-${timestamp}`),
+        title: String(report?.disease || report?.name || 'Official health report'),
+        message: String(report?.summary || report?.description || 'An official health report is available.'),
+        severity: severity(report?.severity),
+        source: report?.source ? String(report.source) : 'Verified report',
+        timestamp: String(report?.publishedAt || report?.created_at || timestamp),
+      })),
+      ...whoAlerts.map((report: any, index): Alert => ({
+        id: String(report?.id ?? `who-${index}-${timestamp}`),
+        title: String(report?.title || report?.disease || 'WHO update'),
+        message: String(report?.summary || report?.description || report?.content || 'A WHO update is available.'),
+        severity: severity(report?.severity),
+        source: report?.source ? String(report.source) : 'WHO',
+        timestamp: String(report?.publishedAt || report?.published_at || timestamp),
+      })),
+    ].filter((alert) => alert.title && alert.message);
+  }, [intel]);
 
   return {
     alerts,
     loading,
     error,
-    refresh: fetchAlerts,
-    riskAssessment,
-    brain,
-    airQuality,
-    weather,
-    season,
-    location,
-    generatedAt,
+    refresh,
+    riskAssessment: intel?.riskAssessment ?? null,
+    brain: intel?.brain ?? null,
+    airQuality: (intel?.airQuality as unknown as AirQualityData | null) ?? null,
+    weather: intel?.weather?.current ?? null,
+    season: intel?.season ?? null,
+    location: intel?.location ? { state: intel.location.state, region: intel.location.region } : null,
+    generatedAt: intel?.generatedAt ?? null,
   };
 };
-
