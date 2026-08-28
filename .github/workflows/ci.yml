@@ -1,0 +1,53 @@
+name: MedGuard CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install repository tooling
+        run: npm ci
+
+      - name: Install mobile dependencies
+        run: npm ci --prefix mobile-expo
+
+      - name: Mobile TypeScript
+        run: npm run mobile:typecheck
+
+      - name: Mobile behavior contracts
+        run: npm run mobile:test:contracts
+
+      - name: Edge notification tests
+        run: npm run edge:test:notifications
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.112.0
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Reset and test database
+        run: |
+          supabase db reset
+          supabase test db
+
+      - name: Database lint
+        run: supabase db lint --local --fail-on error

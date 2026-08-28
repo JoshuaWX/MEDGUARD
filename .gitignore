@@ -1,33 +1,59 @@
-# Ignore local env files that may contain secrets
+# Local secrets and machine-specific configuration
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 mobile-expo/.env
-mobile-expo/.env.local
-mobile-expo/.env.*.local
-node_modules
-virtualsenv.txt
-pitch
+mobile-expo/.env.*
 
-# Windows reserved device filename (breaks `git add` on Windows)
-NUL
+# Dependencies
+**/node_modules/
 
-# Snyk Security Extension - AI Rules (auto-generated)
-.github/instructions/snyk_rules.instructions.md
-command.txt
-# Deno generated lockfiles (edge function type-check/test artifacts)
+# Expo, React Native, and generated native/build output
+**/.expo/
+**/.expo-shared/
+**/android/
+**/ios/
+dist/
+output/
+coverage/
+*.log
+
+# Local Supabase state and generated Deno lockfiles
+supabase/.temp/
+supabase/.branches/
 deno.lock
 supabase/functions/deno.lock
 
-# Supabase CLI local runtime state; start-secrets contains generated credentials.
-supabase/.temp/
-supabase/.branches/
+# Python tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+virtualenv/
 
+# IDE and assistant-local metadata
+.idea/
+.vscode/
+.claude/
+.agents/
+*.swp
+
+# OS and generated files
+.DS_Store
+Thumbs.db
+NUL
+
+# Local-only experiments and handoff notes
+End-to-end-Medical-Chatbot-Generative-AI/
+virtualsenv.txt
+pitch/
+command.txt
 CLAUDE_CODE_HANDOFF.md
 FIXES.md
 Future.txt
 mobile-expo/SETUP_REFERENCE.md
 
-# Separate local project accidentally committed as a bare gitlink (no .gitmodules)
-# — untracked here to stop the Actions "No url found for submodule" warning.
-End-to-end-Medical-Chatbot-Generative-AI/
+# Snyk local rules
+.github/instructions/snyk_rules.instructions.md

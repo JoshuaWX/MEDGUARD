@@ -1,0 +1,8 @@
+title = "MedGuard secret scanning"
+
+# google-services.json contains the restricted Android Firebase client identifier.
+# It is intentionally embedded in the Android application and is not a server
+# credential. All actual credentials must still be reported by the default rules.
+[[allowlists]]
+description = "Restricted Firebase Android client configuration"
+paths = ["^mobile-expo/google-services\\.json$"]
