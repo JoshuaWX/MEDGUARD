@@ -201,6 +201,8 @@ export interface BrainRiskForecastInput {
   /** Approved projection-framed summary written by the pipeline. */
   summary?: string | null;
   modelVersion?: string;
+  /** Timestamp emitted by the forecast pipeline, for user-visible freshness. */
+  generatedAt?: string | null;
   forecastPeriodStart?: string | null;
   horizonDays?: number | null;
   validUntil?: string | null;

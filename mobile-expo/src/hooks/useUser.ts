@@ -3,7 +3,7 @@
  * User profile data and mutations
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useContext, useRef } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Buffer } from 'buffer';
 import { supabase } from '../services/supabase';
@@ -43,8 +43,10 @@ interface UseUserReturn {
   updateAvatar: (uri: string) => Promise<void>;
 }
 
-export const useUser = (): UseUserReturn => {
-  const { user: authUser } = useAuth();
+const UserProfileContext = createContext<UseUserReturn | null>(null);
+
+const useUserProfileLoader = (): UseUserReturn => {
+  const { user: authUser, sessionTrust } = useAuth();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -60,6 +62,12 @@ export const useUser = (): UseUserReturn => {
       setLoading(false);
       attemptedBootstrapRef.current = false;
       loadedForIdRef.current = null;
+      return;
+    }
+    if (sessionTrust !== 'verified') {
+      // Do not make profile reads while a locally restored token is awaiting
+      // claim verification. The shared provider keeps every screen consistent.
+      setLoading(false);
       return;
     }
 
@@ -218,14 +226,14 @@ export const useUser = (): UseUserReturn => {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, authUser?.email]);
+  }, [authUser?.id, authUser?.email, sessionTrust]);
 
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
   const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
-    if (!authUser?.id) return;
+    if (!authUser?.id || sessionTrust !== 'verified') return;
 
     try {
       setLoading(true);
@@ -261,10 +269,10 @@ export const useUser = (): UseUserReturn => {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, fetchProfile]);
+  }, [authUser?.id, fetchProfile, sessionTrust]);
 
   const updateAvatar = useCallback(async (uri: string) => {
-    if (!authUser?.id) return;
+    if (!authUser?.id || sessionTrust !== 'verified') return;
 
     try {
       setLoading(true);
@@ -310,7 +318,7 @@ export const useUser = (): UseUserReturn => {
     } finally {
       setLoading(false);
     }
-  }, [authUser?.id, fetchProfile]);
+  }, [authUser?.id, fetchProfile, sessionTrust]);
 
   return {
     user,
@@ -320,4 +328,16 @@ export const useUser = (): UseUserReturn => {
     updateProfile,
     updateAvatar,
   };
+};
+
+/** One profile load per verified session; screens consume the same result. */
+export const UserProfileProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const value = useUserProfileLoader();
+  return React.createElement(UserProfileContext.Provider, { value }, children);
+};
+
+export const useUser = (): UseUserReturn => {
+  const context = useContext(UserProfileContext);
+  if (!context) throw new Error('useUser must be used within <UserProfileProvider>.');
+  return context;
 };

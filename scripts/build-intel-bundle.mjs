@@ -13,9 +13,12 @@ const tempOutput = join(tempDir, 'intel.bundle.js');
 
 const generatedAt = new Date().toISOString();
 const denoBinary = process.env.DENO_BIN
-  || (process.platform === 'win32'
-    ? join(process.env.APPDATA || '', 'npm', 'deno.cmd')
-    : 'deno');
+  || resolve(
+    repoRoot,
+    'node_modules',
+    process.platform === 'win32' ? 'deno' : '.bin',
+    process.platform === 'win32' ? 'deno.exe' : 'deno',
+  );
 
 try {
   execFileSync(
@@ -29,7 +32,7 @@ try {
       '--output',
       tempOutput,
     ],
-    { cwd: repoRoot, stdio: 'inherit', shell: process.platform === 'win32' },
+    { cwd: repoRoot, stdio: 'inherit' },
   );
 
   const bundled = readFileSync(tempOutput, 'utf8');

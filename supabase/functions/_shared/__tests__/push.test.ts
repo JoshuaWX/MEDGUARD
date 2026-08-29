@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getExpoReceipts, sendExpoPush, type ExpoMessage } from '../push.ts';
+import { matchPushRecipients } from '../push-recipients.ts';
 
 const message = (to: string): ExpoMessage => ({
   to,
@@ -46,3 +47,17 @@ test('DeviceNotRegistered receipts are classified as invalid devices', async () 
   }
 });
 
+test('recipients require opt-in and an exact canonical state match', () => {
+  const devices = [
+    { id: 'device-a', user_id: 'user-a', expo_push_token: 'ExpoPushToken[user-a]' },
+    { id: 'device-b', user_id: 'user-b', expo_push_token: 'ExpoPushToken[user-b]' },
+  ];
+  const preferences = [
+    { user_id: 'user-a', community_alerts_enabled: true, notifications_paused: false },
+    { user_id: 'user-b', community_alerts_enabled: true, notifications_paused: false },
+  ];
+  const profiles = [{ id: 'user-a', state: 'Kwara' }];
+  assert.deepEqual(matchPushRecipients(devices, preferences, profiles, 'Kwara').map((item) => item.userId), ['user-a']);
+  assert.equal(matchPushRecipients(devices, preferences, profiles, 'Lagos').length, 0);
+  assert.equal(matchPushRecipients(devices, preferences, [], null).length, 2);
+});

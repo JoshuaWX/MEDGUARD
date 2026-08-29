@@ -31,7 +31,9 @@ import {
   NO_DATA_FILL,
   type RiskDisease,
 } from '../theme/riskColors';
-import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
+import { type NearbyFacility } from '../services/nearbyFacilities';
+import { loadNearbyFacilitySnapshot } from '../services/facilityRepository';
+import { useAuth } from '../hooks/useAuth';
 import { toUserMessage } from '../services/errorMessages';
 import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../theme';
 
@@ -61,6 +63,7 @@ const MODE_META: Record<MapMode, { label: string; icon: 'stethoscope' | 'heart-p
 const MapScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isGuest } = useAuthGate();
+  const { user: authUser } = useAuth();
   const { isDark, colors } = useTheme();
   const {
     location,
@@ -86,6 +89,8 @@ const MapScreen: React.FC = () => {
   const diseasesWithData = useMemo(() => new Set(riskRows.map((r) => r.disease)), [riskRows]);
   const [error, setError] = useState<string | null>(null);
   const [facilityRadiusUsed, setFacilityRadiusUsed] = useState<number | null>(null);
+  const [facilityCachedAt, setFacilityCachedAt] = useState<string | null>(null);
+  const [facilityCacheStale, setFacilityCacheStale] = useState(false);
   const facilityRequestIdRef = useRef(0);
 
   const centerFromDevice = useMemo(() => {
@@ -97,61 +102,40 @@ const MapScreen: React.FC = () => {
   }, [location]);
 
   const loadNearby = useCallback(
-    async (targetRegion: Region, targetFilter: FacilityFilter, disease?: string) => {
+    async (targetRegion: Region, targetFilter: FacilityFilter, disease?: string, force = false) => {
+      if (!authUser?.id) return;
       const requestId = ++facilityRequestIdRef.current;
       setLoadingFacilities(true);
       setError(null);
       setSelectedFacility(null);
       setFacilityRadiusUsed(null);
+      setFacilityCachedAt(null);
+      setFacilityCacheStale(false);
 
-      const first = await fetchNearbyFacilities({
+      const result = await loadNearbyFacilitySnapshot({
+        userId: authUser.id,
         latitude: targetRegion.latitude,
         longitude: targetRegion.longitude,
-        radiusMeters: 5000,
         type: disease ? 'clinic' : targetFilter,
         disease,
+        force,
       });
 
       if (requestId !== facilityRequestIdRef.current) return;
 
-      if (first.error) {
-        setError(toUserMessage(first.error, 'facilities'));
+      if (result.error || !result.snapshot) {
+        setError(toUserMessage(result.error || 'Facilities are unavailable.', 'facilities'));
         setFacilities([]);
         setLoadingFacilities(false);
         return;
       }
-
-      // A curated NCDC centre alone shouldn't stop us widening for nearby hospitals.
-      const firstNearby = first.facilities.filter((f) => !f.ncdcDesignated).length;
-      if (firstNearby > 0) {
-        setFacilityRadiusUsed(5000);
-        setFacilities(first.facilities);
-        setLoadingFacilities(false);
-        return;
-      }
-
-      const wider = await fetchNearbyFacilities({
-        latitude: targetRegion.latitude,
-        longitude: targetRegion.longitude,
-        radiusMeters: 15000,
-        type: disease ? 'clinic' : targetFilter,
-        disease,
-      });
-
-      if (requestId !== facilityRequestIdRef.current) return;
-
-      if (wider.error) {
-        setError(toUserMessage(wider.error, 'facilities'));
-        setFacilities([]);
-        setLoadingFacilities(false);
-        return;
-      }
-
-      setFacilityRadiusUsed(15000);
-      setFacilities(wider.facilities);
+      setFacilityRadiusUsed(result.snapshot.radiusMeters);
+      setFacilityCachedAt(result.snapshot.cachedAt);
+      setFacilityCacheStale(result.snapshot.stale);
+      setFacilities(result.snapshot.facilities);
       setLoadingFacilities(false);
     },
-    [],
+    [authUser?.id],
   );
 
   useEffect(() => {
@@ -222,13 +206,13 @@ const MapScreen: React.FC = () => {
 
     setRegion(next);
     mapRef.current?.animateToRegion(next, 500);
-    if (mapMode === 'treatment') loadNearby(next, 'clinic', selectedDisease);
-    else loadNearby(next, facilityFilter);
+    if (mapMode === 'treatment') loadNearby(next, 'clinic', selectedDisease, true);
+    else loadNearby(next, facilityFilter, undefined, true);
   };
 
   const handleSearchThisArea = () => {
-    if (mapMode === 'treatment') loadNearby(region, 'clinic', selectedDisease);
-    else loadNearby(region, facilityFilter);
+    if (mapMode === 'treatment') loadNearby(region, 'clinic', selectedDisease, true);
+    else loadNearby(region, facilityFilter, undefined, true);
   };
 
   const facilityColor = (kind: NearbyFacility['kind']) => (kind === 'pharmacy' ? '#8b5cf6' : Colors.primary);
@@ -438,6 +422,14 @@ const MapScreen: React.FC = () => {
             <Text style={[styles.sheetTitle, { color: colors.text }]}>
               {mapMode === 'treatment' ? `${selectedDiseaseLabel} treatment centres` : 'Nearby Clinics and Pharmacies'}
             </Text>
+            {facilityRadiusUsed && facilityCachedAt ? (
+              <View style={styles.facilityFreshness}>
+                <Icon name={facilityCacheStale ? 'clock' : 'check'} size={12} color={facilityCacheStale ? colors.warning : colors.primary} />
+                <Text style={[styles.sheetHint, { color: colors.textMuted }]}>
+                  {Math.round(facilityRadiusUsed / 1000)} km search · {facilityCacheStale ? 'saved result' : 'current result'} · {new Date(facilityCachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            ) : null}
             {mapMode === 'treatment' && (
               <Text style={[styles.sheetHint, { color: colors.textMuted }]}>
                 NCDC-designated centres are listed first, then nearby hospitals. Guidance only — not a diagnosis.
@@ -715,6 +707,7 @@ const styles = StyleSheet.create({
     marginTop: -Spacing.xs,
     marginBottom: Spacing.sm,
   },
+  facilityFreshness: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xs },
   ncdcBadge: {
     flexDirection: 'row',
     alignItems: 'center',

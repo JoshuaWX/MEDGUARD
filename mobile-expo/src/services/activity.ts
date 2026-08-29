@@ -29,12 +29,16 @@ export async function loadTodaySteps(userId: string): Promise<number> {
   }
 }
 
-export async function upsertTodaySteps(userId: string, steps: number): Promise<boolean> {
+export async function upsertTodaySteps(
+  userId: string,
+  steps: number,
+  source: 'pedometer' | 'health_connect' = 'pedometer',
+): Promise<boolean> {
   try {
     const { error } = await supabase
       .from('user_daily_activity')
       .upsert(
-        { user_id: userId, activity_date: isoDate(), step_count: Math.max(0, Math.round(steps)), source: 'pedometer', updated_at: new Date().toISOString() },
+        { user_id: userId, activity_date: isoDate(), step_count: Math.max(0, Math.round(steps)), source, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,activity_date' }
       );
     return !error;

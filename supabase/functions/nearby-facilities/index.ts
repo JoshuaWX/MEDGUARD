@@ -28,6 +28,11 @@ const NEARBY_RATE_LIMIT = {
   windowSeconds: 60,
   maxRequests: 24,
 };
+const OVERPASS_TIMEOUT_MS = 12_000;
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+] as const;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -129,6 +134,35 @@ function formatAddress(tags: Record<string, string> | undefined): string | null 
   return line || null;
 }
 
+async function fetchOverpass(query: string): Promise<Response | null> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+          'User-Agent': 'MedGuard/1.1 (Supabase Edge Function nearby-facilities)',
+        },
+        body: query,
+        signal: controller.signal,
+      });
+      if (response.ok) return response;
+      console.warn(JSON.stringify({ event: 'facility_provider_failed', provider: new URL(endpoint).hostname, status: response.status }));
+    } catch (error) {
+      console.warn(JSON.stringify({
+        event: 'facility_provider_failed',
+        provider: new URL(endpoint).hostname,
+        category: error instanceof DOMException && error.name === 'AbortError' ? 'timeout' : 'network',
+      }));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return null;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -193,19 +227,8 @@ serve(async (req: Request) => {
     }
 
     const query = buildOverpassQuery(latitude, longitude, radius, type, treatmentMode);
-    const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=UTF-8',
-        'User-Agent': 'MedGuard/1.0 (Supabase Edge Function nearby-facilities)',
-      },
-      body: query,
-    });
-
-    if (!overpassRes.ok) {
-      const details = await overpassRes.text().catch(() => 'overpass error');
-      return jsonResponse({ error: details || 'Facility lookup failed' }, { status: 502 });
-    }
+    const overpassRes = await fetchOverpass(query);
+    if (!overpassRes) return jsonResponse({ error: 'Facility provider is temporarily unavailable. Try again shortly.' }, { status: 503 });
 
     const overpassData = (await overpassRes.json().catch(() => ({}))) as { elements?: OverpassElement[] };
     const elements = overpassData.elements || [];

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
+import { readPublicCache, writePublicCache } from '../services/publicCache';
 import { Colors } from '../../theme';
 import type { IconName } from '../components/Icon';
 
@@ -44,6 +45,10 @@ export interface HealthPost {
 }
 
 const CATEGORIES: PostCategory[] = ['official_update', 'outbreak_news', 'prevention_tip', 'announcement'];
+const FEED_CACHE_FRESH_MS = 15 * 60 * 1000;
+type FeedSnapshot = { posts: HealthPost[]; lastUpdatedAt: string | null };
+let sharedSnapshot: FeedSnapshot | null = null;
+let sharedRequest: Promise<FeedSnapshot> | null = null;
 
 export function mapHealthPost(r: Record<string, unknown>): HealthPost | null {
   const category = String(r.category ?? '') as PostCategory;
@@ -63,35 +68,58 @@ export function mapHealthPost(r: Record<string, unknown>): HealthPost | null {
   };
 }
 
+async function loadSharedFeed(force = false): Promise<FeedSnapshot> {
+  if (sharedSnapshot && !force) return sharedSnapshot;
+  if (sharedRequest) return sharedRequest;
+  sharedRequest = (async () => {
+    if (!force) {
+      const cached = await readPublicCache<FeedSnapshot>('health-news', 'feed', FEED_CACHE_FRESH_MS);
+      if (cached?.fresh) {
+        sharedSnapshot = cached.data;
+        return cached.data;
+      }
+    }
+    if (!supabase) throw new Error('Not configured');
+    const [{ data, error: err }, { data: statusRows }] = await Promise.all([
+      supabase.from('health_posts').select('id, category, title, summary, body, disease, state, source, source_url, image_url, published_at').order('published_at', { ascending: false }).limit(50),
+      supabase.from('health_feed_status').select('last_success_at').not('last_success_at', 'is', null).order('last_success_at', { ascending: false }).limit(1),
+    ]);
+    if (err) throw err;
+    const next: FeedSnapshot = {
+      posts: ((data ?? []) as Array<Record<string, unknown>>).map(mapHealthPost).filter((post): post is HealthPost => post !== null),
+      lastUpdatedAt: statusRows?.[0]?.last_success_at ? String(statusRows[0].last_success_at) : null,
+    };
+    sharedSnapshot = next;
+    void writePublicCache('health-news', 'feed', next);
+    return next;
+  })().finally(() => { sharedRequest = null; });
+  return sharedRequest;
+}
+
 export function useHealthFeed(limit = 50) {
   const [posts, setPosts] = useState<HealthPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) {
-      setError('Not configured');
-      setLoading(false);
-      return;
+  const load = useCallback(async (force = false) => {
+    let showedCache = false;
+    if (!force) {
+      const cached = await readPublicCache<FeedSnapshot>('health-news', 'feed', FEED_CACHE_FRESH_MS);
+      if (cached) {
+        showedCache = true;
+        setPosts(cached.data.posts.slice(0, limit));
+        setLastUpdatedAt(cached.data.lastUpdatedAt ?? cached.cachedAt);
+        setLoading(false);
+        if (cached.fresh) return;
+      }
     }
-    setLoading(true);
+    if (!showedCache) setLoading(true);
     setError(null);
     try {
-      const [{ data, error: err }, { data: statusRows }] = await Promise.all([
-        supabase
-        .from('health_posts')
-        .select('id, category, title, summary, body, disease, state, source, source_url, image_url, published_at')
-        .order('published_at', { ascending: false })
-        .limit(limit),
-        supabase.from('health_feed_status').select('last_success_at').not('last_success_at', 'is', null).order('last_success_at', { ascending: false }).limit(1),
-      ]);
-      if (err) throw err;
-      const out = ((data ?? []) as Array<Record<string, unknown>>)
-        .map(mapHealthPost)
-        .filter((p): p is HealthPost => p !== null);
-      setPosts(out);
-      setLastUpdatedAt(statusRows?.[0]?.last_success_at ? String(statusRows[0].last_success_at) : null);
+      const snapshot = await loadSharedFeed(force || showedCache);
+      setPosts(snapshot.posts.slice(0, limit));
+      setLastUpdatedAt(snapshot.lastUpdatedAt);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load health news');
     } finally {
@@ -100,10 +128,10 @@ export function useHealthFeed(limit = 50) {
   }, [limit]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  return { posts, loading, error, lastUpdatedAt, refresh: load };
+  return { posts, loading, error, lastUpdatedAt, refresh: () => load(true) };
 }
 
 /** Load one exact post for notification deep links, including cold app launches. */

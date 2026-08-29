@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
+import { readPublicCache, writePublicCache } from '../services/publicCache';
 import type { RiskDisease, RiskLevel } from '../theme/riskColors';
 
 export interface RiskRow {
@@ -31,17 +32,24 @@ export function forecastKind(modelVersion: string | null): string {
 }
 
 const LEVELS: RiskLevel[] = ['low', 'moderate', 'elevated', 'high'];
+const RISK_MAP_CACHE_FRESH_MS = 30 * 60 * 1000;
 
 export function useRiskMap() {
   const [rows, setRows] = useState<RiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!supabase) {
       setError('Not configured');
       setLoading(false);
       return;
+    }
+    const cached = !force ? await readPublicCache<RiskRow[]>('risk-map', 'active', RISK_MAP_CACHE_FRESH_MS) : null;
+    if (cached) {
+      setRows(cached.data);
+      setLoading(false);
+      if (cached.fresh) return;
     }
     setLoading(true);
     setError(null);
@@ -75,6 +83,7 @@ export function useRiskMap() {
         });
       }
       setRows(out);
+      void writePublicCache('risk-map', 'active', out);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load risk map');
     } finally {
@@ -83,10 +92,10 @@ export function useRiskMap() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  return { rows, loading, error, refresh: load };
+  return { rows, loading, error, refresh: () => load(true) };
 }
 
 /** Build a lookup of state -> RiskRow for a single disease. */

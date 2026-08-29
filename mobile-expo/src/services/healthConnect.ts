@@ -111,15 +111,14 @@ export async function getTodaySteps(): Promise<number> {
 
 /** Per-day step totals for the last `days` days (oldest→newest). */
 export async function getDailyHistory(days = 7): Promise<StepHistoryPoint[]> {
-  const out: StepHistoryPoint[] = [];
   const now = new Date();
-  for (let i = days - 1; i >= 0; i--) {
+  const work = Array.from({ length: days }, (_, index) => days - index - 1).map(async (i) => {
     const day = startOfDay(new Date(now.getTime() - i * 86400000));
     const end = new Date(day.getTime() + 86400000);
     const steps = await aggregateSteps(day, i === 0 ? now : end);
-    out.push({ date: day.toISOString().slice(0, 10), steps });
-  }
-  return out;
+    return { date: day.toISOString().slice(0, 10), steps };
+  });
+  return Promise.all(work);
 }
 
 export type { StepHistoryPoint };

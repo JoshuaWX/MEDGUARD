@@ -15,6 +15,7 @@ import { LocationProvider } from './src/hooks/LocationContext';
 import { IntelProvider } from './src/hooks/useIntel';
 import { ThemeProvider } from './src/hooks/useTheme';
 import { PersonalHealthDataProvider } from './src/hooks/PersonalHealthDataContext';
+import { UserProfileProvider } from './src/hooks/useUser';
 import { I18nProvider } from './src/i18n';
 import { configureNotifications } from './src/services/notifications';
 import { initSentry } from './src/services/sentry';
@@ -66,15 +67,17 @@ function App() {
           <I18nProvider>
             <FeedbackProvider>
               <AuthProvider>
-                <PersonalHealthDataProvider>
-                  <LocationProvider>
-                    <IntelProvider>
-                      <VersionGate>
-                        <RootNavigator />
-                      </VersionGate>
-                    </IntelProvider>
-                  </LocationProvider>
-                </PersonalHealthDataProvider>
+                <UserProfileProvider>
+                  <PersonalHealthDataProvider>
+                    <LocationProvider>
+                      <IntelProvider>
+                        <VersionGate>
+                          <RootNavigator />
+                        </VersionGate>
+                      </IntelProvider>
+                    </LocationProvider>
+                  </PersonalHealthDataProvider>
+                </UserProfileProvider>
               </AuthProvider>
             </FeedbackProvider>
           </I18nProvider>

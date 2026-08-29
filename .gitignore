@@ -4,6 +4,8 @@
 !.env.example
 mobile-expo/.env
 mobile-expo/.env.*
+credentials.json
+**/credentials.json
 
 # Dependencies
 **/node_modules/

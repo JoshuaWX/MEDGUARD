@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.medguard.ng",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "MedGuard uses your location to personalize health alerts and verify your state.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "If you opt in, MedGuard updates your health alert area while the app is closed.",
@@ -34,7 +34,7 @@
         "backgroundColor": "#0B7C8C"
       },
       "edgeToEdgeEnabled": true,
-      "versionCode": 4,
+      "versionCode": 5,
       "predictiveBackGestureEnabled": false,
       "package": "com.medguard.ng",
       "blockedPermissions": [
@@ -118,7 +118,6 @@
           }
         }
       ],
-      "react-native-health-connect",
       "./plugins/withHealthConnectPermissionDelegate"
     ],
     "extra": {

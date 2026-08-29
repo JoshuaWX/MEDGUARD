@@ -25,7 +25,7 @@ interface PersonalHealthDataContextValue {
 const PersonalHealthDataContext = createContext<PersonalHealthDataContextValue | null>(null);
 
 export const PersonalHealthDataProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const { user, session, initialized } = useAuth();
+  const { user, session, initialized, sessionTrust } = useAuth();
   const [dashboard, setDashboard] = useState<PersonalHealthDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -40,7 +40,7 @@ export const PersonalHealthDataProvider: React.FC<React.PropsWithChildren> = ({ 
   }, [dashboard]);
 
   const hasUsableSession = Boolean(
-    initialized && user?.id && session?.access_token && session.user.id === user.id,
+    initialized && sessionTrust === 'verified' && user?.id && session?.access_token && session.user.id === user.id,
   );
 
   const fetchAndCache = useCallback(async (userId: string, requestId: number) => {
@@ -70,7 +70,11 @@ export const PersonalHealthDataProvider: React.FC<React.PropsWithChildren> = ({ 
   // their own encrypted cache once the persisted session has been validated.
   useEffect(() => {
     const previousUserId = activeUserIdRef.current;
-    const nextUserId = hasUsableSession ? user?.id ?? null : null;
+    // Restoring is trusted only for the encrypted cache belonging to this
+    // exact locally restored user; fresh RPC reads wait for verified claims.
+    const nextUserId = initialized && user?.id && session?.access_token && session.user.id === user.id
+      ? user.id
+      : null;
     const requestId = ++requestIdRef.current;
 
     if (previousUserId && previousUserId !== nextUserId) {
@@ -107,21 +111,25 @@ export const PersonalHealthDataProvider: React.FC<React.PropsWithChildren> = ({ 
         setLoading(false);
       }
 
-      try {
-        await fetchAndCache(nextUserId, requestId);
-      } catch (cause) {
-        if (!cancelled && requestId === requestIdRef.current) {
-          setError(cause instanceof Error ? cause : new Error('Unable to refresh personal health data.'));
+      if (sessionTrust === 'verified') {
+        try {
+          await fetchAndCache(nextUserId, requestId);
+        } catch (cause) {
+          if (!cancelled && requestId === requestIdRef.current) {
+            setError(cause instanceof Error ? cause : new Error('Unable to refresh personal health data.'));
+          }
+        } finally {
+          if (!cancelled && requestId === requestIdRef.current) setLoading(false);
         }
-      } finally {
-        if (!cancelled && requestId === requestIdRef.current) setLoading(false);
+      } else if (!cachedDashboard && !cancelled && requestId === requestIdRef.current) {
+        setLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [fetchAndCache, hasUsableSession, initialized, user?.id]);
+  }, [fetchAndCache, initialized, sessionTrust, user?.id]);
 
   const updateAfterConfirmedWrite = useCallback(async (
     update: (current: PersonalHealthDashboard) => PersonalHealthDashboard,

@@ -28,6 +28,7 @@ type StepSource = 'health_connect' | 'pedometer' | 'none';
 export type StepAccessState =
   | 'checking'
   | 'health_connect_permission'
+  | 'health_connect_denied'
   | 'health_connect_connected'
   | 'health_connect_empty'
   | 'health_connect_update_required'
@@ -79,10 +80,10 @@ export function useSteps(): UseStepsReturn {
   const today = new Date().toISOString().slice(0, 10);
   const storedTodaySteps = dashboard?.activityTrend.find((point) => point.date === today)?.steps ?? 0;
 
-  const persistSteps = useCallback(async (value: number) => {
+  const persistSteps = useCallback(async (value: number, persistedSource: 'pedometer' | 'health_connect' = 'pedometer') => {
     if (!userId) return false;
     const rounded = Math.max(0, Math.round(value));
-    const saved = await upsertTodaySteps(userId, rounded);
+    const saved = await upsertTodaySteps(userId, rounded, persistedSource);
     if (!saved) return false;
     await updateAfterConfirmedWrite((current) => {
       const withoutToday = current.activityTrend.filter((point) => point.date !== today);
@@ -113,7 +114,7 @@ export function useSteps(): UseStepsReturn {
     setNeedsPermission(false);
     setPermissionCanAskAgain(false);
     setAccessState(today > 0 || hist.some((point) => point.steps > 0) ? 'health_connect_connected' : 'health_connect_empty');
-    void persistSteps(today);
+    void persistSteps(today, 'health_connect');
   }, [persistSteps]);
 
   const connect = useCallback(async (): Promise<StepConnectResult> => {
@@ -127,8 +128,8 @@ export function useSteps(): UseStepsReturn {
           await loadFromHealthConnect();
           return { ok: true, state: 'health_connect_connected' };
         }
-        setAccessState('health_connect_permission');
-        return { ok: false, state: 'health_connect_permission' };
+        setAccessState('health_connect_denied');
+        return { ok: false, state: 'health_connect_denied' };
       }
       if (capability === 'update_required') {
         setAccessState('health_connect_update_required');
@@ -156,7 +157,7 @@ export function useSteps(): UseStepsReturn {
       await openHealthConnectInstallOrUpdate();
       return;
     }
-    if (accessState === 'health_connect_permission' || source === 'health_connect') {
+    if (accessState === 'health_connect_denied' || source === 'health_connect') {
       await openHealthConnectPermissions();
       return;
     }
@@ -267,6 +268,7 @@ export function useSteps(): UseStepsReturn {
   const statusMessage: Record<StepAccessState, string> = {
     checking: 'Checking step access…',
     health_connect_permission: 'Allow Steps inside Health Connect. Android activity permission alone is not enough.',
+    health_connect_denied: 'Steps were not enabled. Open Health Connect to allow MedGuard to read Steps.',
     health_connect_connected: 'All-day steps are connected through Health Connect.',
     health_connect_empty: 'Connected. Health Connect has no step data for today yet.',
     health_connect_update_required: 'Install or update Health Connect to read all-day steps.',

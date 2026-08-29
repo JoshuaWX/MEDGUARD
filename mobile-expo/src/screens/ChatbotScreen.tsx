@@ -21,6 +21,7 @@ import {
   ActivityIndicator,
   Animated as RNAnimated,
   KeyboardAvoidingView,
+  FlatList,
   Modal,
   Platform,
   Pressable,
@@ -103,7 +104,10 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
 }
+
+const MESSAGE_PAGE_SIZE = 30;
 
 function deriveConversationTitle(text: string) {
   const cleaned = text.replace(/\s+/g, ' ').trim();
@@ -117,6 +121,13 @@ function createGuestSessionId() {
   return `guest_${Date.now().toString(36)}_${randomPart}`.slice(0, 72);
 }
 
+function createIdempotencyKey() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    return (char === 'x' ? value : (value & 0x3) | 0x8).toString(16);
+  });
+}
+
 const ChatbotScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -128,7 +139,7 @@ const ChatbotScreen: React.FC = () => {
   const { showAuthGate, AuthGateModalComponent } = useAuthGate();
   const { confirm, notify, toast } = useFeedback();
 
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<FlatList<Message> | null>(null);
   const sidebarAnim = useRef(new RNAnimated.Value(-320)).current;
   
   // ============================================================================
@@ -169,10 +180,14 @@ const ChatbotScreen: React.FC = () => {
   // Current conversation
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [hasEarlierMessages, setHasEarlierMessages] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [symptomSuggestion, setSymptomSuggestion] = useState<{ conversationId: string; keys: string[] } | null>(null);
+  const [recordingSymptoms, setRecordingSymptoms] = useState(false);
 
   // Rename modal state
   const [renameOpen, setRenameOpen] = useState(false);
@@ -279,17 +294,19 @@ const ChatbotScreen: React.FC = () => {
     try {
       const { data, error: err } = await supabase
         .from('chat_messages')
-        .select('id, role, content')
+        .select('id, role, content, created_at')
         .eq('conversation_id', convId)
-        .order('created_at', { ascending: true })
-        .limit(100);
+        .order('created_at', { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE + 1);
 
       if (err) throw err;
-      setMessages(
-        (data || [])
+      const page = (data || [])
+          .slice(0, MESSAGE_PAGE_SIZE)
           .filter((m: any) => m?.role === 'user' || m?.role === 'assistant')
-          .map((m: any) => ({ id: String(m.id), role: m.role, content: String(m.content || '') }))
-      );
+          .map((m: any) => ({ id: String(m.id), role: m.role, content: String(m.content || ''), createdAt: String(m.created_at || '') }))
+          .reverse();
+      setHasEarlierMessages((data?.length ?? 0) > MESSAGE_PAGE_SIZE);
+      setMessages(page);
     } catch (e: any) {
       setError(e?.message || 'Failed to load messages');
     } finally {
@@ -297,6 +314,32 @@ const ChatbotScreen: React.FC = () => {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
     }
   }, []);
+
+  const loadEarlierMessages = useCallback(async () => {
+    const oldest = messages.find((message) => message.createdAt)?.createdAt;
+    if (!conversationId || !oldest || loadingEarlier || !hasEarlierMessages) return;
+    setLoadingEarlier(true);
+    try {
+      const { data, error: err } = await supabase
+        .from('chat_messages')
+        .select('id, role, content, created_at')
+        .eq('conversation_id', conversationId)
+        .lt('created_at', oldest)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE + 1);
+      if (err) throw err;
+      const page = (data || []).slice(0, MESSAGE_PAGE_SIZE)
+        .filter((message: any) => message?.role === 'user' || message?.role === 'assistant')
+        .map((message: any) => ({ id: String(message.id), role: message.role, content: String(message.content || ''), createdAt: String(message.created_at || '') }))
+        .reverse();
+      setMessages((current) => [...page, ...current]);
+      setHasEarlierMessages((data?.length ?? 0) > MESSAGE_PAGE_SIZE);
+    } catch {
+      setError('Earlier messages could not be loaded. Please try again.');
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }, [conversationId, hasEarlierMessages, loadingEarlier, messages]);
 
   // Auto-load most recent conversation on mount
   useEffect(() => {
@@ -326,6 +369,7 @@ const ChatbotScreen: React.FC = () => {
   const resetChat = useCallback(() => {
     setConversationId(null);
     setMessages([]);
+    setHasEarlierMessages(false);
     setError(null);
     setDraft('');
   }, []);
@@ -482,6 +526,8 @@ const ChatbotScreen: React.FC = () => {
       const { data, error: invokeErr } = await invokeEdgeFunction<{
         conversation_id: string | null;
         answer: string;
+        emergency?: boolean;
+        symptomSuggestion?: { keys?: string[] };
         guest?: boolean;
         guest_remaining?: number;
       }>('chat', {
@@ -537,11 +583,32 @@ const ChatbotScreen: React.FC = () => {
         ...prev,
         { id: `assistant-${Date.now()}`, role: 'assistant', content: data.answer },
       ]);
+      const suggestedKeys = data.symptomSuggestion?.keys?.filter((key): key is string => typeof key === 'string') ?? [];
+      if (!isGuest && resolvedConversationId && suggestedKeys.length > 0) {
+        setSymptomSuggestion({ conversationId: resolvedConversationId, keys: suggestedKeys });
+      }
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     },
     [conversationId, conversations, getGuestSessionId, guestRemaining, isGuest, loadConversations, messages.length, sending, showAuthGate, updateConversationTitle]
   );
+
+  const confirmSuggestedSymptoms = useCallback(async () => {
+    if (!symptomSuggestion || recordingSymptoms) return;
+    setRecordingSymptoms(true);
+    const { error: writeError } = await invokeEdgeFunction('record-chat-symptoms', {
+      conversation_id: symptomSuggestion.conversationId,
+      symptom_keys: symptomSuggestion.keys,
+      idempotency_key: createIdempotencyKey(),
+    }, { timeout: 15000, retries: 0 });
+    setRecordingSymptoms(false);
+    if (writeError) {
+      toast({ tone: 'warning', title: 'Could not save symptoms', message: 'Nothing was added. Please try again.' });
+      return;
+    }
+    toast({ tone: 'success', title: 'Added to My Health', message: 'Only the symptoms you confirmed were saved.' });
+    setSymptomSuggestion(null);
+  }, [recordingSymptoms, symptomSuggestion, toast]);
 
   const userInitial = user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || (isGuest ? 'G' : 'U');
 
@@ -775,31 +842,45 @@ const ChatbotScreen: React.FC = () => {
               <ActivityIndicator color={theme.textSecondary} />
             </View>
           ) : (
-            <ScrollView
-              ref={(r) => { scrollRef.current = r; }}
+            <FlatList
+              ref={scrollRef}
+              data={messages}
+              keyExtractor={(message) => message.id}
               style={styles.chatContainer}
-              // ANDROID FIX: flexGrow: 1 ensures content fills available space and is scrollable
               contentContainerStyle={styles.messagesWrapper}
-              // ANDROID FIX: keyboardShouldPersistTaps="handled" prevents keyboard dismissal
-              // when tapping on interactive elements like suggestion chips
               keyboardShouldPersistTaps="handled"
-              // ANDROID FIX: Disable horizontal scroll for better vertical gesture handling
-              horizontal={false}
-              showsVerticalScrollIndicator={true}
-              // ANDROID FIX: Improve scroll performance on Android
+              showsVerticalScrollIndicator
               removeClippedSubviews={Platform.OS === 'android'}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-            >
-              {error ? (
+              initialNumToRender={16}
+              maxToRenderPerBatch={12}
+              windowSize={7}
+              ListHeaderComponent={(
+                <>
+                  {hasEarlierMessages && (
+                    <Pressable
+                      onPress={() => void loadEarlierMessages()}
+                      disabled={loadingEarlier}
+                      accessibilityRole="button"
+                      accessibilityLabel="Load earlier chat messages"
+                      style={[styles.loadEarlier, { borderColor: theme.borderColor }]}
+                    >
+                      {loadingEarlier ? <ActivityIndicator size="small" color={theme.accent} /> : <Text style={[styles.loadEarlierText, { color: theme.accent }]}>Load earlier messages</Text>}
+                    </Pressable>
+                  )}
+                  {error ? (
                 <View style={styles.errorContainer}>
                   <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
                     {t('chatbot_unavailable')}
                   </Text>
                   <Text style={[styles.errorBody, { color: theme.textSecondary }]}>{error}</Text>
+                  <Pressable onPress={() => conversationId ? void loadMessages(conversationId) : setError(null)} accessibilityRole="button" style={styles.retryChat}>
+                    <Text style={[styles.loadEarlierText, { color: theme.accent }]}>Try again</Text>
+                  </Pressable>
                 </View>
-              ) : null}
-
-              {messages.length === 0 ? (
+                  ) : null}
+                </>
+              )}
+              ListEmptyComponent={(
                 <View style={styles.welcomeScreen}>
                   <LinearGradient
                     colors={[theme.accent, Colors.primaryDark]}
@@ -834,31 +915,29 @@ const ChatbotScreen: React.FC = () => {
                     ))}
                   </View>
                 </View>
-              ) : (
-                <>
-                  {messages.map((m) =>
-                    m.role === 'user' ? (
-                      <View key={m.id} style={styles.messageUser}>
+              )}
+              renderItem={({ item: message }) => message.role === 'user' ? (
+                      <View style={styles.messageUser}>
                         <LinearGradient
                           colors={[theme.userGradientFrom, theme.userGradientTo]}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={styles.userBubble}
                         >
-                          <Text style={styles.userMessageText}>{m.content}</Text>
+                          <Text style={styles.userMessageText}>{message.content}</Text>
                         </LinearGradient>
                       </View>
                     ) : (
-                      <View key={m.id} style={styles.messageAssistant}>
+                      <View style={styles.messageAssistant}>
                         <View style={[styles.assistantBubble, { backgroundColor: theme.bgTertiary, borderColor: theme.borderColor }]}>
                           <Text style={[styles.assistantMessageText, { color: theme.textPrimary }]}>
-                            {m.content}
+                            {message.content}
                           </Text>
                         </View>
                       </View>
-                    )
-                  )}
-
+                    )}
+              ListFooterComponent={messages.length > 0 ? (
+                <>
                   {sending && (
                     <View style={styles.typingContainer}>
                       <View style={[styles.typingBubble, { backgroundColor: theme.bgTertiary }]}>
@@ -868,9 +947,22 @@ const ChatbotScreen: React.FC = () => {
                       </View>
                     </View>
                   )}
+                  {symptomSuggestion && (
+                    <View style={[styles.symptomSuggestion, { backgroundColor: theme.bgTertiary, borderColor: theme.borderColor }]}>
+                      <Text style={[styles.symptomSuggestionTitle, { color: theme.textPrimary }]}>Add reported symptoms to My Health?</Text>
+                      <Text style={[styles.symptomSuggestionCopy, { color: theme.textSecondary }]}>{symptomSuggestion.keys.map((key) => key.replace(/_/g, ' ')).join(', ')}</Text>
+                      <View style={styles.symptomSuggestionActions}>
+                        <Pressable onPress={() => setSymptomSuggestion(null)} style={styles.symptomSuggestionSecondary} accessibilityRole="button" accessibilityLabel="Do not add these symptoms"><Text style={{ color: theme.textSecondary }}>Not now</Text></Pressable>
+                        <Pressable onPress={() => void confirmSuggestedSymptoms()} disabled={recordingSymptoms} style={[styles.symptomSuggestionPrimary, { backgroundColor: theme.accent }, recordingSymptoms && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel="Add selected symptoms to My Health"><Text style={styles.symptomSuggestionPrimaryText}>{recordingSymptoms ? 'Saving…' : 'Add to My Health'}</Text></Pressable>
+                      </View>
+                    </View>
+                  )}
                 </>
-              )}
-            </ScrollView>
+              ) : null}
+              onContentSizeChange={() => {
+                if (sending) scrollRef.current?.scrollToEnd({ animated: true });
+              }}
+            />
           )}
 
           {/* Input Area */}
@@ -1277,6 +1369,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  loadEarlier: { alignSelf: 'center', minHeight: 44, borderWidth: StyleSheet.hairlineWidth, borderRadius: 22, paddingHorizontal: 18, marginBottom: 14, alignItems: 'center', justifyContent: 'center' },
+  loadEarlierText: { fontFamily: FontFamily.semibold, fontSize: FontSize.sm },
+  retryChat: { minHeight: 44, marginTop: 8, alignSelf: 'center', paddingHorizontal: 16, justifyContent: 'center' },
+  symptomSuggestion: { borderWidth: 1, borderRadius: 16, padding: 14, marginTop: 8, marginBottom: 10, maxWidth: '88%', alignSelf: 'flex-start' },
+  symptomSuggestionTitle: { fontFamily: FontFamily.bold, fontSize: 15, marginBottom: 4 },
+  symptomSuggestionCopy: { fontFamily: FontFamily.regular, fontSize: 14, lineHeight: 20 },
+  symptomSuggestionActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 12 },
+  symptomSuggestionSecondary: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' },
+  symptomSuggestionPrimary: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center' },
+  symptomSuggestionPrimaryText: { color: Colors.textLight, fontFamily: FontFamily.semibold },
   typingContainer: {
     alignSelf: 'flex-start',
   },

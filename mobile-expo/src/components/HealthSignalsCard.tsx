@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated as RNAnimated, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { BorderRadius, Colors, FontFamily, FontSize, LetterSpacing, Spacing } from '../../theme';
 import type { BrainResult, BrainRiskLevel } from '../services/brain';
 import { useTheme } from '../hooks/useTheme';
@@ -50,10 +51,34 @@ const HealthSignalsCard: React.FC<HealthSignalsCardProps> = ({
 }) => {
   const { isDark, colors } = useTheme();
   const [tab, setTab] = useState<SignalTab>('personal');
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const pulse = useRef(new RNAnimated.Value(0)).current;
   const brain = tab === 'personal' ? personal : area;
   const openReport = tab === 'personal' ? onOpenPersonal : onOpenArea;
   const meta = brain ? LEVEL_META[brain.riskLevel] : LEVEL_META.Low;
   const updatedLabel = useMemo(() => freshness(generatedAt), [generatedAt]);
+  const sourceLabel = tab === 'personal'
+    ? 'Private check-in signal'
+    : brain?.signals?.find((signal) => signal.type === 'verified_report' || signal.type === 'risk_forecast')?.source || 'Area intelligence';
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (mounted) setReduceMotion(enabled); });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { mounted = false; subscription.remove(); };
+  }, []);
+
+  useEffect(() => {
+    pulse.stopAnimation();
+    pulse.setValue(0);
+    if (reduceMotion || !brain) return;
+    const animation = RNAnimated.loop(RNAnimated.sequence([
+      RNAnimated.timing(pulse, { toValue: 1, duration: 1800, useNativeDriver: true }),
+      RNAnimated.timing(pulse, { toValue: 0, duration: 1800, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [brain, pulse, reduceMotion]);
 
   const emptyCopy = tab === 'personal'
     ? 'Complete a daily check-in to start building a private signal from your recent entries.'
@@ -61,6 +86,24 @@ const HealthSignalsCard: React.FC<HealthSignalsCardProps> = ({
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: isDark ? '#000' : colors.shadow }]}>
+      <View pointerEvents="none" style={styles.contours} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Svg width="190" height="190" viewBox="0 0 190 190">
+          {[34, 58, 82].map((radius) => <Circle key={radius} cx="154" cy="32" r={radius} fill="none" stroke={colors.primary} strokeOpacity={0.07} strokeWidth="1" />)}
+        </Svg>
+      </View>
+      {brain && (
+        <RNAnimated.View
+          pointerEvents="none"
+          style={[
+            styles.pulse,
+            { backgroundColor: meta.color },
+            !reduceMotion && {
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.18] }),
+              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1.18] }) }],
+            },
+          ]}
+        />
+      )}
       <View style={styles.header}>
         <View style={[styles.headerIcon, { backgroundColor: colors.primaryTint }]}>
           <Icon name="activity" size={19} color={colors.primary} />
@@ -137,6 +180,11 @@ const HealthSignalsCard: React.FC<HealthSignalsCardProps> = ({
 
             <Text style={[styles.summary, { color: colors.textSecondary }]} numberOfLines={5}>{brain.summary}</Text>
 
+            <View style={styles.evidenceRow}>
+              <Icon name="shield-check" size={13} color={colors.primary} />
+              <Text style={[styles.evidenceText, { color: colors.textMuted }]} numberOfLines={1}>{sourceLabel} · {updatedLabel}</Text>
+            </View>
+
             {(brain.recommendedActions?.[0] || brain.signals?.[0]?.summary) && (
               <View style={[styles.action, { backgroundColor: colors.surfaceSunken }]}>
                 <View style={[styles.actionIcon, { backgroundColor: colors.primaryTint }]}><Icon name="check" size={12} color={colors.primary} strokeWidth={2.5} /></View>
@@ -156,7 +204,9 @@ const HealthSignalsCard: React.FC<HealthSignalsCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  card: { borderRadius: BorderRadius.card, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.lg, gap: Spacing.base, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 2 },
+  card: { borderRadius: BorderRadius.card, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.lg, gap: Spacing.base, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 2, overflow: 'hidden' },
+  contours: { position: 'absolute', right: -24, top: -32 },
+  pulse: { position: 'absolute', width: 72, height: 72, borderRadius: 36, right: -4, top: -3, opacity: 0.1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 },
@@ -184,6 +234,8 @@ const styles = StyleSheet.create({
   trace: { flexDirection: 'row', gap: 6, marginTop: Spacing.base },
   traceSegment: { flex: 1, height: 6, borderRadius: 3 },
   summary: { fontFamily: FontFamily.regular, fontSize: FontSize.sm, lineHeight: 21, marginTop: Spacing.base },
+  evidenceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm },
+  evidenceText: { flex: 1, fontFamily: FontFamily.medium, fontSize: 10 },
   action: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: BorderRadius.md, padding: Spacing.md, marginTop: Spacing.md },
   actionIcon: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   actionText: { flex: 1, fontFamily: FontFamily.medium, fontSize: FontSize.xs, lineHeight: 18 },

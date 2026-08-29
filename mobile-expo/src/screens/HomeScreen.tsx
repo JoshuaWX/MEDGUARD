@@ -62,7 +62,11 @@ const getRiskMeta = (level: string): { tint: string; title: string; icon: IconNa
   switch (level) {
     case 'high':
       return { tint: Colors.danger, title: 'Elevated risk area', icon: 'alert-triangle' };
+    case 'elevated':
+    case 'verified':
+      return { tint: Colors.warning, title: 'Verified or elevated outlook', icon: 'alert-circle' };
     case 'medium':
+    case 'moderate':
       return { tint: Colors.warning, title: 'Moderate risk area', icon: 'alert-circle' };
     default:
       return { tint: Colors.success, title: 'Low risk area', icon: 'shield-check' };
@@ -123,8 +127,10 @@ const HomeScreen: React.FC = () => {
 
   const location = alertArea?.state || 'Your saved area';
   const showLocationPrompt = permissionStatus !== 'granted' && permissionStatus !== 'denied';
-  const activeRisks = intel?.riskAssessment?.diseases?.filter((d) => d.isActive && d.riskLevel !== 'low') || [];
-  const topRecommendation = activeRisks[0]?.actions?.[0];
+  const activeRisks = intel?.areaOutlook?.filter((item) => item.level !== 'low') || [];
+  const topRecommendation = activeRisks[0]?.kind === 'forecast'
+    ? 'Follow official guidance and seek care if symptoms persist or worsen.'
+    : undefined;
   const firstName = user?.name?.split(' ')[0] || 'Friend';
 
   // Welcoming, time-aware hero without an unverified risk verdict.
@@ -288,7 +294,7 @@ const HomeScreen: React.FC = () => {
                   <View>
                     <Text style={[styles.sectionLabel, { color: colors.textMuted, marginBottom: 3 }]}>CURRENT AREA OUTLOOK</Text>
                     <Text style={[styles.outlookMeta, { color: colors.textMuted }]}>
-                      {location} · MedGuard risk estimate
+                      {location} · verified reports and active projections
                       {intel?.generatedAt ? ` · ${new Date(intel.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </Text>
                   </View>
@@ -300,20 +306,29 @@ const HomeScreen: React.FC = () => {
                 <>
                 <View style={styles.riskList}>
                   {activeRisks.slice(0, 3).map((risk) => {
-                    const m = getRiskMeta(risk.riskLevel);
+                    const m = getRiskMeta(risk.level);
                     return (
-                      <Card key={risk.diseaseKey} variant="plain" padding={Spacing.base} style={styles.riskItem}>
+                      <Card key={risk.id} variant="plain" padding={Spacing.base} style={styles.riskItem}>
                         <View style={[styles.riskIndicator, { backgroundColor: m.tint }]} />
                         <View style={{ flex: 1 }}>
                           <View style={styles.riskHeader}>
-                            <Text style={[styles.riskName, { color: colors.text }]}>{risk.disease}</Text>
+                            <Text style={[styles.riskName, { color: colors.text }]}>{risk.disease || risk.headline}</Text>
                             <View style={[styles.riskBadge, { backgroundColor: `${m.tint}18` }]}>
-                              <Text style={[styles.riskBadgeText, { color: m.tint }]}>{risk.riskLevel.toUpperCase()}</Text>
+                              <Text style={[styles.riskBadgeText, { color: m.tint }]}>{risk.kind === 'forecast' ? `${risk.level} projection` : 'verified report'}</Text>
                             </View>
                           </View>
                           <Text style={[styles.riskReason, { color: colors.textSecondary }]} numberOfLines={2}>
-                            {risk.reasons[0]}
+                            {risk.summary}
                           </Text>
+                          <View style={styles.riskEvidence}>
+                            <Icon name="shield-check" size={12} color={colors.primary} />
+                            <Text style={[styles.riskEvidenceText, { color: colors.textMuted }]} numberOfLines={2}>
+                              {risk.source}
+                              {risk.confidence != null ? ` · ${Math.round(risk.confidence * (risk.confidence <= 1 ? 100 : 1))}% confidence` : ''}
+                              {risk.generatedAt ? ` · ${new Date(risk.generatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : ''}
+                              {risk.validUntil ? ` · valid to ${new Date(risk.validUntil).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : ''}
+                            </Text>
+                          </View>
                         </View>
                       </Card>
                     );
@@ -351,7 +366,7 @@ const HomeScreen: React.FC = () => {
             )}
 
             <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
-              {intel?.riskAssessment?.disclaimer || 'For awareness only. Consult a clinician for symptoms.'}
+              Projection and report awareness only — not a diagnosis or outbreak confirmation. Consult a clinician for symptoms.
             </Text>
           </Animated.View>
         )}
@@ -471,6 +486,8 @@ const styles = StyleSheet.create({
   riskBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.pill },
   riskBadgeText: { fontFamily: FontFamily.bold, fontSize: 10, letterSpacing: 0.4 },
   riskReason: { fontFamily: FontFamily.regular, fontSize: FontSize.xs, lineHeight: 17 },
+  riskEvidence: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 7 },
+  riskEvidenceText: { flex: 1, fontFamily: FontFamily.medium, fontSize: 9, lineHeight: 13 },
 
   viewAllBtn: {
     flexDirection: 'row',

@@ -19,6 +19,55 @@ import { loadVerifiedReports } from '../_shared/brain/verifiedReportsLoader.ts';
 import { loadRiskForecast } from '../_shared/brain/riskForecastLoader.ts';
 import { loadPersonalHealthSnapshot } from '../_shared/personalHealth.ts';
 
+type AreaOutlookItem = {
+  id: string;
+  kind: 'forecast' | 'verified_report';
+  disease: string | null;
+  level: 'low' | 'moderate' | 'elevated' | 'high' | 'verified';
+  headline: string;
+  summary: string;
+  source: string;
+  confidence: number | null;
+  forecastType: string | null;
+  generatedAt: string;
+  validUntil: string | null;
+};
+
+function buildAreaOutlook(
+  reports: Awaited<ReturnType<typeof loadVerifiedReports>>,
+  forecasts: Awaited<ReturnType<typeof loadRiskForecast>>,
+  now: Date,
+): AreaOutlookItem[] {
+  const official = reports.map((report) => ({
+    id: `report:${report.id}`,
+    kind: 'verified_report' as const,
+    disease: null,
+    level: 'verified' as const,
+    headline: 'Verified official report',
+    summary: report.summary,
+    source: report.sourceType || 'Official source',
+    confidence: null,
+    forecastType: null,
+    generatedAt: report.occurredAt,
+    validUntil: report.expiresAt ?? null,
+  }));
+  const projections = forecasts.map((forecast) => ({
+    id: `forecast:${forecast.disease}:${forecast.generatedAt ?? forecast.validUntil ?? now.toISOString()}`,
+    kind: 'forecast' as const,
+    disease: forecast.disease,
+    level: forecast.projectedRiskLevel,
+    headline: `${forecast.disease} risk projection`,
+    summary: forecast.summary || 'A MedGuard model projection is active for this area.',
+    source: 'MedGuard forecast model',
+    confidence: forecast.confidence ?? null,
+    forecastType: forecast.modelVersion || 'Risk estimate',
+    generatedAt: forecast.generatedAt ?? now.toISOString(),
+    validUntil: forecast.validUntil ?? null,
+  }));
+  return [...official, ...projections]
+    .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+}
+
 // OpenWeather API key from environment
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') || '';
 // Server-side Google Maps Platform key for the Weather + Air Quality APIs.
@@ -663,6 +712,10 @@ serve(async (req: Request) => {
       loadVerifiedReports(admin, stateNormalized),
       loadRiskForecast(admin, stateNormalized),
     ]);
+    // Visible disease-specific outlooks come only from attributable verified
+    // reports or active forecast rows. Weather is environmental context, never
+    // evidence by itself of a disease alert.
+    const areaOutlook = buildAreaOutlook(verifiedReports, riskForecast, now);
     let brain = null as Awaited<ReturnType<typeof buildBrainAsync>> | null;
     try {
       brain = await buildBrainAsync(
@@ -673,7 +726,7 @@ serve(async (req: Request) => {
           forecast: forecastData,
           season,
           aqiInsight,
-          diseases: riskAssessment?.diseases ?? null,
+          diseases: null,
           outbreaks,
           whoAlerts,
           trendBaseline,
@@ -741,21 +794,23 @@ serve(async (req: Request) => {
         disclaimer: riskAssessment.disclaimer,
       } : null,
 
+      areaOutlook,
+
       // NEW (Brain v1): additive area/community intelligence object.
       brain,
       
       // Legacy advisories format (for backward compatibility)
-      advisories: riskAssessment?.diseases
-        .filter(d => d.isActive)
-        .map(d => ({
-          disease: d.disease,
-          severity: d.riskLevel,
-          summary: d.reasons[0] || 'Elevated risk conditions detected',
-          recommendation: d.actions[0] || 'Take standard precautions',
-          source: d.sources.join(', '),
-          riskLevel: d.riskLevel,
-          confidence: d.confidence,
-        })) ?? [],
+      advisories: areaOutlook
+        .filter((item) => item.kind === 'forecast' && item.level !== 'low')
+        .map((item) => ({
+          disease: item.disease,
+          severity: item.level,
+          summary: item.summary,
+          recommendation: 'Follow official health guidance and seek care for symptoms that persist or worsen.',
+          source: item.source,
+          riskLevel: item.level,
+          confidence: item.confidence,
+        })),
       
       outbreaks,
       whoAlerts,
@@ -774,7 +829,7 @@ serve(async (req: Request) => {
 
       meta: {
         version: 'edge-v2',
-        note: 'Intel with Google Weather + Air Quality, deterministic disease-risk rules, and official-source outbreak relay',
+        note: 'Intel with environmental context, active MedGuard projections, and official-source report relay',
         disclaimer: HEALTH_DISCLAIMER,
         dataFreshness: {
           weather: weatherResult ? 'live' : 'unavailable',

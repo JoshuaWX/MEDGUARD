@@ -10,9 +10,12 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../services/supabase';
 import { cancelDailyReminder, getExistingPushToken, unregisterPushToken } from '../services/notifications';
+import { clearNearbyFacilityCache } from '../services/facilityRepository';
 import { AuthChangeEvent, Session, User, AuthError } from '@supabase/supabase-js';
 
 WebBrowser.maybeCompleteAuthSession();
+
+export type SessionTrust = 'restoring' | 'verified' | 'guest';
 
 interface AuthState {
   session: Session | null;
@@ -21,6 +24,8 @@ interface AuthState {
   initialized: boolean;
   /** True when user is browsing without authentication (guest mode) */
   isGuest: boolean;
+  /** A restored encrypted session may render owner-scoped caches, but cannot make fresh network requests until claims verify. */
+  sessionTrust: SessionTrust;
 }
 
 interface SignUpData {
@@ -312,6 +317,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     loading: true,
     initialized: false,
     isGuest: false,
+    sessionTrust: 'restoring',
   });
   const [pendingRecovery, setPendingRecovery] = useState(false);
   const redirectTasks = React.useRef(
@@ -386,7 +392,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     let refreshState: 'active' | 'inactive' | null = null;
     let refreshTask = Promise.resolve();
 
-    const commitSession = (session: Session | null, isGuest = false) => {
+    const commitSession = (session: Session | null, isGuest = false, sessionTrust: SessionTrust = session ? 'verified' : 'guest') => {
       if (!active) return;
       setState({
         session,
@@ -394,6 +400,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         loading: false,
         initialized: true,
         isGuest: !session && isGuest,
+        sessionTrust,
       });
     };
 
@@ -434,6 +441,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         loading: false,
         initialized: true,
         isGuest: session?.user ? false : prev.isGuest,
+        sessionTrust: session?.user
+          ? ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && prev.session?.access_token !== session.access_token
+            ? 'restoring'
+            : prev.sessionTrust === 'verified' ? 'verified' : 'restoring')
+          : 'guest',
       }));
 
       if (event === 'INITIAL_SESSION' && Platform.OS !== 'web') {
@@ -455,17 +467,27 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const isGuest = guestFlag === '1';
 
       try {
-        let verifiedSession = await getInitialSessionWithRetry();
-        if (verifiedSession) {
-          const validation = await validateSession(verifiedSession);
-          if (validation === 'invalid') {
-            await supabase.auth.signOut({ scope: 'local' });
-            verifiedSession = null;
-          } else if (validation === 'temporarily_unverified') {
-            console.warn('Session verification deferred until connectivity returns.');
-          }
+        const restoredSession = await getInitialSessionWithRetry();
+        // A locally restored session is enough to show encrypted, owner-scoped
+        // caches immediately. Fresh reads/writes remain gated by sessionTrust.
+        commitSession(restoredSession, isGuest, restoredSession ? 'restoring' : 'guest');
+        if (restoredSession) {
+          void validateSession(restoredSession).then(async (validation) => {
+            if (!active) return;
+            if (validation === 'invalid') {
+              await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+              if (active) commitSession(null, isGuest, 'guest');
+              return;
+            }
+            if (validation === 'verified') {
+              setState((prev) => prev.session?.access_token === restoredSession.access_token
+                ? { ...prev, sessionTrust: 'verified' }
+                : prev);
+            }
+            // Network failure deliberately stays restoring: cached content is
+            // labelled by its cache age and no unaudited fresh request is made.
+          }).catch(() => undefined);
         }
-        commitSession(verifiedSession, isGuest);
       } catch (error) {
         const message = isTransientAuthError(error)
           ? 'Authentication initialization was delayed; the saved session was left intact.'
@@ -502,8 +524,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [consumeAuthRedirect]);
 
   useEffect(() => {
-    if (state.user) void ensureProfileExists(state.user);
-  }, [state.user?.id]);
+    if (state.sessionTrust === 'verified' && state.user) void ensureProfileExists(state.user);
+  }, [state.sessionTrust, state.user?.id]);
 
   const beginFreshAuthAttempt = useCallback(async () => {
     const previousUserId = state.user?.id;
@@ -511,6 +533,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const token = await getExistingPushToken().catch(() => null);
       if (token) await unregisterPushToken(token).catch(() => undefined);
       await cancelDailyReminder(previousUserId).catch(() => undefined);
+      await clearNearbyFacilityCache(previousUserId).catch(() => undefined);
     }
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
@@ -521,6 +544,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       user: null,
       isGuest: false,
       loading: true,
+      sessionTrust: 'guest',
     }));
   }, [state.user?.id]);
 
@@ -556,6 +580,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session,
         user: sessionUser,
         isGuest: false,
+        sessionTrust: validation === 'verified' ? 'verified' : 'restoring',
       }));
 
       return {
@@ -693,6 +718,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session,
         user: session.user,
         isGuest: false,
+        sessionTrust: validation === 'verified' ? 'verified' : 'restoring',
       }));
       return {
         outcome: 'authenticated',
@@ -717,6 +743,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const token = await getExistingPushToken().catch(() => null);
         if (token) await unregisterPushToken(token).catch(() => undefined);
         await cancelDailyReminder(signingOutUserId).catch(() => undefined);
+        await clearNearbyFacilityCache(signingOutUserId).catch(() => undefined);
       }
       await clearStagedOnboardingData();
       // Clear guest mode flag on sign out
@@ -732,6 +759,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session: null,
         user: null,
         isGuest: false,
+        sessionTrust: 'guest',
       }));
     } catch (e) {
       console.warn('signOut exception:', e);
@@ -741,15 +769,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         session: null,
         user: null,
         isGuest: false,
+        sessionTrust: 'guest',
       }));
     }
-  }, []);
+  }, [state.user?.id]);
 
   /**
    * Enter guest mode - allows browsing without authentication.
    * Guest users have limited access to features.
    */
   const continueAsGuest = useCallback(async () => {
+    if (state.user?.id) await clearNearbyFacilityCache(state.user.id).catch(() => undefined);
     await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     await AsyncStorage.setItem('mg_guest_mode', '1');
     setState((prev) => ({
@@ -757,8 +787,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       isGuest: true,
       session: null,
       user: null,
+      sessionTrust: 'guest',
     }));
-  }, []);
+  }, [state.user?.id]);
 
   const resetPassword = useCallback(async (email: string) => {
     try {
@@ -779,20 +810,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' });
       if (signOutError) throw signOutError;
       await clearStagedOnboardingData();
+      if (state.user?.id) await clearNearbyFacilityCache(state.user.id).catch(() => undefined);
       setState((prev) => ({
         ...prev,
         session: null,
         user: null,
         isGuest: false,
         loading: false,
+        sessionTrust: 'guest',
       }));
       return { error: null };
     } catch (error) {
       return { error: error as AuthError };
     }
-  }, []);
+  }, [state.user?.id]);
 
   const clearRecovery = useCallback(async () => {
+    if (state.user?.id) await clearNearbyFacilityCache(state.user.id).catch(() => undefined);
     await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     setPendingRecovery(false);
     setState((prev) => ({
@@ -801,6 +835,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       user: null,
       isGuest: false,
       loading: false,
+      sessionTrust: 'guest',
     }));
   }, [state.user?.id]);
 

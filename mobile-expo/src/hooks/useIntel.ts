@@ -11,6 +11,7 @@ import { AQIInsight } from '../components/AQICard';
 import { DiseaseRisk } from '../components/RiskCard';
 import { toUserMessage } from '../services/errorMessages';
 import { BrainResult } from '../services/brain';
+import { readPublicCache, writePublicCache } from '../services/publicCache';
 
 // v2 Response Types
 export interface IntelV2 {
@@ -62,6 +63,19 @@ export interface IntelV2 {
     diseases: DiseaseRisk[];
     disclaimer: string;
   } | null;
+  areaOutlook: Array<{
+    id: string;
+    kind: 'forecast' | 'verified_report';
+    disease: string | null;
+    level: 'low' | 'moderate' | 'elevated' | 'high' | 'verified';
+    headline: string;
+    summary: string;
+    source: string;
+    confidence: number | null;
+    forecastType: string | null;
+    generatedAt: string;
+    validUntil: string | null;
+  }>;
   /** Brain v1: additive area/community intelligence (read-only). */
   brain?: BrainResult | null;
   /** Brain v1: personal intelligence, present only when authenticated. */
@@ -80,19 +94,19 @@ interface UseIntelReturn {
   refresh: () => Promise<void>;
 }
 
-const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_DURATION_MS = 15 * 60 * 1000;
 
 const IntelContext = createContext<UseIntelReturn | null>(null);
 
 export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const { initialized: authInitialized } = useAuth();
+  const { initialized: authInitialized, sessionTrust } = useAuth();
   const { alertArea, loading: locationLoading } = useLocationContext();
   const requestIdRef = useRef(0);
   const [intel, setIntel] = useState<IntelV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchIntel = useCallback(async () => {
+  const fetchIntel = useCallback(async (force = false) => {
     if (!authInitialized) {
       setLoading(true);
       return;
@@ -108,6 +122,19 @@ export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) =
       }
       setIntel(null);
       setError(null);
+      setLoading(false);
+      return;
+    }
+
+    const cached = await readPublicCache<IntelV2>('intel', state, CACHE_DURATION_MS);
+    if (requestId !== requestIdRef.current) return;
+    if (cached) {
+      // Personal Brain is deliberately excluded from persistent public cache.
+      setIntel({ ...cached.data, personalBrain: null });
+      setLoading(false);
+      if (cached.fresh && !force) return;
+    }
+    if (sessionTrust !== 'verified') {
       setLoading(false);
       return;
     }
@@ -132,8 +159,8 @@ export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         throw new Error('Intel response did not match the current alert area');
       }
       setIntel(data);
-
-      // We rely on the Edge Function to upsert the cache server-side.
+      const { personalBrain: _personalBrain, ...publicIntel } = data;
+      void writePublicCache('intel', state, publicIntel);
       
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
@@ -144,7 +171,7 @@ export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) =
         setLoading(false);
       }
     }
-  }, [alertArea?.state, authInitialized, locationLoading]);
+  }, [alertArea?.state, authInitialized, locationLoading, sessionTrust]);
 
   useEffect(() => {
     fetchIntel();
@@ -152,7 +179,7 @@ export const IntelProvider: React.FC<React.PropsWithChildren> = ({ children }) =
 
   return React.createElement(
     IntelContext.Provider,
-    { value: { intel, loading, error, refresh: fetchIntel } },
+    { value: { intel, loading, error, refresh: () => fetchIntel(true) } },
     children,
   );
 };

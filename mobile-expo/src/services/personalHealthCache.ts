@@ -31,6 +31,10 @@ export interface PersonalHealthCacheEntry<T> {
 const metaKey = (key: string) => `${key}${META_SUFFIX}`;
 const chunkKey = (key: string, index: number) => `${key}${CHUNK_SUFFIX}${index}`;
 const cacheKey = (userId: string) => `${CACHE_PREFIX}.${userId}`;
+const scopedCacheKey = (namespace: string, userId: string, identifier: string) =>
+  `medguard.secure.v1.${namespace}.${userId}.${encodeURIComponent(identifier)}`;
+const scopedIndexKey = (namespace: string, userId: string) =>
+  `medguard.secure.v1.${namespace}.${userId}.__index`;
 
 async function removeSecureValue(key: string): Promise<void> {
   const meta = await SecureStore.getItemAsync(metaKey(key), secureOptions);
@@ -137,3 +141,53 @@ export async function clearPersonalHealthDashboardCache(userId: string | null | 
   }
 }
 
+/** Reuses the same chunked SecureStore discipline for other owner-scoped caches. */
+export async function readSecureUserCache<T>(namespace: string, userId: string, identifier: string, freshForMs: number): Promise<PersonalHealthCacheEntry<T> | null> {
+  if (!isSafeUserId(userId) || !/^[a-z0-9_-]{1,40}$/i.test(namespace)) return null;
+  try {
+    const raw = await readSecureValue(scopedCacheKey(namespace, userId, identifier));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { cachedAt?: string; data?: T };
+    const age = Date.now() - new Date(parsed.cachedAt ?? '').getTime();
+    if (parsed.data == null || !Number.isFinite(age) || age < 0 || age > MAX_AGE_MS) return null;
+    return { data: parsed.data, cachedAt: parsed.cachedAt!, freshness: age <= freshForMs ? 'fresh' : 'stale' };
+  } catch { return null; }
+}
+
+export async function writeSecureUserCache<T>(namespace: string, userId: string, identifier: string, data: T): Promise<void> {
+  if (!isSafeUserId(userId) || !/^[a-z0-9_-]{1,40}$/i.test(namespace)) return;
+  const serialized = JSON.stringify({ cachedAt: new Date().toISOString(), data });
+  if (serialized.length > 48_000) return;
+  try {
+    await writeSecureValue(scopedCacheKey(namespace, userId, identifier), serialized);
+    const indexKey = scopedIndexKey(namespace, userId);
+    const rawIndex = await readSecureValue(indexKey);
+    const identifiers = rawIndex ? JSON.parse(rawIndex) as unknown : [];
+    const next = new Set(Array.isArray(identifiers) ? identifiers.filter((item): item is string => typeof item === 'string') : []);
+    next.add(identifier);
+    await writeSecureValue(indexKey, JSON.stringify([...next].slice(-100)));
+  } catch { /* cache is best effort */ }
+}
+
+export async function clearSecureUserCache(namespace: string, userId: string, identifier: string): Promise<void> {
+  if (!isSafeUserId(userId) || !/^[a-z0-9_-]{1,40}$/i.test(namespace)) return;
+  try { await removeSecureValue(scopedCacheKey(namespace, userId, identifier)); } catch { /* no-op */ }
+}
+
+/** Remove every encrypted entry in one user's namespace on sign-out/account changes. */
+export async function clearSecureUserNamespace(namespace: string, userId: string): Promise<void> {
+  if (!isSafeUserId(userId) || !/^[a-z0-9_-]{1,40}$/i.test(namespace)) return;
+  const indexKey = scopedIndexKey(namespace, userId);
+  try {
+    const rawIndex = await readSecureValue(indexKey);
+    const identifiers = rawIndex ? JSON.parse(rawIndex) as unknown : [];
+    if (Array.isArray(identifiers)) {
+      await Promise.all(identifiers
+        .filter((item): item is string => typeof item === 'string')
+        .map((identifier) => removeSecureValue(scopedCacheKey(namespace, userId, identifier))));
+    }
+    await removeSecureValue(indexKey);
+  } catch {
+    // Cache removal must not prevent sign-out.
+  }
+}

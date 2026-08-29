@@ -27,6 +27,7 @@ interface RawForecastRow {
   driver_factors?: string[] | null;
   summary?: string | null;
   model_version?: string;
+  generated_at?: string | null;
   forecast_period_start?: string | null;
   forecast_horizon_days?: number | null;
   valid_until?: string | null;
@@ -72,6 +73,7 @@ export async function loadRiskForecast(
         driverFactors: Array.isArray(r.driver_factors) ? r.driver_factors : [],
         summary: r.summary ?? null,
         modelVersion: String(r.model_version ?? 'forecast'),
+        generatedAt: r.generated_at ?? null,
         forecastPeriodStart: r.forecast_period_start ?? null,
         horizonDays: typeof r.forecast_horizon_days === 'number' ? r.forecast_horizon_days : null,
         validUntil: r.valid_until ?? null,

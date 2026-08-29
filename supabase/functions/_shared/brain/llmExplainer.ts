@@ -128,7 +128,7 @@ async function geminiExplain(system: string, user: string): Promise<string | nul
 async function groqExplain(system: string, user: string): Promise<string | null> {
   const key = optionalEnv('GROQ_API_KEY');
   if (!key) return null;
-  const model = optionalEnv('GROQ_MODEL') || 'llama-3.1-8b-instant';
+  const model = optionalEnv('GROQ_MODEL') || 'openai/gpt-oss-20b';
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },

@@ -12,13 +12,14 @@
     "mobile:android": "npm --prefix mobile-expo run android",
     "mobile:typecheck": "cd mobile-expo && npx tsc --noEmit",
     "mobile:test:contracts": "node --import tsx --test mobile-expo/scripts/runtime-contracts.test.ts",
-    "edge:test:notifications": "node --import tsx --test supabase/functions/_shared/__tests__/push.test.ts",
+    "edge:test:notifications": "node --import tsx --test supabase/functions/_shared/__tests__/*.test.ts",
     "supabase:bundle:intel": "node scripts/build-intel-bundle.mjs",
     "supabase:test": "supabase test db",
     "verify": "npm run mobile:typecheck && npm run mobile:test:contracts && npm run edge:test:notifications"
   },
   "devDependencies": {
     "@types/node": "^20.3.1",
+    "deno": "^2.9.6",
     "supabase": "^2.105.0",
     "tsx": "^4.19.4",
     "typescript": "^5.4.2"

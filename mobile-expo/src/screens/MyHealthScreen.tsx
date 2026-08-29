@@ -76,7 +76,8 @@ import {
 } from '../components';
 import { toUserMessage } from '../services/errorMessages';
 import { notifyStreakMilestone } from '../services/notifications';
-import { fetchNearbyFacilities, type NearbyFacility } from '../services/nearbyFacilities';
+import { type NearbyFacility } from '../services/nearbyFacilities';
+import { loadNearbyFacilitySnapshot } from '../services/facilityRepository';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useHealthCheckin, CheckinAnswers } from '../hooks/useHealthCheckin';
@@ -289,55 +290,33 @@ const MyHealthScreenContent: React.FC = () => {
     }
   }, [hasCheckedIn, streak?.currentStreak]);
 
-  const loadHealthFacilities = useCallback(async (latitude: number, longitude: number) => {
+  const loadHealthFacilities = useCallback(async (latitude: number, longitude: number, force = false) => {
+    if (!authUser?.id) return;
     const requestId = ++facilitiesRequestIdRef.current;
     setFacilitiesLoading(true);
     setFacilitiesError(null);
     setFacilitiesRadiusUsed(null);
 
-    const first = await fetchNearbyFacilities({
+    const result = await loadNearbyFacilitySnapshot({
+      userId: authUser.id,
       latitude,
       longitude,
-      radiusMeters: 5000,
       type: 'clinic',
+      force,
     });
 
     if (requestId !== facilitiesRequestIdRef.current) return;
 
-    if (first.error) {
+    if (result.error || !result.snapshot) {
       setNearbyFacilities([]);
-      setFacilitiesError(toUserMessage(first.error, 'facilities'));
+      setFacilitiesError(toUserMessage(result.error || 'Facilities are unavailable.', 'facilities'));
       setFacilitiesLoading(false);
       return;
     }
-
-    if (first.facilities.length > 0) {
-      setFacilitiesRadiusUsed(5000);
-      setNearbyFacilities(first.facilities);
-      setFacilitiesLoading(false);
-      return;
-    }
-
-    const wider = await fetchNearbyFacilities({
-      latitude,
-      longitude,
-      radiusMeters: 15000,
-      type: 'clinic',
-    });
-
-    if (requestId !== facilitiesRequestIdRef.current) return;
-
-    if (wider.error) {
-      setNearbyFacilities([]);
-      setFacilitiesError(toUserMessage(wider.error, 'facilities'));
-      setFacilitiesLoading(false);
-      return;
-    }
-
-    setFacilitiesRadiusUsed(15000);
-    setNearbyFacilities(wider.facilities);
+    setFacilitiesRadiusUsed(result.snapshot.radiusMeters);
+    setNearbyFacilities(result.snapshot.facilities);
     setFacilitiesLoading(false);
-  }, []);
+  }, [authUser?.id]);
 
   useEffect(() => {
     if (!location) {
@@ -353,13 +332,13 @@ const MyHealthScreenContent: React.FC = () => {
 
   const handleRetryFacilities = useCallback(async () => {
     if (location) {
-      await loadHealthFacilities(location.latitude, location.longitude);
+      await loadHealthFacilities(location.latitude, location.longitude, true);
       return;
     }
 
     const latest = await refreshLocation();
     if (latest) {
-      await loadHealthFacilities(latest.latitude, latest.longitude);
+      await loadHealthFacilities(latest.latitude, latest.longitude, true);
     }
   }, [loadHealthFacilities, location, refreshLocation]);
 
@@ -432,16 +411,15 @@ const MyHealthScreenContent: React.FC = () => {
       refresh(),
       refreshIntel(),
       location
-        ? loadHealthFacilities(location.latitude, location.longitude)
+        ? loadHealthFacilities(location.latitude, location.longitude, true)
         : Promise.resolve(),
     ]);
     setRefreshing(false);
   }, [refresh, refreshIntel, location, loadHealthFacilities]);
 
   const handleConnectSteps = useCallback(async () => {
-    if (stepAccessState === 'health_connect_permission'
-      || stepAccessState === 'health_connect_update_required'
-      || stepAccessState === 'error') {
+    if (stepAccessState === 'health_connect_denied'
+      || stepAccessState === 'health_connect_update_required') {
       setStepsPrimerOpen(false);
       await openStepSettings().catch(() => undefined);
       return;
@@ -452,7 +430,7 @@ const MyHealthScreenContent: React.FC = () => {
     setStepsPrimerOpen(false);
     if (!result.ok) {
       const title = result.state === 'health_connect_update_required' ? 'Health Connect needs attention' : 'Step access not enabled';
-      toast({ tone: 'warning', title, message: result.state === 'health_connect_permission'
+      toast({ tone: 'warning', title, message: result.state === 'health_connect_denied'
         ? 'Open Health Connect and allow MedGuard to read Steps.'
         : result.state === 'health_connect_update_required'
           ? 'Install or update Health Connect, then return to My Health.'
@@ -929,7 +907,7 @@ const MyHealthScreenContent: React.FC = () => {
           description={stepStatusMessage}
           primaryLabel={stepAccessState === 'health_connect_update_required'
             ? 'Update Health Connect'
-            : stepAccessState === 'health_connect_permission' || stepAccessState === 'error'
+            : stepAccessState === 'health_connect_denied'
               ? 'Open step settings'
               : stepAccessState === 'foreground_permission'
                 ? 'Allow live steps'
