@@ -1,0 +1,70 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SignalAtlas from '../components/SignalAtlas.astro';
+import ProductShowcase from '../components/ProductShowcase.astro';
+import WaitlistForm from '../components/WaitlistForm.astro';
+---
+<BaseLayout title="MedGuard" description="Know what is changing around you with state-relevant health outlooks, attributable official updates and private personal check-ins.">
+  <section class="hero">
+    <div class="shell hero__grid">
+      <div class="hero__copy">
+        <span class="eyebrow">Nigeria-first health awareness</span>
+        <h1>Know what’s changing around you.</h1>
+        <p class="hero__lede">MedGuard brings state-relevant outlooks, attributable official updates and private check-ins into one calm place—so awareness can lead to a practical next step.</p>
+        <div class="hero__actions"><a class="button button--light" href="#waitlist">Join the prototype</a><a class="button button--ghost" href="#how-it-works">See how it works</a></div>
+        <span class="trust-label">Prototype · Awareness only · Not diagnosis</span>
+      </div>
+      <SignalAtlas />
+    </div>
+  </section>
+
+  <div class="metric-strip" aria-label="MedGuard principles">
+    <div class="metric"><strong>State-relevant</strong><span>Information resolved to the user’s effective alert area</span></div>
+    <div class="metric"><strong>Source-aware</strong><span>Official reports and projections remain visibly distinct</span></div>
+    <div class="metric"><strong>Private by design</strong><span>Personal check-ins are not part of the public experience</span></div>
+  </div>
+
+  <section class="section section--white" id="how-it-works">
+    <div class="shell">
+      <header class="section-head"><span class="eyebrow">One signal, clearer context</span><h2>Designed to inform—never to alarm.</h2><p>Health information becomes more useful when its source, location, freshness and limits are visible at the moment a person needs them.</p></header>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-card__number">01</span><h3>Separate evidence types</h3><p>Verified official reports are not blended with model estimates. Each has its own label, source and validity.</p></article>
+        <article class="feature-card"><span class="feature-card__number">02</span><h3>Resolve the right area</h3><p>With permission, location can update an alert area. Without it, a saved home state remains the dependable fallback.</p></article>
+        <article class="feature-card"><span class="feature-card__number">03</span><h3>Offer a next step</h3><p>Practical guidance, nearby care and emergency direction sit alongside the signal—not behind medical certainty.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section showcase">
+    <div class="shell">
+      <header class="section-head"><span class="eyebrow">The MedGuard prototype</span><h2>A calm interface for noisy information.</h2><p>These synthetic product previews show the intended experience. They contain no real people, personal records or live epidemiological values.</p></header>
+      <ProductShowcase />
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="shell">
+      <header class="section-head"><span class="eyebrow">Built around trust</span><h2>Four details that should never be hidden.</h2></header>
+      <div class="field-notes">
+        <article class="field-note"><small>Source</small><h3>Attribution stays close</h3><p>MedGuard may surface public information from organisations such as NCDC and WHO. Source links are provided without implying partnership or endorsement.</p></article>
+        <article class="field-note"><small>Location</small><h3>Your area has a fallback</h3><p>Location sharing is optional. A manually saved home state can continue to power relevant awareness when GPS is unavailable or disabled.</p></article>
+        <article class="field-note"><small>Privacy</small><h3>Personal means owner-scoped</h3><p>Health check-ins are designed for the signed-in user. The public website collects no health information, names or location.</p></article>
+        <article class="field-note"><small>Safety</small><h3>Limits appear with the result</h3><p>Projections are labelled as estimates, not diagnoses or outbreak confirmations. Urgent symptoms need professional care—not an app prediction.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="shell safety-band">
+      <div><div class="safety-band__mark" aria-hidden="true"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 3 4.5 6v5.2c0 4.7 3.2 8.6 7.5 9.8 4.3-1.2 7.5-5.1 7.5-9.8V6L12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9 12.2 11 14l4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+      <div><span class="eyebrow">Safety is part of the interface</span><h2>Awareness has boundaries.</h2><div class="safety-list"><article><h3>Not a diagnosis</h3><p>MedGuard cannot diagnose illness, prescribe treatment or replace a clinician.</p></article><article><h3>Projection is not confirmation</h3><p>An area outlook estimates changing conditions. It does not confirm an outbreak.</p></article><article><h3>Emergencies need immediate care</h3><p>For a life-threatening emergency in Nigeria, call 112 and seek urgent medical help.</p></article></div><a class="button button--ghost" href="/safety">Read the safety approach</a></div>
+    </div>
+  </section>
+
+  <section class="section waitlist" id="waitlist">
+    <div class="shell waitlist__grid">
+      <div class="waitlist__copy"><span class="eyebrow">Prototype access</span><h2>Help shape a more useful health signal.</h2><p>Join the early-access list for occasional prototype invitations and important testing updates. No marketing tracker. No health questionnaire.</p></div>
+      <WaitlistForm />
+    </div>
+  </section>
+</BaseLayout>

@@ -1,16 +1,17 @@
 # MedGuard
 
-MedGuard is a Nigeria-first mobile health-awareness prototype. It helps people see locally relevant health signals, read attributable official updates, keep lightweight personal check-ins, and find nearby care. It is an awareness tool—not a diagnosis, emergency service, or substitute for a clinician.
+MedGuard is a Nigeria-first health-awareness prototype. It helps people see locally relevant health signals, read attributable official updates, keep lightweight personal check-ins, and find nearby care. It is an awareness tool—not a diagnosis, emergency service, or substitute for a clinician.
 
 ## Product status
 
-The production path is the Expo mobile app and Supabase backend. The project is still a prototype and uses conservative, clearly labelled risk estimates and official-source attribution.
+The product path is the Expo mobile app, the static public website, and a Supabase backend. The project is still a prototype and uses conservative, clearly labelled risk estimates and official-source attribution.
 
 ## Repository map
 
 | Path | Purpose |
 | --- | --- |
 | `mobile-expo/` | Expo/React Native Android and iOS application |
+| `website/` | Astro/TypeScript public product website and prototype waitlist |
 | `supabase/migrations/` | Canonical, timestamped production migration ledger |
 | `supabase/functions/` | Authenticated Edge Functions, notification jobs, intel and news ingestion |
 | `ml/` | Weekly state-level risk forecast pipelines |
@@ -21,9 +22,11 @@ The production path is the Expo mobile app and Supabase backend. The project is 
 ## Architecture
 
 ```text
-Expo app ── Authenticated Supabase client ── Supabase Auth/Postgres/Storage
-   │                                      └─ pg_cron → protected Edge Functions
-   └─ notification/deep-link routes            └─ official feeds + forecast jobs
+Expo app ───── Authenticated Supabase client ── Supabase Auth/Postgres/Storage
+   │                                           └─ pg_cron → protected Edge Functions
+   └─ notification/deep-link routes                 └─ official feeds + forecast jobs
+
+Astro website ─ POST /join-waitlist Edge Function ─ server-only RLS table
 ```
 
 Personal records are protected by grants and row-level security. The app receives personal data only for the signed-in user; area signals and official news are separately scoped and labelled.
@@ -36,6 +39,13 @@ Prerequisites: Node.js 20+, Expo tooling, Docker (for local Supabase), and the S
 npm ci
 cd mobile-expo && npm ci
 npx expo start
+```
+
+To run the public website:
+
+```bash
+npm ci --prefix website
+npm --prefix website run dev
 ```
 
 Create `mobile-expo/.env` from `.env.example` with Expo-safe public values only:
@@ -56,7 +66,7 @@ supabase db reset
 supabase test db
 ```
 
-`npm run verify` runs the mobile TypeScript check, runtime contracts, and notification Edge tests. Use a native Expo build—not Expo Go—for Health Connect, background location, and remote push validation.
+`npm run verify` runs the mobile TypeScript check, runtime contracts, Edge tests, and the website production build. Use a native Expo build—not Expo Go—for Health Connect, background location, and remote push validation.
 
 ## Supabase workflow
 

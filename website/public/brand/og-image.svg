@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="g" cx="72%" cy="42%" r="58%"><stop offset="0" stop-color="#0b7c8c" stop-opacity=".52"/><stop offset="1" stop-color="#061a1e" stop-opacity="0"/></radialGradient>
+    <pattern id="p" width="52" height="52" patternUnits="userSpaceOnUse"><path d="M52 0H0v52" fill="none" stroke="#7ddce8" stroke-opacity=".08"/></pattern>
+  </defs>
+  <rect width="1200" height="630" fill="#061a1e"/>
+  <rect width="1200" height="630" fill="url(#g)"/><rect width="1200" height="630" fill="url(#p)"/>
+  <g transform="translate(72 72)"><rect width="64" height="64" rx="18" fill="#0B7C8C"/><path d="M32 12c7.7 5.4 14.2 6.7 19.5 7.6v11.5c0 10.4-6.7 17.7-19.5 22.9C19.2 48.8 12.5 41.5 12.5 31.1V19.6C17.8 18.7 24.3 17.4 32 12Z" fill="#fff"/><path d="M29.1 24.2h5.8v5h5v5.8h-5v5h-5.8v-5h-5v-5.8h5v-5Z" fill="#0B7C8C"/></g>
+  <text x="154" y="119" fill="#fff" font-family="Arial, sans-serif" font-size="32" font-weight="700">MedGuard</text>
+  <text x="72" y="316" fill="#fff" font-family="Arial, sans-serif" font-size="76" font-weight="700">Know what’s changing</text>
+  <text x="72" y="400" fill="#fff" font-family="Arial, sans-serif" font-size="76" font-weight="700">around you.</text>
+  <text x="76" y="490" fill="#b9d6d9" font-family="Arial, sans-serif" font-size="28">Nigeria-first health awareness · Prototype</text>
+</svg>

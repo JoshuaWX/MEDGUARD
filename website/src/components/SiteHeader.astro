@@ -1,0 +1,41 @@
+---
+import Brand from './Brand.astro';
+---
+<header class="site-header" data-site-header>
+  <div class="shell site-header__inner">
+    <Brand inverse />
+    <nav class="site-nav" aria-label="Primary navigation" data-site-nav>
+      <a href="/how-it-works">How it works</a>
+      <a href="/safety">Safety</a>
+      <a href="/privacy">Privacy</a>
+      <a class="button button--small button--light" href="/#waitlist">Join the prototype</a>
+    </nav>
+    <button class="menu-button" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-navigation" data-menu-button>
+      <span></span><span></span>
+    </button>
+  </div>
+  <div class="mobile-nav" id="site-navigation" data-mobile-nav hidden>
+    <a href="/how-it-works">How it works</a>
+    <a href="/safety">Safety</a>
+    <a href="/privacy">Privacy</a>
+    <a class="button button--primary" href="/#waitlist">Join the prototype</a>
+  </div>
+</header>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-menu-button]');
+  const panel = document.querySelector<HTMLElement>('[data-mobile-nav]');
+  if (button && panel) {
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
+      panel.hidden = expanded;
+    });
+    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => {
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', 'Open navigation');
+      panel.hidden = true;
+    }));
+  }
+</script>

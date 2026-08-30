@@ -9,6 +9,7 @@ credentials.json
 
 # Dependencies
 **/node_modules/
+**/.vercel/
 
 # Expo, React Native, and generated native/build output
 **/.expo/
@@ -40,6 +41,7 @@ virtualenv/
 .vscode/
 .claude/
 .agents/
+.playwright-cli/
 *.swp
 
 # OS and generated files
@@ -56,6 +58,7 @@ CLAUDE_CODE_HANDOFF.md
 FIXES.md
 Future.txt
 mobile-expo/SETUP_REFERENCE.md
+prompt.txt
 
 # Snyk local rules
 .github/instructions/snyk_rules.instructions.md

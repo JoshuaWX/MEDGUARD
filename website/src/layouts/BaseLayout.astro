@@ -1,0 +1,65 @@
+---
+import '../styles/global.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath?: string;
+  theme?: 'light' | 'dark';
+}
+
+const {
+  title,
+  description,
+  canonicalPath = Astro.url.pathname,
+  theme = 'light',
+} = Astro.props;
+const site = Astro.site ?? new URL('https://medguardng.me');
+const canonical = new URL(canonicalPath, site);
+const apiBase = import.meta.env.PUBLIC_SUPABASE_URL || 'https://cddfhyxlhtmrrtduwlqd.supabase.co';
+const pageTitle = title === 'MedGuard' ? title : `${title} · MedGuard`;
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'MedGuard',
+  applicationCategory: 'HealthApplication',
+  operatingSystem: 'Android, iOS',
+  url: 'https://medguardng.me',
+  description: 'A Nigeria-first mobile health-awareness prototype for attributable official updates, area outlooks, private check-ins and nearby care.',
+};
+---
+
+<!doctype html>
+<html lang="en" data-theme={theme}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#061A1E" />
+    <meta name="description" content={description} />
+    <meta name="medguard-api-base" content={apiBase} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/brand/medguard-mark.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MedGuard" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/brand/og-image.svg', site)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL('/brand/og-image.svg', site)} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <SiteHeader />
+    <main id="main-content">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

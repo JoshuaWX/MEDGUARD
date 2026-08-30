@@ -59,6 +59,11 @@ verify_jwt = false
 [functions.ingest-health-news]
 verify_jwt = false
 
+# Public website form. This function validates origin, payload, consent and rate
+# limits before performing a service-role write to a table hidden from API roles.
+[functions.join-waitlist]
+verify_jwt = false
+
 # Africa's Talking callbacks have no Supabase JWT. The function validates a
 # required callback secret in the provider-configured URL instead.
 [functions.ussd]

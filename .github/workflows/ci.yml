@@ -28,6 +28,12 @@ jobs:
       - name: Install mobile dependencies
         run: npm ci --prefix mobile-expo
 
+      - name: Install website dependencies
+        run: npm ci --prefix website
+
+      - name: Website typecheck and production build
+        run: npm run website:build
+
       - name: Mobile TypeScript
         run: npm run mobile:typecheck
 
@@ -36,6 +42,12 @@ jobs:
 
       - name: Edge notification tests
         run: npm run edge:test:notifications
+
+      - name: Waitlist validation tests
+        run: npm run edge:test:waitlist
+
+      - name: Waitlist function typecheck
+        run: npm run edge:check:waitlist
 
       - uses: supabase/setup-cli@v1
         with:

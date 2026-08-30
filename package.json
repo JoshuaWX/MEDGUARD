@@ -3,7 +3,7 @@
   "name": "medguard",
   "version": "1.0.0",
   "private": true,
-  "description": "Verification scripts for the MedGuard mobile and Supabase application.",
+  "description": "Verification scripts for the MedGuard mobile, website, and Supabase application.",
   "engines": {
     "node": ">=20"
   },
@@ -13,9 +13,13 @@
     "mobile:typecheck": "cd mobile-expo && npx tsc --noEmit",
     "mobile:test:contracts": "node --import tsx --test mobile-expo/scripts/runtime-contracts.test.ts",
     "edge:test:notifications": "node --import tsx --test supabase/functions/_shared/__tests__/*.test.ts",
+    "edge:test:waitlist": "deno test supabase/functions/join-waitlist/validation.test.ts",
+    "edge:check:waitlist": "deno check --node-modules-dir=auto --config supabase/functions/deno.json supabase/functions/join-waitlist/index.ts",
+    "website:check": "npm --prefix website run check",
+    "website:build": "npm --prefix website run build",
     "supabase:bundle:intel": "node scripts/build-intel-bundle.mjs",
     "supabase:test": "supabase test db",
-    "verify": "npm run mobile:typecheck && npm run mobile:test:contracts && npm run edge:test:notifications"
+    "verify": "npm run mobile:typecheck && npm run mobile:test:contracts && npm run edge:test:notifications && npm run edge:test:waitlist && npm run edge:check:waitlist && npm run website:build"
   },
   "devDependencies": {
     "@types/node": "^20.3.1",

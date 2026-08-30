@@ -1,0 +1,8 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+<BaseLayout title="Page not found" description="The requested MedGuard page could not be found.">
+  <PageHero eyebrow="404" title="That signal could not be found." description="The page may have moved, or the link may be incomplete." />
+  <section class="section section--white"><div class="shell"><a class="button button--primary" href="/">Return home</a></div></section>
+</BaseLayout>

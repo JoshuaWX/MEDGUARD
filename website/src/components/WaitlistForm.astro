@@ -1,0 +1,62 @@
+<form class="waitlist-form" data-waitlist-form novalidate>
+  <div class="form-row">
+    <div class="field">
+      <label for="waitlist-email">Email address</label>
+      <input id="waitlist-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="you@example.com" required />
+    </div>
+    <div class="field">
+      <label for="waitlist-platform">Platform</label>
+      <select id="waitlist-platform" name="platform">
+        <option value="other">Not sure yet</option><option value="android">Android</option><option value="ios">iPhone</option>
+      </select>
+    </div>
+  </div>
+  <div class="honeypot" aria-hidden="true" inert hidden>
+    <label for="waitlist-company">Company</label><input id="waitlist-company" name="company" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />
+  </div>
+  <label class="consent" for="waitlist-consent">
+    <input id="waitlist-consent" name="consent" type="checkbox" required />
+    <span>I agree that MedGuard may email me about prototype access and important testing updates. I can opt out at any time.</span>
+  </label>
+  <button class="button button--primary" type="submit" data-submit>Join the prototype</button>
+  <p class="form-status" role="status" aria-live="polite" data-form-status></p>
+  <p class="form-footnote">No health information, location or name is collected here. Read the <a href="/privacy">privacy notice</a>.</p>
+</form>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-waitlist-form]');
+  if (form) {
+    const status = form.querySelector<HTMLElement>('[data-form-status]');
+    const submit = form.querySelector<HTMLButtonElement>('[data-submit]');
+    const friendlyError = (code: unknown) => {
+      if (code === 'too_many_requests') return 'Too many attempts. Please wait a while before trying again.';
+      if (code === 'invalid_email') return 'Enter a valid email address.';
+      if (code === 'consent_required') return 'Please confirm that we may contact you about the prototype.';
+      return 'The waitlist is temporarily unavailable. Please try again later.';
+    };
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity() || !status || !submit) return;
+      const data = new FormData(form);
+      const apiBase = document.querySelector<HTMLMetaElement>('meta[name="medguard-api-base"]')?.content;
+      if (!apiBase) { status.textContent = 'The waitlist is temporarily unavailable. Please try again later.'; status.dataset.tone = 'error'; return; }
+      submit.disabled = true;
+      status.textContent = 'Adding you securely…';
+      status.dataset.tone = '';
+      try {
+        const response = await fetch(`${apiBase.replace(/\/$/, '')}/functions/v1/join-waitlist`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: data.get('email'), platform: data.get('platform'), consent: data.get('consent') === 'on', company: data.get('company') }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(friendlyError(result.error));
+        status.textContent = result.message || 'You’re on the list. We’ll be in touch when a prototype place opens.';
+        status.dataset.tone = 'success';
+        form.reset();
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Unable to join right now. Please try again.';
+        status.dataset.tone = 'error';
+      } finally { submit.disabled = false; }
+    });
+  }
+</script>

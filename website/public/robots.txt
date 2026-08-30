@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://medguardng.me/sitemap-index.xml

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">MedGuard</title>
+  <rect width="64" height="64" rx="18" fill="#0B7C8C"/>
+  <path d="M32 12c7.7 5.4 14.2 6.7 19.5 7.6v11.5c0 10.4-6.7 17.7-19.5 22.9C19.2 48.8 12.5 41.5 12.5 31.1V19.6C17.8 18.7 24.3 17.4 32 12Z" fill="#fff" opacity=".98"/>
+  <path d="M29.1 24.2h5.8v5h5v5.8h-5v5h-5.8v-5h-5v-5.8h5v-5Z" fill="#0B7C8C"/>
+</svg>

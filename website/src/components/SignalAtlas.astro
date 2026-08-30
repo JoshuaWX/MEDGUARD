@@ -1,0 +1,102 @@
+---
+const concepts = [
+  { id: 'updates', label: 'Verified updates', title: 'Know what is confirmed', eyebrow: 'Source-aware signal', body: 'Official reports remain visibly separate from projections, with the originating source close at hand.' },
+  { id: 'outlooks', label: 'Area outlooks', title: 'Understand what may be changing', eyebrow: 'Projection, not confirmation', body: 'State-relevant estimates make their freshness, confidence and awareness-only limits clear.' },
+  { id: 'care', label: 'Nearby care', title: 'Find a practical next step', eyebrow: 'Location with a fallback', body: 'Location can help surface nearby care while a saved home state remains available as a fallback.' },
+];
+---
+
+<section class="signal-terrain" data-signal-terrain data-concepts={JSON.stringify(concepts)} aria-label="Interactive Health Signal Atlas">
+  <div class="signal-terrain__field" aria-hidden="true"></div>
+  <div class="signal-terrain__canvas" aria-hidden="true"></div>
+  <div class="signal-terrain__poster" aria-hidden="true">
+    <svg viewBox="0 0 560 560" focusable="false">
+      <path class="signal-terrain__shape" d="M115 96 208 72l56 27 57-15 49 40 68 13 15 53-20 53 17 62-38 50-18 80-70 42-74-23-50 19-48-46-53-11-11-65-36-39 25-71-10-53 46-31Z" />
+      <path class="signal-terrain__contour" d="M95 183c92-68 258-79 369 10M76 248c115-62 284-57 389 22M83 321c110-50 272-33 350 46M122 402c91-38 197-21 264 22" />
+      <path class="signal-terrain__contour signal-terrain__contour--vertical" d="M169 124c43 78 51 174 20 276M271 99c-30 86-22 206 28 318M369 119c-51 88-54 187-18 296M120 282c88 14 205 2 321-58M139 366c99-19 188-9 267 36" />
+      {concepts.map((concept, index) => <circle class="signal-terrain__point" data-terrain-poster-point={concept.id} data-active={index === 0 ? 'true' : 'false'} cx={[363, 243, 300][index]} cy={[184, 266, 390][index]} r="8" />)}
+    </svg>
+  </div>
+  <p class="signal-terrain__caption">Illustrative product terrain · Never live health data</p>
+  <div class="signal-terrain__controls" role="tablist" aria-label="Health Signal Atlas concepts">
+    {concepts.map((concept, index) => (
+      <button class="terrain-tab" type="button" role="tab" id={`terrain-tab-${concept.id}`} aria-selected={index === 0 ? 'true' : 'false'} aria-controls="terrain-panel" data-terrain-tab={concept.id}>{concept.label}</button>
+    ))}
+  </div>
+  <article class="signal-terrain__panel" id="terrain-panel" role="tabpanel" aria-live="polite" aria-labelledby="terrain-tab-updates">
+    <span data-terrain-eyebrow>{concepts[0].eyebrow}</span>
+    <h2 data-terrain-title>{concepts[0].title}</h2>
+    <p data-terrain-body>{concepts[0].body}</p>
+  </article>
+  <button class="signal-terrain__skip" type="button" data-terrain-skip>Use still atlas</button>
+</section>
+
+<script>
+  type Concept = { id: string; title: string; eyebrow: string; body: string };
+  const root = document.querySelector<HTMLElement>('[data-signal-terrain]');
+  if (root) {
+    const concepts = JSON.parse(root.dataset.concepts ?? '[]') as Concept[];
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-terrain-tab]')];
+    const title = root.querySelector<HTMLElement>('[data-terrain-title]');
+    const eyebrow = root.querySelector<HTMLElement>('[data-terrain-eyebrow]');
+    const body = root.querySelector<HTMLElement>('[data-terrain-body]');
+    const panel = root.querySelector<HTMLElement>('#terrain-panel');
+    const posterPoints = [...root.querySelectorAll<SVGCircleElement>('[data-terrain-poster-point]')];
+    const canvasHost = root.querySelector<HTMLElement>('.signal-terrain__canvas');
+    const skip = root.querySelector<HTMLButtonElement>('[data-terrain-skip]');
+    let selectScene: ((id: string) => void) | undefined;
+    let stopScene: (() => void) | undefined;
+    const select = (id: string | undefined) => {
+      const concept = concepts.find((item) => item.id === id);
+      if (!concept || !title || !body || !eyebrow || !panel) return;
+      title.textContent = concept.title; eyebrow.textContent = concept.eyebrow; body.textContent = concept.body;
+      panel.setAttribute('aria-labelledby', `terrain-tab-${id}`);
+      tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.terrainTab === id)));
+      posterPoints.forEach((point) => point.setAttribute('data-active', String(point.dataset.terrainPosterPoint === id)));
+      selectScene?.(id);
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(tab.dataset.terrainTab));
+      tab.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length : event.key === 'Home' ? 0 : tabs.length - 1;
+        tabs[next].focus(); select(tabs[next].dataset.terrainTab);
+      });
+    });
+    skip?.addEventListener('click', () => { root.classList.add('signal-terrain--still'); stopScene?.(); skip.hidden = true; });
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const small = window.matchMedia('(max-width: 480px)').matches;
+    const deviceMemory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8);
+    const constrained = reduced || (small && (navigator.hardwareConcurrency ?? 8) <= 4) || deviceMemory <= 2;
+    if (!canvasHost || constrained) root.classList.add('signal-terrain--still');
+    else requestAnimationFrame(async () => {
+      try {
+        const THREE = await import('three');
+        if (root.classList.contains('signal-terrain--still')) return;
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !small, powerPreference: 'low-power' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.15 : 1.5)); renderer.outputColorSpace = THREE.SRGBColorSpace; canvasHost.appendChild(renderer.domElement);
+        const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100); camera.position.set(0, -0.35, 8.5);
+        const world = new THREE.Group(); world.rotation.set(-0.25, -0.25, 0.08); scene.add(world);
+        const points = [[-2.3, 2.45], [-0.9, 2.82], [0.05, 2.35], [1.1, 2.67], [2.0, 1.95], [3.2, 1.65], [3.48, 0.65], [3.05, -0.25], [3.34, -1.25], [2.44, -2.1], [2.02, -3.35], [0.55, -4.12], [-1.0, -3.72], [-2.05, -4.35], [-3.05, -3.35], [-4.15, -3.05], [-4.36, -1.75], [-5.1, -0.82], [-4.58, 0.65], [-4.8, 1.65], [-3.65, 2.16]];
+        const shape = new THREE.Shape(); shape.moveTo(points[0][0], points[0][1]); points.slice(1).forEach(([x, y]) => shape.lineTo(x, y)); shape.closePath();
+        const terrain = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.26, bevelEnabled: true, bevelSize: 0.07, bevelThickness: 0.08, bevelSegments: 2 }), new THREE.MeshStandardMaterial({ color: 0x0b5c67, roughness: 0.72, metalness: 0.15, transparent: true, opacity: 0.88 }));
+        terrain.position.set(0.45, 0.65, -0.18); world.add(terrain);
+        terrain.add(new THREE.LineSegments(new THREE.EdgesGeometry(terrain.geometry, 18), new THREE.LineBasicMaterial({ color: 0x7ae3ea, transparent: true, opacity: 0.65 })));
+        const contourMaterial = new THREE.LineBasicMaterial({ color: 0x58d3dd, transparent: true, opacity: 0.22 });
+        [1.2, 1.7, 2.25, 2.85].forEach((radius, index) => { const curve = new THREE.EllipseCurve(0.15, -0.2, radius * 1.35, radius * 0.58, 0, Math.PI * 2, false, index * 0.16); const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(80).map((point) => new THREE.Vector3(point.x, point.y, -0.04))), contourMaterial); line.rotation.x = Math.PI / 2.8; world.add(line); });
+        scene.add(new THREE.HemisphereLight(0x92f5fa, 0x031619, 1.8)); const keyLight = new THREE.DirectionalLight(0x5fd7dc, 2.1); keyLight.position.set(-3, 4, 6); scene.add(keyLight);
+        const markers: Record<string, THREE.Mesh> = {}; const positions: Record<string, [number, number]> = { updates: [1.85, 1.45], outlooks: [-0.35, 0.18], care: [0.55, -2.05] };
+        Object.entries(positions).forEach(([id, [x, y]]) => { const marker = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 20), new THREE.MeshStandardMaterial({ color: id === 'updates' ? 0xf7f9fa : 0x58d3dd, emissive: 0x0b7c8c, emissiveIntensity: 0.7 })); marker.position.set(x, y, 0.6); world.add(marker); markers[id] = marker; });
+        const resize = () => { const rect = canvasHost.getBoundingClientRect(); camera.aspect = Math.max(1, rect.width) / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false); };
+        const observer = new ResizeObserver(resize); observer.observe(canvasHost); resize(); let pointerX = 0; let pointerY = 0; let visible = true; let running = true;
+        const setPointer = (event: PointerEvent) => { const rect = canvasHost.getBoundingClientRect(); pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 0.22; pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 0.14; };
+        root.addEventListener('pointermove', setPointer, { passive: true }); const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.04 }); intersection.observe(root);
+        const render = () => { if (!running) return; if (visible && !document.hidden) { world.rotation.y += (pointerX - world.rotation.y + 0.25) * 0.03; world.rotation.x += (pointerY - world.rotation.x + 0.25) * 0.025; renderer.render(scene, camera); } requestAnimationFrame(render); }; render();
+        selectScene = (id) => Object.entries(markers).forEach(([key, marker]) => { const material = marker.material as THREE.MeshStandardMaterial; const active = key === id; marker.scale.setScalar(active ? 1.45 : 1); material.color.set(active ? 0xf7f9fa : 0x58d3dd); material.emissiveIntensity = active ? 1.5 : 0.45; });
+        stopScene = () => { running = false; observer.disconnect(); intersection.disconnect(); root.removeEventListener('pointermove', setPointer); renderer.dispose(); renderer.domElement.remove(); };
+        renderer.domElement.addEventListener('webglcontextlost', (event) => { event.preventDefault(); root.classList.add('signal-terrain--still'); stopScene?.(); }, { once: true }); root.classList.add('signal-terrain--ready');
+      } catch { root.classList.add('signal-terrain--still'); }
+    });
+  }
+</script>

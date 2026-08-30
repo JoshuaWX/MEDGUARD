@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+<BaseLayout title="How it works" description="How MedGuard resolves location, separates official reports from projections, protects private check-ins and helps people find nearby care.">
+  <PageHero eyebrow="How it works" title="A clearer path from signal to action." description="MedGuard is designed as an awareness layer: it organises attributable information, personal context and practical next steps without presenting them as a medical diagnosis." />
+  <section class="section section--white"><div class="shell process-list">
+    <article class="process-step"><div><h2>Your area is resolved</h2><p>If foreground location sharing is enabled, a server-verified Nigerian state can become the alert area. If permission is denied or unavailable, MedGuard uses the saved manual home state.</p></div></article>
+    <article class="process-step"><div><h2>Evidence keeps its label</h2><p>Verified official reports and active model forecasts can create disease-specific outlooks. Weather and air quality stay separate as environmental context and cannot silently become outbreak claims.</p></div></article>
+    <article class="process-step"><div><h2>Official updates stay attributable</h2><p>Health News preserves the publisher, publication date and original link. MedGuard may use public NCDC and WHO material as sources; this does not imply endorsement.</p></div></article>
+    <article class="process-step"><div><h2>Check-ins stay personal</h2><p>Authenticated users can record structured wellness check-ins and see awareness-focused personal signals. The public website never receives this information.</p></div></article>
+    <article class="process-step"><div><h2>Nearby care shares one location</h2><p>The map and health screen use the same care-search context, radius and freshness state. Searching for care does not by itself change the alert area.</p></div></article>
+    <article class="process-step"><div><h2>Notifications need a reason</h2><p>Official reports target a matching state; forecast alerts require an actionable increase and remain labelled as estimates. Reminders are separate and user-controlled.</p></div></article>
+  </div></section>
+  <section class="section section--mist"><div class="shell section-head"><span class="eyebrow">Still a prototype</span><h2>The system is being tested, not presented as clinical infrastructure.</h2><p>Early testers help us validate clarity, permission handling, relevance and safety. They should continue relying on healthcare professionals and official public-health guidance.</p><a class="button button--primary" href="/#waitlist">Join the prototype</a></div></section>
+</BaseLayout>

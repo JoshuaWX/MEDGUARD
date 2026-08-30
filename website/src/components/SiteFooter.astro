@@ -1,0 +1,27 @@
+---
+import Brand from './Brand.astro';
+---
+<footer class="site-footer">
+  <div class="shell site-footer__grid">
+    <div>
+      <Brand inverse />
+      <p class="site-footer__summary">Nigeria-first health awareness, designed to inform without overstating what the evidence can say.</p>
+    </div>
+    <nav aria-label="Product">
+      <strong>Product</strong>
+      <a href="/how-it-works">How it works</a>
+      <a href="/safety">Safety</a>
+      <a href="/#waitlist">Join the prototype</a>
+    </nav>
+    <nav aria-label="Legal and support">
+      <strong>Legal & support</strong>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="mailto:medguardng@gmail.com">Contact support</a>
+    </nav>
+  </div>
+  <div class="shell site-footer__base">
+    <span>© {new Date().getFullYear()} MedGuard. All rights reserved.</span>
+    <span>Prototype · Awareness only · Not diagnosis</span>
+  </div>
+</footer>
