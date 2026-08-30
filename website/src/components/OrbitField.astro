@@ -1,0 +1,29 @@
+<div class="orbit-field" data-orbit-field aria-hidden="true">
+  <svg viewBox="0 0 720 520" focusable="false">
+    <g class="orbit-field__orbit orbit-field__orbit--outer">
+      <ellipse cx="430" cy="270" rx="246" ry="128" />
+      <circle cx="676" cy="270" r="6" />
+    </g>
+    <g class="orbit-field__orbit orbit-field__orbit--middle">
+      <ellipse cx="430" cy="270" rx="184" ry="91" />
+      <circle cx="246" cy="270" r="5" />
+    </g>
+    <g class="orbit-field__orbit orbit-field__orbit--inner">
+      <ellipse cx="430" cy="270" rx="118" ry="58" />
+      <circle cx="430" cy="212" r="4" />
+    </g>
+    <circle class="orbit-field__core" cx="430" cy="270" r="10" />
+  </svg>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-orbit-field]').forEach((field) => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotion = () => field.classList.toggle('orbit-field--paused', reduced.matches || document.hidden);
+    const observer = new IntersectionObserver(([entry]) => field.classList.toggle('orbit-field--offscreen', !entry.isIntersecting), { threshold: 0.02 });
+    observer.observe(field);
+    document.addEventListener('visibilitychange', updateMotion);
+    reduced.addEventListener('change', updateMotion);
+    updateMotion();
+  });
+</script>

@@ -1,5 +1,10 @@
 ---
+import OrbitField from './OrbitField.astro';
+
 interface Props { eyebrow: string; title: string; description: string; }
 const { eyebrow, title, description } = Astro.props;
 ---
-<header class="page-hero"><div class="shell"><span class="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></header>
+<header class="page-hero">
+  <OrbitField />
+  <div class="shell page-hero__content"><span class="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>
+</header>

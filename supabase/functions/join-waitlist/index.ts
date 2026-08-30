@@ -2,27 +2,17 @@ import { serve } from 'std/http/server';
 import { optionalEnv } from '../_shared/env.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
+import { allowedWebsiteOrigin, websiteCors } from '../_shared/website-origin.ts';
 import { parseWaitlistInput, WaitlistValidationError } from './validation.ts';
 
-const DEFAULT_ORIGINS = [
-  'https://medguardng.me',
-  'https://www.medguardng.me',
-  'http://localhost:4321',
-  'http://127.0.0.1:4321',
-];
 const SUCCESS_MESSAGE = 'Thanks — if this address is eligible, it is now on the prototype list.';
 
-function allowedOrigins(): Set<string> {
-  const configured = optionalEnv('WAITLIST_ALLOWED_ORIGINS')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
-  return new Set([...DEFAULT_ORIGINS, ...configured]);
-}
-
-function cors(origin: string): HeadersInit {
-  return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Max-Age': '86400', 'Vary': 'Origin' };
+function configuredOrigins(): string[] {
+  return optionalEnv('WAITLIST_ALLOWED_ORIGINS')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
 }
 
 function json(origin: string, body: unknown, status = 200, extra: HeadersInit = {}) {
-  return new Response(JSON.stringify(body), { status, headers: { ...cors(origin), ...extra, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+  return new Response(JSON.stringify(body), { status, headers: { ...websiteCors(origin), ...extra, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 
 function clientIp(req: Request): string {
@@ -52,8 +42,8 @@ async function notifyOwner(email: string, platform: string): Promise<void> {
 
 serve(async (req) => {
   const origin = req.headers.get('origin') ?? '';
-  if (!origin || !allowedOrigins().has(origin)) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } });
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
+  if (!origin || !allowedWebsiteOrigin(origin, configuredOrigins())) return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: websiteCors(origin) });
   if (req.method !== 'POST') return json(origin, { error: 'method_not_allowed' }, 405, { Allow: 'POST' });
   const contentType = req.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
   if (contentType !== 'application/json') return json(origin, { error: 'content_type_must_be_json' }, 415);

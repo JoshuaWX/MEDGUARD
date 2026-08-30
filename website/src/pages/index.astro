@@ -3,68 +3,229 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import SignalAtlas from '../components/SignalAtlas.astro';
 import ProductShowcase from '../components/ProductShowcase.astro';
 import WaitlistForm from '../components/WaitlistForm.astro';
+import InquiryForm from '../components/InquiryForm.astro';
+import SignalGlobe from '../components/SignalGlobe.astro';
 ---
-<BaseLayout title="MedGuard" description="Know what is changing around you with state-relevant health outlooks, attributable official updates and private personal check-ins.">
-  <section class="hero">
-    <div class="shell hero__grid">
-      <div class="hero__copy">
-        <span class="eyebrow">Nigeria-first health awareness</span>
-        <h1>Know what’s changing around you.</h1>
-        <p class="hero__lede">MedGuard brings state-relevant outlooks, attributable official updates and private check-ins into one calm place—so awareness can lead to a practical next step.</p>
-        <div class="hero__actions"><a class="button button--light" href="#waitlist">Join the prototype</a><a class="button button--ghost" href="#how-it-works">See how it works</a></div>
+
+<BaseLayout
+  title="MedGuard"
+  description="A Nigeria-first early-warning and health-awareness prototype for attributable updates, modelled area outlooks, private check-ins and inclusive delivery."
+>
+  <section class="hero hero--story">
+    <div class="hero__field" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="shell hero__story-grid">
+      <div class="hero__copy" data-hero-copy>
+        <span class="eyebrow">Nigeria-first early-warning prototype</span>
+        <h1>Earlier signals.<br /><em>Wider reach.</em></h1>
+        <p class="hero__lede">MedGuard brings attributable official updates, modelled state-level outlooks, environmental context and private check-ins into one safety-conscious experience.</p>
+        <div class="hero__actions">
+          <a class="button button--light" href="#waitlist">Join the prototype</a>
+          <a class="button button--ghost" href="#inquiry" data-inquiry-topic="pilot">Explore a pilot</a>
+        </div>
         <span class="trust-label">Prototype · Awareness only · Not diagnosis</span>
       </div>
       <SignalAtlas />
     </div>
+    <a class="hero__scroll-cue" href="#why" aria-label="Continue to why MedGuard exists"><span>Why this matters</span><i></i></a>
   </section>
 
-  <div class="metric-strip" aria-label="MedGuard principles">
-    <div class="metric"><strong>State-relevant</strong><span>Information resolved to the user’s effective alert area</span></div>
-    <div class="metric"><strong>Source-aware</strong><span>Official reports and projections remain visibly distinct</span></div>
-    <div class="metric"><strong>Private by design</strong><span>Personal check-ins are not part of the public experience</span></div>
-  </div>
-
-  <section class="section section--white" id="how-it-works">
-    <div class="shell">
-      <header class="section-head"><span class="eyebrow">One signal, clearer context</span><h2>Designed to inform—never to alarm.</h2><p>Health information becomes more useful when its source, location, freshness and limits are visible at the moment a person needs them.</p></header>
-      <div class="feature-grid">
-        <article class="feature-card"><span class="feature-card__number">01</span><h3>Separate evidence types</h3><p>Verified official reports are not blended with model estimates. Each has its own label, source and validity.</p></article>
-        <article class="feature-card"><span class="feature-card__number">02</span><h3>Resolve the right area</h3><p>With permission, location can update an alert area. Without it, a saved home state remains the dependable fallback.</p></article>
-        <article class="feature-card"><span class="feature-card__number">03</span><h3>Offer a next step</h3><p>Practical guidance, nearby care and emergency direction sit alongside the signal—not behind medical certainty.</p></article>
+  <section class="story-chapter problem-chapter" id="why">
+    <div class="shell chapter-grid">
+      <header class="chapter-intro" data-story-reveal>
+        <span class="chapter-index">01 / Why MedGuard</span>
+        <p class="eyebrow">Warnings do not arrive evenly</p>
+        <h2>The time to act often begins before the information reaches everyone.</h2>
+        <p>Nigeria continues to manage recurring infectious-disease events, including cholera, Lassa fever, malaria and meningitis. Surveillance, laboratory confirmation, public communication and access can vary across communities.</p>
+        <p class="chapter-status"><strong>Working now</strong> Mobile awareness and notifications are being tested. <strong>Pilot next</strong> SMS and USSD are being prepared for approved community pilots.</p>
+        <div class="source-links">
+          <a href="https://ncdc.gov.ng/themes/common/files/annualreports/aef20a745a4834768d51591445f9ea4d.pdf" target="_blank" rel="noreferrer">NCDC 2025 annual report</a>
+          <a href="https://www.who.int/emergencies/disease-outbreak-news/item/2023-DON463" target="_blank" rel="noreferrer">WHO Nigeria reporting</a>
+        </div>
+      </header>
+      <div class="problem-sequence">
+        <article class="problem-frame" data-story-reveal>
+          <span>01A</span>
+          <h3>Recurring public-health pressure</h3>
+          <p>Multiple diseases can demand attention at the same time, increasing the need for timely, attributable communication.</p>
+        </article>
+        <article class="problem-frame" data-story-reveal>
+          <span>01B</span>
+          <h3>Unequal access to warnings</h3>
+          <p>An app-only response cannot reach every rural household, low-income family or person without dependable mobile data.</p>
+        </article>
+        <article class="problem-frame" data-story-reveal>
+          <span>01C</span>
+          <h3>Noise without context</h3>
+          <p>A forecast, an official report and a community pattern do not mean the same thing. Blurring them can create fear instead of useful action.</p>
+        </article>
       </div>
+    </div>
+    <div class="beneficiary-ribbon" aria-label="Communities MedGuard is designed to include">
+      <span>Rural communities</span><i></i><span>Underserved families</span><i></i><span>Health workers</span><i></i><span>Public-health teams</span><i></i><span>Feature-phone users</span>
     </div>
   </section>
 
-  <section class="section showcase">
+  <section class="matte-rise" aria-label="Transition from the problem to MedGuard's approach" data-matte-rise>
+    <div class="matte-rise__field" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="shell matte-rise__copy" data-story-reveal>
+      <span class="eyebrow">One signal · many routes</span>
+      <h2>Turn scattered information into a clearer next step.</h2>
+      <p>Not certainty. Not diagnosis. Better context, made easier to reach.</p>
+    </div>
+  </section>
+
+  <section class="story-chapter method-chapter" id="how-it-works">
+    <div class="shell chapter-grid chapter-grid--reverse">
+      <header class="chapter-intro" data-story-reveal>
+        <span class="chapter-index">02 / How it works</span>
+        <p class="eyebrow">Evidence keeps its identity</p>
+        <h2>Each signal says what it is—and what it cannot prove.</h2>
+        <p>MedGuard is model-assisted, not AI theatre. The interface keeps source, location, freshness, confidence and safety boundaries visible.</p>
+        <a class="button button--primary" href="/how-it-works">Explore the full approach</a>
+      </header>
+      <ol class="method-flow">
+        <li data-story-reveal><span>Official</span><div><h3>Start with attributable evidence</h3><p>NCDC and WHO reports can inform awareness, but their public information does not imply partnership or endorsement.</p></div></li>
+        <li data-story-reveal><span>Modelled</span><div><h3>Label outlooks as projections</h3><p>Only active, state-matched estimates appear as disease-specific outlooks, with validity and confidence close by.</p></div></li>
+        <li data-story-reveal><span>Personal</span><div><h3>Keep check-ins private</h3><p>Personal signals are derived for the signed-in owner. They are awareness summaries, not clinical risk assessments.</p></div></li>
+        <li data-story-reveal><span>Practical</span><div><h3>Put action beside information</h3><p>Nearby care, prevention guidance and Nigeria 112 emergency direction complete the signal.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section channel-story" aria-labelledby="channel-story-heading">
     <div class="shell">
-      <header class="section-head"><span class="eyebrow">The MedGuard prototype</span><h2>A calm interface for noisy information.</h2><p>These synthetic product previews show the intended experience. They contain no real people, personal records or live epidemiological values.</p></header>
+      <header class="section-head section-head--split" data-story-reveal>
+        <div><span class="chapter-index">03 / Reach</span><h2 id="channel-story-heading">One signal should not depend on one kind of phone.</h2></div>
+        <p>The current prototype proves the mobile experience. The next challenge is validating safe, bounded delivery through channels communities already use.</p>
+      </header>
       <ProductShowcase />
     </div>
   </section>
 
-  <section class="section section--white">
+  <section class="story-chapter proof-chapter">
     <div class="shell">
-      <header class="section-head"><span class="eyebrow">Built around trust</span><h2>Four details that should never be hidden.</h2></header>
-      <div class="field-notes">
-        <article class="field-note"><small>Source</small><h3>Attribution stays close</h3><p>MedGuard may surface public information from organisations such as NCDC and WHO. Source links are provided without implying partnership or endorsement.</p></article>
-        <article class="field-note"><small>Location</small><h3>Your area has a fallback</h3><p>Location sharing is optional. A manually saved home state can continue to power relevant awareness when GPS is unavailable or disabled.</p></article>
-        <article class="field-note"><small>Privacy</small><h3>Personal means owner-scoped</h3><p>Health check-ins are designed for the signed-in user. The public website collects no health information, names or location.</p></article>
-        <article class="field-note"><small>Safety</small><h3>Limits appear with the result</h3><p>Projections are labelled as estimates, not diagnoses or outbreak confirmations. Urgent symptoms need professional care—not an app prediction.</p></article>
+      <header class="section-head" data-story-reveal>
+        <span class="chapter-index">04 / Proof, not theatre</span>
+        <h2>Clear about what works now—and what still needs a pilot.</h2>
+      </header>
+      <div class="roadmap">
+        <article class="roadmap__column roadmap__column--now" data-story-reveal>
+          <span>Working prototype</span>
+          <h3>Now</h3>
+          <ul><li>State-relevant app awareness</li><li>Attributable Health News</li><li>Modelled outlook labels</li><li>Private check-in signals</li><li>Nearby care and notification controls</li></ul>
+        </article>
+        <article class="roadmap__column roadmap__column--pilot" data-story-reveal>
+          <span>Validation required</span>
+          <h3>Pilot next</h3>
+          <ul><li>Approved SMS delivery</li><li>Live Nigerian USSD service code</li><li>Community onboarding</li><li>Comprehension and trust testing</li><li>Operational feedback with stakeholders</li></ul>
+        </article>
+        <article class="roadmap__column roadmap__column--future" data-story-reveal>
+          <span>Long-term direction</span>
+          <h3>Future</h3>
+          <ul><li>Wider inclusive reach</li><li>Validated alert relevance</li><li>Useful anonymous aggregate context</li><li>Responsible public-health collaboration</li><li>More evidence-backed disease coverage</li></ul>
+        </article>
       </div>
     </div>
   </section>
 
-  <section class="section section--dark">
-    <div class="shell safety-band">
-      <div><div class="safety-band__mark" aria-hidden="true"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 3 4.5 6v5.2c0 4.7 3.2 8.6 7.5 9.8 4.3-1.2 7.5-5.1 7.5-9.8V6L12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9 12.2 11 14l4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
-      <div><span class="eyebrow">Safety is part of the interface</span><h2>Awareness has boundaries.</h2><div class="safety-list"><article><h3>Not a diagnosis</h3><p>MedGuard cannot diagnose illness, prescribe treatment or replace a clinician.</p></article><article><h3>Projection is not confirmation</h3><p>An area outlook estimates changing conditions. It does not confirm an outbreak.</p></article><article><h3>Emergencies need immediate care</h3><p>For a life-threatening emergency in Nigeria, call 112 and seek urgent medical help.</p></article></div><a class="button button--ghost" href="/safety">Read the safety approach</a></div>
+  <section class="section impact-chapter">
+    <div class="shell impact-grid">
+      <header data-story-reveal>
+        <span class="chapter-index">05 / Impact to validate</span>
+        <h2>Measure what matters in a pilot.</h2>
+        <p>MedGuard will not claim lives saved or outbreaks prevented without evidence. A pilot should first test whether people are reached, understand the signal and know what to do next.</p>
+      </header>
+      <SignalGlobe />
+      <div class="impact-measures">
+        <article data-story-reveal><span>Reach</span><p>Can underserved and low-connectivity communities receive the message?</p></article>
+        <article data-story-reveal><span>Comprehension</span><p>Can people distinguish an estimate from a verified report?</p></article>
+        <article data-story-reveal><span>Time to awareness</span><p>Does relevant information arrive early enough to support a practical choice?</p></article>
+        <article data-story-reveal><span>Action and trust</span><p>Do people find the guidance relevant, understandable and worth using again?</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section collaboration-chapter">
+    <div class="shell collaboration-grid">
+      <div data-story-reveal>
+        <span class="chapter-index">06 / Collaboration</span>
+        <h2>No partner logos.<br />An honest invitation.</h2>
+        <p>MedGuard has no formal institutional partners yet. Responsible pilots will require communities, public-health agencies, healthcare providers and telecom operators to shape what safe deployment should look like.</p>
+      </div>
+      <div class="collaboration-roles">
+        <article data-story-reveal><span>Communities</span><p>Define trust, language, access and what “useful” means locally.</p></article>
+        <article data-story-reveal><span>Health providers</span><p>Review guidance, escalation and routes to appropriate care.</p></article>
+        <article data-story-reveal><span>Public-health teams</span><p>Validate evidence rules, surveillance boundaries and response fit.</p></article>
+        <article data-story-reveal><span>Telecom operators</span><p>Enable compliant SMS and USSD reach beyond smartphones.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section safety-band">
+    <div class="shell safety-band__grid">
+      <div class="safety-band__signal" aria-hidden="true"><span></span><i></i><i></i><i></i></div>
+      <div data-story-reveal>
+        <span class="eyebrow">Safety is part of the interface</span>
+        <h2>Awareness has boundaries.</h2>
+        <div class="safety-list">
+          <article><h3>Not a diagnosis</h3><p>MedGuard cannot diagnose illness, prescribe treatment or replace a clinician.</p></article>
+          <article><h3>Projection is not confirmation</h3><p>An outlook estimates changing risk. It does not confirm an outbreak.</p></article>
+          <article><h3>Emergencies need immediate care</h3><p>For a life-threatening emergency in Nigeria, call 112 and seek urgent medical help.</p></article>
+        </div>
+        <a class="button button--ghost" href="/safety">Read the safety approach</a>
+      </div>
     </div>
   </section>
 
   <section class="section waitlist" id="waitlist">
     <div class="shell waitlist__grid">
-      <div class="waitlist__copy"><span class="eyebrow">Prototype access</span><h2>Help shape a more useful health signal.</h2><p>Join the early-access list for occasional prototype invitations and important testing updates. No marketing tracker. No health questionnaire.</p></div>
+      <div class="waitlist__copy" data-story-reveal><span class="eyebrow">Prototype access</span><h2>Help shape a signal people can trust.</h2><p>Join the early-access list for occasional prototype invitations and important testing updates. No health questionnaire. No marketing tracker.</p></div>
       <WaitlistForm />
     </div>
   </section>
+
+  <section class="section inquiry-section" id="inquiry">
+    <div class="shell inquiry-grid">
+      <div data-story-reveal>
+        <span class="eyebrow">Pilot, feedback or community idea</span>
+        <h2>Help decide what MedGuard should prove next.</h2>
+        <p>Tell us about a bounded pilot, product suggestion or community need. Please do not include symptoms, diagnoses, medical records or anyone else’s personal information.</p>
+        <a class="text-action" href="#inquiry-form">Share a suggestion <span aria-hidden="true">↘</span></a>
+      </div>
+      <InquiryForm />
+    </div>
+  </section>
 </BaseLayout>
+
+<script>
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const compactQuery = window.matchMedia('(max-width: 700px)');
+  let destroyMotion: (() => void) | undefined;
+  const setupMotion = async () => {
+    destroyMotion?.();
+    destroyMotion = undefined;
+    if (motionQuery.matches || compactQuery.matches) return;
+    const { inView, scroll } = await import('motion');
+    const hero = document.querySelectorAll<HTMLElement>('[data-hero-copy] > *');
+    const heroAnimations = [...hero].map((element, index) => element.animate(
+      [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'translateY(0)' }],
+      { duration: 620, delay: index * 65, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
+    ));
+    const revealObserver = inView('[data-story-reveal]', (element) => {
+      element.animate(
+        [{ opacity: 0, transform: 'translateY(22px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        { duration: 540, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
+      );
+    }, { margin: '0px 0px -10% 0px' });
+    const transition = document.querySelector<HTMLElement>('[data-matte-rise]');
+    const stopScroll = transition ? scroll((progress: number) => transition.style.setProperty('--rise', `${80 - progress * 160}px`), { target: transition, offset: ['start end', 'end start'] }) : undefined;
+    destroyMotion = () => {
+      heroAnimations.forEach((animation) => animation.cancel());
+      revealObserver();
+      stopScroll?.();
+    };
+  };
+  motionQuery.addEventListener('change', () => { void setupMotion(); });
+  compactQuery.addEventListener('change', () => { void setupMotion(); });
+  requestAnimationFrame(() => { void setupMotion(); });
+</script>

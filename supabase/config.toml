@@ -64,6 +64,11 @@ verify_jwt = false
 [functions.join-waitlist]
 verify_jwt = false
 
+# Public pilot and feedback form. Origin, consent, payload, duplicate and rate
+# limit checks run before a service-role write to a table hidden from API roles.
+[functions.submit-website-inquiry]
+verify_jwt = false
+
 # Africa's Talking callbacks have no Supabase JWT. The function validates a
 # required callback secret in the provider-configured URL instead.
 [functions.ussd]

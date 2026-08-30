@@ -2,19 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.medguardng.me"
-        }
-      ],
-      "destination": "https://medguardng.me/:path*",
-      "permanent": true
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",

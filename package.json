@@ -14,12 +14,16 @@
     "mobile:test:contracts": "node --import tsx --test mobile-expo/scripts/runtime-contracts.test.ts",
     "edge:test:notifications": "node --import tsx --test supabase/functions/_shared/__tests__/*.test.ts",
     "edge:test:waitlist": "deno test supabase/functions/join-waitlist/validation.test.ts",
+    "edge:test:website-origin": "deno test --config supabase/functions/deno.json supabase/functions/_shared/website-origin.test.ts",
     "edge:check:waitlist": "deno check --node-modules-dir=auto --config supabase/functions/deno.json supabase/functions/join-waitlist/index.ts",
+    "edge:test:inquiry": "deno test supabase/functions/submit-website-inquiry/validation.test.ts",
+    "edge:check:inquiry": "deno check --node-modules-dir=auto --config supabase/functions/deno.json supabase/functions/submit-website-inquiry/index.ts",
     "website:check": "npm --prefix website run check",
     "website:build": "npm --prefix website run build",
+    "website:test:content": "npm --prefix website run test:content",
     "supabase:bundle:intel": "node scripts/build-intel-bundle.mjs",
     "supabase:test": "supabase test db",
-    "verify": "npm run mobile:typecheck && npm run mobile:test:contracts && npm run edge:test:notifications && npm run edge:test:waitlist && npm run edge:check:waitlist && npm run website:build"
+    "verify": "npm run mobile:typecheck && npm run mobile:test:contracts && npm run edge:test:notifications && npm run edge:test:waitlist && npm run edge:test:website-origin && npm run edge:check:waitlist && npm run edge:test:inquiry && npm run edge:check:inquiry && npm run website:test:content && npm run website:build"
   },
   "devDependencies": {
     "@types/node": "^20.3.1",

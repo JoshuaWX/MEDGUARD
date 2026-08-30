@@ -3,39 +3,92 @@ import Brand from './Brand.astro';
 ---
 <header class="site-header" data-site-header>
   <div class="shell site-header__inner">
-    <Brand inverse />
-    <nav class="site-nav" aria-label="Primary navigation" data-site-nav>
-      <a href="/how-it-works">How it works</a>
-      <a href="/safety">Safety</a>
-      <a href="/privacy">Privacy</a>
-      <a class="button button--small button--light" href="/#waitlist">Join the prototype</a>
-    </nav>
+    <div class="site-rail" aria-label="Primary navigation" data-site-nav>
+      <a class="site-rail__brand" href="/" aria-label="MedGuard home"><img src="/brand/medguard-mark.svg" alt="" /></a>
+      <nav class="site-dock" data-site-nav>
+        <a href="/#why">Why MedGuard</a>
+        <a href="/how-it-works">How it works</a>
+        <a href="/safety">Safety</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+      <a class="site-rail__cta" href="/#waitlist">Join prototype</a>
+    </div>
+    <div class="site-header__mobile-brand"><Brand /></div>
     <button class="menu-button" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-navigation" data-menu-button>
-      <span></span><span></span>
+      <span class="menu-button__label">Menu</span><span class="menu-button__mark" aria-hidden="true"><i></i><i></i></span>
     </button>
   </div>
-  <div class="mobile-nav" id="site-navigation" data-mobile-nav hidden>
-    <a href="/how-it-works">How it works</a>
-    <a href="/safety">Safety</a>
-    <a href="/privacy">Privacy</a>
-    <a class="button button--primary" href="/#waitlist">Join the prototype</a>
+  <div class="mobile-nav" id="site-navigation" data-mobile-nav hidden role="dialog" aria-modal="true" aria-label="Site navigation">
+    <div class="mobile-nav__head">
+      <Brand />
+      <button type="button" class="mobile-nav__close" aria-label="Close navigation" data-menu-close><span aria-hidden="true">×</span></button>
+    </div>
+    <p class="mobile-nav__eyebrow">Navigate MedGuard</p>
+    <nav aria-label="Mobile primary navigation">
+      <a href="/#why"><span>01</span> Why MedGuard <i aria-hidden="true">↗</i></a>
+      <a href="/how-it-works"><span>02</span> How it works <i aria-hidden="true">↗</i></a>
+      <a href="/safety"><span>03</span> Safety <i aria-hidden="true">↗</i></a>
+      <a href="/privacy"><span>04</span> Privacy <i aria-hidden="true">↗</i></a>
+    </nav>
+    <div class="mobile-nav__actions">
+      <a class="button button--primary" href="/#waitlist">Join the prototype</a>
+      <a class="button button--outline" href="/#inquiry">Explore a pilot</a>
+    </div>
+    <p class="mobile-nav__boundary">Prototype · Awareness only · Not diagnosis</p>
   </div>
 </header>
 
 <script>
   const button = document.querySelector<HTMLButtonElement>('[data-menu-button]');
   const panel = document.querySelector<HTMLElement>('[data-mobile-nav]');
+  const closeButton = document.querySelector<HTMLButtonElement>('[data-menu-close]');
   if (button && panel) {
-    button.addEventListener('click', () => {
-      const expanded = button.getAttribute('aria-expanded') === 'true';
-      button.setAttribute('aria-expanded', String(!expanded));
-      button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
-      panel.hidden = expanded;
-    });
-    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => {
+    const close = () => {
       button.setAttribute('aria-expanded', 'false');
       button.setAttribute('aria-label', 'Open navigation');
       panel.hidden = true;
-    }));
+      document.body.classList.remove('nav-open');
+      button.focus();
+    };
+    const open = () => {
+      button.setAttribute('aria-expanded', 'true');
+      button.setAttribute('aria-label', 'Close navigation');
+      panel.hidden = false;
+      document.body.classList.add('nav-open');
+      requestAnimationFrame(() => closeButton?.focus());
+    };
+    button.addEventListener('click', () => button.getAttribute('aria-expanded') === 'true' ? close() : open());
+    closeButton?.addEventListener('click', close);
+    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && button.getAttribute('aria-expanded') === 'true') close();
+      if (event.key !== 'Tab' || button.getAttribute('aria-expanded') !== 'true') return;
+      const focusable = [...panel.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
+        .filter((element) => !element.hasAttribute('hidden'));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
+
+  const rail = document.querySelector<HTMLElement>('[data-site-nav]');
+  if (rail && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const links = [...rail.querySelectorAll<HTMLElement>('a')];
+    rail.addEventListener('pointermove', (event) => {
+      links.forEach((link) => {
+        const rect = link.getBoundingClientRect();
+        const distance = Math.abs(event.clientX - (rect.left + rect.width / 2));
+        const lift = Math.max(0, 1 - distance / 110) * -4;
+        link.style.transform = `translateY(${lift}px) scale(${1 + Math.max(0, -lift) * .008})`;
+      });
+    });
+    rail.addEventListener('pointerleave', () => links.forEach((link) => { link.style.transform = ''; }));
   }
 </script>

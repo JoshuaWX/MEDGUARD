@@ -1,0 +1,103 @@
+<form id="inquiry-form" class="inquiry-form" data-inquiry-form novalidate>
+  <div class="form-row">
+    <div class="field">
+      <label for="inquiry-email">Email address</label>
+      <input id="inquiry-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="you@example.com" required />
+    </div>
+    <div class="field">
+      <label for="inquiry-topic">I want to</label>
+      <select id="inquiry-topic" name="topic" required data-inquiry-topic-select>
+        <option value="pilot">Explore a pilot</option>
+        <option value="product_feedback">Share product feedback</option>
+        <option value="community_idea">Share a community idea</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="field">
+      <label for="inquiry-organization">Organization <span>Optional</span></label>
+      <input id="inquiry-organization" name="organization" type="text" autocomplete="organization" maxlength="120" />
+    </div>
+    <div class="field">
+      <label for="inquiry-role">Your role <span>Optional</span></label>
+      <input id="inquiry-role" name="role" type="text" autocomplete="organization-title" maxlength="80" />
+    </div>
+  </div>
+  <div class="field">
+    <label for="inquiry-message">What would you like to explore?</label>
+    <textarea id="inquiry-message" name="message" minlength="20" maxlength="1500" rows="6" placeholder="Tell us about the community, pilot idea or product suggestion—without including anyone’s health information." required></textarea>
+    <small>20–1,500 characters. Do not include symptoms, diagnoses, medical records or another person’s details.</small>
+  </div>
+  <div class="honeypot" aria-hidden="true" inert hidden>
+    <label for="inquiry-company">Company website</label><input id="inquiry-company" name="company" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />
+  </div>
+  <label class="consent" for="inquiry-consent">
+    <input id="inquiry-consent" name="consent" type="checkbox" required />
+    <span>I agree that MedGuard may use these details to review and reply to this inquiry. I have not included personal health information.</span>
+  </label>
+  <button class="button button--light" type="submit" data-inquiry-submit>Send inquiry</button>
+  <p class="form-status" role="status" aria-live="polite" data-inquiry-status></p>
+  <p class="form-footnote">Protected by validation, rate limits and duplicate controls. Read the <a href="/privacy">privacy notice</a>.</p>
+</form>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-inquiry-form]');
+  if (form) {
+    const status = form.querySelector<HTMLElement>('[data-inquiry-status]');
+    const submit = form.querySelector<HTMLButtonElement>('[data-inquiry-submit]');
+    const topic = form.querySelector<HTMLSelectElement>('[data-inquiry-topic-select]');
+    const friendlyError = (code: unknown) => {
+      if (code === 'too_many_requests') return 'Too many messages were sent recently. Please wait before trying again.';
+      if (code === 'invalid_email') return 'Enter a valid email address.';
+      if (code === 'invalid_message') return 'Write between 20 and 1,500 characters.';
+      if (code === 'consent_required') return 'Confirm that MedGuard may review and reply to your inquiry.';
+      if (code === 'invalid_topic') return 'Choose what you would like to explore.';
+      return 'The inquiry service is temporarily unavailable. Please try again later.';
+    };
+    document.querySelectorAll<HTMLElement>('[data-inquiry-topic]').forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        const value = trigger.dataset.inquiryTopic;
+        if (topic && value && [...topic.options].some((option) => option.value === value)) topic.value = value;
+      });
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity() || !status || !submit) return;
+      const data = new FormData(form);
+      const apiBase = document.querySelector<HTMLMetaElement>('meta[name="medguard-api-base"]')?.content;
+      if (!apiBase) {
+        status.textContent = 'The inquiry service is temporarily unavailable. Please try again later.';
+        status.dataset.tone = 'error';
+        return;
+      }
+      submit.disabled = true;
+      status.textContent = 'Sending securely…';
+      status.dataset.tone = '';
+      try {
+        const response = await fetch(`${apiBase.replace(/\/$/, '')}/functions/v1/submit-website-inquiry`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.get('email'),
+            topic: data.get('topic'),
+            organization: data.get('organization'),
+            role: data.get('role'),
+            message: data.get('message'),
+            consent: data.get('consent') === 'on',
+            company: data.get('company'),
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(friendlyError(result.error));
+        status.textContent = result.message || 'Thanks — your message has been received for review.';
+        status.dataset.tone = 'success';
+        form.reset();
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Unable to send right now. Please try again.';
+        status.dataset.tone = 'error';
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+</script>

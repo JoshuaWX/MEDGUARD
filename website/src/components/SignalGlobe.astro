@@ -1,0 +1,50 @@
+---
+---
+
+<section class="signal-reach" data-signal-globe aria-labelledby="signal-reach-title">
+  <div class="signal-reach__copy">
+    <span class="eyebrow">Signal reach</span>
+    <h3 id="signal-reach-title">A signal can travel further than one screen.</h3>
+    <p>MedGuard is testing the app first, while SMS and USSD are prepared for future, approved pilots. The orb is a product metaphor—not a measure of outbreaks or reach.</p>
+    <button class="signal-reach__toggle" type="button" data-globe-toggle aria-pressed="false" hidden>Pause motion</button>
+  </div>
+  <div class="signal-reach__stage">
+    <div class="signal-reach__canvas" aria-hidden="true"></div>
+    <div class="signal-reach__fallback" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+  </div>
+</section>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-signal-globe]');
+  if (root) {
+    const host = root.querySelector<HTMLElement>('.signal-reach__canvas');
+    const toggle = root.querySelector<HTMLButtonElement>('[data-globe-toggle]');
+    const desktop = window.matchMedia('(min-width: 961px)');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const memory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8);
+    let teardown: (() => void) | undefined;
+    const fallback = () => { teardown?.(); teardown = undefined; root.classList.remove('signal-reach--ready'); if (toggle) toggle.hidden = true; };
+    const initialise = async () => {
+      if (!host || teardown || !desktop.matches || reduced.matches || memory <= 2) return;
+      try {
+        const THREE = await import('three'); if (!desktop.matches || reduced.matches) return;
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.35)); host.appendChild(renderer.domElement);
+        const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 30); camera.position.z = 11.4; const world = new THREE.Group(); scene.add(world);
+        const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(2.3, 4), new THREE.MeshBasicMaterial({ color: 0x58d3dd, wireframe: true, transparent: true, opacity: .32 })); world.add(orb);
+        world.add(new THREE.Mesh(new THREE.SphereGeometry(2.34, 28, 20), new THREE.MeshBasicMaterial({ color: 0x0b7c8c, transparent: true, opacity: .08, side: THREE.BackSide })));
+        world.add(new THREE.Mesh(new THREE.SphereGeometry(.38, 20, 16), new THREE.MeshBasicMaterial({ color: 0x58d3dd, transparent: true, opacity: .9 })));
+        const bands: { group: InstanceType<typeof THREE.Group>; bead: InstanceType<typeof THREE.Mesh>; radius: number; speed: number; phase: number }[] = [];
+        [2.85, 3.26, 3.62].forEach((radius, index) => { const group = new THREE.Group(); group.rotation.set([.35, 1.1, 2.02][index], [.72, .18, 1.12][index], [.1, .56, 1.16][index]); group.add(new THREE.Mesh(new THREE.TorusGeometry(radius, .014, 5, 112), new THREE.MeshBasicMaterial({ color: [0x0b7c8c, 0x58d3dd, 0x159e7a][index], transparent: true, opacity: .48 }))); const bead = new THREE.Mesh(new THREE.SphereGeometry(.065, 14, 10), new THREE.MeshBasicMaterial({ color: [0x0b7c8c, 0x58d3dd, 0x159e7a][index] })); group.add(bead); world.add(group); bands.push({ group, bead, radius, speed: [.0002, -.00015, .00012][index], phase: index * 2.1 }); });
+        let paused = false; let visible = true; let frame = 0; let pointerX = 0; let pointerY = 0;
+        const resize = () => { const rect = host.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host); resize();
+        const pointer = (event: PointerEvent) => { const rect = root.getBoundingClientRect(); pointerX = ((event.clientX - rect.left) / rect.width - .5) * .28; pointerY = ((event.clientY - rect.top) / rect.height - .5) * .18; }; root.addEventListener('pointermove', pointer, { passive: true });
+        const render = (time: number) => { frame = 0; if (!visible || document.hidden) return; if (!paused) { world.rotation.y += (pointerX - world.rotation.y) * .018; world.rotation.x += (pointerY - world.rotation.x) * .018; orb.rotation.y += .0012; bands.forEach(({ group, bead, radius, speed, phase }) => { const a = time * speed + phase; bead.position.set(Math.cos(a) * radius, Math.sin(a) * radius, 0); group.rotation.z += speed * 1.2; }); } renderer.render(scene, camera); frame = requestAnimationFrame(render); }; const resume = () => { if (visible && !document.hidden && !frame) frame = requestAnimationFrame(render); }; const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; visible ? resume() : (cancelAnimationFrame(frame), frame = 0); }, { threshold: .06 }); observer.observe(root); const visibility = () => document.hidden ? (cancelAnimationFrame(frame), frame = 0) : resume(); document.addEventListener('visibilitychange', visibility); const reducedHandler = (event: MediaQueryListEvent) => { if (event.matches) fallback(); }; reduced.addEventListener('change', reducedHandler);
+        toggle?.addEventListener('click', () => { paused = !paused; toggle.setAttribute('aria-pressed', String(paused)); toggle.textContent = paused ? 'Resume motion' : 'Pause motion'; });
+        teardown = () => { cancelAnimationFrame(frame); resizeObserver.disconnect(); observer.disconnect(); document.removeEventListener('visibilitychange', visibility); reduced.removeEventListener('change', reducedHandler); scene.traverse((object) => { const mesh = object as InstanceType<typeof THREE.Mesh>; mesh.geometry?.dispose?.(); const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]; materials.filter(Boolean).forEach((item) => item.dispose?.()); }); renderer.dispose(); renderer.domElement.remove(); };
+        renderer.domElement.addEventListener('webglcontextlost', (event) => { event.preventDefault(); fallback(); }, { once: true }); root.classList.add('signal-reach--ready'); if (toggle) toggle.hidden = false; resume();
+      } catch { fallback(); }
+    };
+    desktop.addEventListener('change', () => desktop.matches ? void initialise() : fallback());
+    reduced.addEventListener('change', (event) => event.matches ? fallback() : void initialise()); void initialise();
+  }
+</script>
