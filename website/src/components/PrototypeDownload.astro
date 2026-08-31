@@ -1,0 +1,43 @@
+---
+const downloadUrl = 'https://drive.google.com/drive/folders/1_7eQvcWuw3TwA6MQvGofCgl22solBN65';
+---
+
+<section class="section prototype-download" id="download" aria-labelledby="prototype-download-heading">
+  <div class="shell prototype-download__grid">
+    <div class="prototype-download__signal" aria-hidden="true">
+      <span class="prototype-download__ring prototype-download__ring--outer"></span>
+      <span class="prototype-download__ring prototype-download__ring--inner"></span>
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M10 4h8l5 5v17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="M18 4v6h6M16 14v8m0 0-3-3m3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </div>
+    <div class="prototype-download__copy" data-story-reveal>
+      <span class="eyebrow">Android prototype</span>
+      <h2 id="prototype-download-heading">Try MedGuard on your Android phone.</h2>
+      <p>The current prototype is available from our Google Drive folder. It is an Android APK for testing—not a Play Store release.</p>
+      <div class="prototype-download__meta" aria-label="Download details">
+        <span>Android APK</span><i aria-hidden="true"></i><span>Google Drive</span><i aria-hidden="true"></i><span>External link</span>
+      </div>
+      <a
+        class="button button--light prototype-download__cta"
+        href={downloadUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Download the MedGuard Android prototype from Google Drive, opens in a new tab"
+      >
+        Download Android prototype
+        <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M6 3h9v9M15 3 3 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </a>
+    </div>
+    <aside class="prototype-download__steps" data-story-reveal aria-label="Install the prototype">
+      <p class="prototype-download__steps-label">First install</p>
+      <ol>
+        <li><span>01</span><p>Open the folder and choose the latest MedGuard APK.</p></li>
+        <li><span>02</span><p>Review Android’s install prompt before allowing this browser or Drive to install it.</p></li>
+        <li><span>03</span><p>Open MedGuard and use the in-app guidance to get started.</p></li>
+      </ol>
+      <p class="prototype-download__boundary">Prototype · Awareness only · Not diagnosis</p>
+    </aside>
+  </div>
+</section>

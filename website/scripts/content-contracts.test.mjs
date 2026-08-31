@@ -40,6 +40,19 @@ test('homepage does not make prohibited unqualified claims', async () => {
   }
 });
 
+test('the Android prototype download is clearly labelled and uses the approved external destination', async () => {
+  const download = await read('../src/components/PrototypeDownload.astro');
+  const layout = await read('../src/layouts/BaseLayout.astro');
+  assert.match(download, /Download Android prototype/);
+  assert.match(download, /Android APK/);
+  assert.match(download, /Google Drive/);
+  assert.match(download, /Prototype · Awareness only · Not diagnosis/);
+  assert.match(download, /https:\/\/drive\.google\.com\/drive\/folders\/1_7eQvcWuw3TwA6MQvGofCgl22solBN65/);
+  assert.match(download, /rel="noopener noreferrer"/);
+  assert.match(layout, /operatingSystem: 'Android'/);
+  assert.doesNotMatch(layout, /Android, iOS/);
+});
+
 test('atlas contains all 36 Nigerian states and the FCT', async () => {
   const atlas = JSON.parse(await read('../src/data/nigeria-adm1.json'));
   assert.equal(atlas.states.length, 37);
