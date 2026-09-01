@@ -1,0 +1,109 @@
+---
+const screens = [
+  {
+    id: 'home',
+    title: 'Area awareness',
+    caption: 'A single home view makes current conditions, attributed information and next steps easier to find.',
+  },
+  {
+    id: 'news',
+    title: 'Health News',
+    caption: 'Official updates keep their publisher, publication date and original source close to the story.',
+  },
+  {
+    id: 'outlook',
+    title: 'Area outlook',
+    caption: 'A modelled outlook keeps its source, confidence and safety boundary visible.',
+  },
+  {
+    id: 'signals',
+    title: 'Health Signals',
+    caption: 'Private check-ins stay in the signed-in experience and are not a medical assessment.',
+  },
+  {
+    id: 'care',
+    title: 'Nearby care',
+    caption: 'A shared care search helps people review nearby options without changing their alert area.',
+  },
+];
+---
+
+<section class="prototype-proof" aria-labelledby="prototype-proof-heading" data-prototype-proof>
+  <div class="prototype-proof__head" data-story-reveal>
+    <div>
+      <span class="eyebrow">Proof in the prototype</span>
+      <h3 id="prototype-proof-heading">See the product before you download it.</h3>
+    </div>
+    <p>These are synthetic test-account renders, built from MedGuard’s current product flows. They contain no real people, locations, health data, or device identifiers.</p>
+  </div>
+
+  <div class="prototype-proof__viewport" tabindex="0" aria-label="Synthetic MedGuard prototype renders. Use left and right arrow keys to browse." data-proof-viewport>
+    <div class="prototype-proof__rail" data-proof-rail>
+      {screens.map((screen, index) => (
+        <figure class="prototype-proof__screen" data-proof-screen data-active={index === 0 ? 'true' : 'false'}>
+          <div class="prototype-proof__image">
+            <picture>
+              <source srcset={`/prototype/${screen.id}.avif`} type="image/avif" />
+              <source srcset={`/prototype/${screen.id}.webp`} type="image/webp" />
+              <img src={`/prototype/${screen.id}.png`} width="800" height="1440" loading={index === 0 ? 'eager' : 'lazy'} decoding="async" alt={`Synthetic MedGuard ${screen.title} prototype screen`} />
+            </picture>
+          </div>
+          <figcaption><strong>{screen.title}</strong><span>{screen.caption}</span></figcaption>
+        </figure>
+      ))}
+    </div>
+  </div>
+  <div class="prototype-proof__controls" aria-label="Browse product renders">
+    <button type="button" data-proof-previous aria-label="Show previous product render"><span aria-hidden="true">←</span></button>
+    <p><span data-proof-current>01</span> / {String(screens.length).padStart(2, '0')} <span>Drag or use arrow keys</span></p>
+    <button type="button" data-proof-next aria-label="Show next product render"><span aria-hidden="true">→</span></button>
+  </div>
+</section>
+
+<script>
+  const proof = document.querySelector<HTMLElement>('[data-prototype-proof]');
+  if (proof) {
+    const viewport = proof.querySelector<HTMLElement>('[data-proof-viewport]');
+    const rail = proof.querySelector<HTMLElement>('[data-proof-rail]');
+    const screens = [...proof.querySelectorAll<HTMLElement>('[data-proof-screen]')];
+    const current = proof.querySelector<HTMLElement>('[data-proof-current]');
+    const previous = proof.querySelector<HTMLButtonElement>('[data-proof-previous]');
+    const next = proof.querySelector<HTMLButtonElement>('[data-proof-next]');
+    let active = 0;
+    let startX: number | undefined;
+
+    const show = (index: number, focus = false) => {
+      active = (index + screens.length) % screens.length;
+      const target = screens[active];
+      target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest', inline: 'center' });
+      screens.forEach((screen, screenIndex) => screen.dataset.active = String(screenIndex === active));
+      if (current) current.textContent = String(active + 1).padStart(2, '0');
+      if (focus) target?.querySelector<HTMLImageElement>('img')?.focus?.();
+    };
+
+    previous?.addEventListener('click', () => show(active - 1));
+    next?.addEventListener('click', () => show(active + 1));
+    viewport?.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); show(active - 1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); show(active + 1); }
+    });
+    rail?.addEventListener('pointerdown', (event) => { startX = event.clientX; rail.setPointerCapture(event.pointerId); });
+    rail?.addEventListener('pointerup', (event) => {
+      if (startX === undefined) return;
+      const change = event.clientX - startX;
+      if (Math.abs(change) > 36) show(active + (change < 0 ? 1 : -1));
+      startX = undefined;
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      const index = visible ? screens.indexOf(visible.target as HTMLElement) : -1;
+      if (index >= 0) {
+        active = index;
+        screens.forEach((screen, screenIndex) => screen.dataset.active = String(screenIndex === active));
+        if (current) current.textContent = String(active + 1).padStart(2, '0');
+      }
+    }, { root: viewport, threshold: [0.55, 0.8] });
+    screens.forEach((screen) => observer.observe(screen));
+  }
+</script>

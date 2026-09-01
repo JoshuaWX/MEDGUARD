@@ -6,6 +6,8 @@ import WaitlistForm from '../components/WaitlistForm.astro';
 import InquiryForm from '../components/InquiryForm.astro';
 import SignalGlobe from '../components/SignalGlobe.astro';
 import PrototypeDownload from '../components/PrototypeDownload.astro';
+import EvidencePanel from '../components/EvidencePanel.astro';
+import PrototypeProof from '../components/PrototypeProof.astro';
 ---
 
 <BaseLayout
@@ -64,6 +66,7 @@ import PrototypeDownload from '../components/PrototypeDownload.astro';
     <div class="beneficiary-ribbon" aria-label="Communities MedGuard is designed to include">
       <span>Rural communities</span><i></i><span>Underserved families</span><i></i><span>Health workers</span><i></i><span>Public-health teams</span><i></i><span>Feature-phone users</span>
     </div>
+    <div class="shell"><EvidencePanel /></div>
   </section>
 
   <section class="matte-rise" aria-label="Transition from the problem to MedGuard's approach" data-matte-rise>
@@ -109,6 +112,7 @@ import PrototypeDownload from '../components/PrototypeDownload.astro';
         <span class="chapter-index">04 / Proof, not theatre</span>
         <h2>Clear about what works now—and what still needs a pilot.</h2>
       </header>
+      <PrototypeProof />
       <div class="roadmap">
         <article class="roadmap__column roadmap__column--now" data-story-reveal>
           <span>Working prototype</span>

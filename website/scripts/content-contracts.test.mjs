@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
@@ -68,4 +68,35 @@ test('inquiry UI warns against sharing health information', async () => {
   assert.match(inquiry, /pilot/);
   assert.match(inquiry, /product_feedback/);
   assert.match(inquiry, /community_idea/);
+});
+
+test('evidence facts stay dated, sourced and separate from MedGuard impact', async () => {
+  const evidence = await read('../src/components/EvidencePanel.astro');
+  for (const phrase of ['41%', '27%', '10,837', '2024', 'World Bank / ITU', 'GSMA', 'WHO situation report', 'not MedGuard activity, forecasts or impact results']) {
+    assert.match(evidence, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(evidence, /data\.worldbank\.org/);
+  assert.match(evidence, /gsma\.com/);
+  assert.match(evidence, /who\.int/);
+});
+
+test('prototype proof uses only privacy-safe synthetic renders', async () => {
+  const proof = await read('../src/components/PrototypeProof.astro');
+  assert.match(proof, /synthetic test-account renders/i);
+  assert.match(proof, /no real people, locations, health data, or device identifiers/i);
+  for (const id of ['home', 'news', 'outlook', 'signals', 'care']) {
+    for (const extension of ['avif', 'webp', 'png']) {
+      await access(new URL(`../public/prototype/${id}.${extension}`, import.meta.url));
+    }
+  }
+});
+
+test('pilot brief is explicit about readiness and does not invent investment proof', async () => {
+  const pilot = (await read('../src/pages/pilot.astro')).toLowerCase();
+  for (const phrase of ['what exists, what needs validation, and what needs partners', 'medguard has no formal institutional partners yet', 'in the prototype', 'to validate', 'requires collaboration']) {
+    assert.ok(pilot.includes(phrase), `Missing pilot-brief boundary: ${phrase}`);
+  }
+  for (const phrase of ['proven impact', 'funded by', 'partnered with', 'lives saved']) {
+    assert.equal(pilot.includes(phrase), false, `Unsupported pilot claim found: ${phrase}`);
+  }
 });

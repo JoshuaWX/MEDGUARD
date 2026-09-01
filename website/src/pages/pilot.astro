@@ -1,0 +1,66 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import PrototypeDownload from '../components/PrototypeDownload.astro';
+---
+
+<BaseLayout title="Pilot brief" description="What MedGuard demonstrates today, what a responsible pilot must validate, and how partners can help shape safe early health awareness.">
+  <PageHero eyebrow="Pilot brief" title="A prototype worth testing in the real world." description="MedGuard is seeking carefully scoped learning partnerships—not claiming results that have not been earned." />
+
+  <section class="section pilot-intro">
+    <div class="shell pilot-intro__grid">
+      <div>
+        <span class="eyebrow">The opportunity</span>
+        <h2>Earlier awareness only matters when people can understand and use it.</h2>
+      </div>
+      <p>Recurring public-health events and unequal digital access make trustworthy, location-relevant communication difficult. MedGuard is a Nigeria-first Android prototype designed to test a clearer, more inclusive awareness experience.</p>
+    </div>
+  </section>
+
+  <section class="section pilot-ledger-section" aria-labelledby="pilot-ledger-heading">
+    <div class="shell">
+      <header class="section-head">
+        <span class="eyebrow">A clear readiness ledger</span>
+        <h2 id="pilot-ledger-heading">What exists, what needs validation, and what needs partners.</h2>
+      </header>
+      <div class="pilot-ledger">
+        <article class="pilot-ledger__item pilot-ledger__item--ready">
+          <span>In the prototype</span>
+          <h3>Product foundations</h3>
+          <ul><li>Android awareness experience</li><li>37-state/FCT illustrative atlas</li><li>Attributable Health News and source labels</li><li>Modelled outlook boundaries</li><li>Private check-ins, nearby-care and notification controls</li></ul>
+        </article>
+        <article class="pilot-ledger__item pilot-ledger__item--test">
+          <span>To validate</span>
+          <h3>Human outcomes</h3>
+          <ul><li>Whether messages are relevant and understood</li><li>Whether people distinguish projections from reports</li><li>Whether information arrives in time to support a practical choice</li><li>Whether guidance earns trust and repeat use</li></ul>
+        </article>
+        <article class="pilot-ledger__item pilot-ledger__item--partner">
+          <span>Requires collaboration</span>
+          <h3>Responsible reach</h3>
+          <ul><li>Community-led onboarding and language insight</li><li>Clinical and public-health review</li><li>Approved SMS and USSD pilot delivery</li><li>Telecom and implementation pathways</li></ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section pilot-questions">
+    <div class="shell pilot-questions__grid">
+      <header><span class="eyebrow">The questions a pilot should answer</span><h2>Useful evidence before scale.</h2></header>
+      <ol>
+        <li><strong>Reach</strong><span>Who receives a relevant message, including people with limited smartphone or data access?</span></li>
+        <li><strong>Clarity</strong><span>Can people tell an official report, a modelled outlook and general environmental context apart?</span></li>
+        <li><strong>Action</strong><span>Does the experience help people find appropriate guidance or nearby care without overclaiming?</span></li>
+        <li><strong>Trust</strong><span>Do communities and implementation partners judge the experience safe, respectful and worth improving?</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <PrototypeDownload />
+
+  <section class="section pilot-contact">
+    <div class="shell pilot-contact__grid">
+      <div><span class="eyebrow">Explore a pilot</span><h2>Bring a bounded question, not a vague promise.</h2><p>MedGuard has no formal institutional partners yet. If your organisation, community or programme can help test a specific access or awareness question, we would like to hear from you.</p></div>
+      <div class="pilot-contact__actions"><a class="button button--primary" href="/#inquiry" data-inquiry-topic="pilot">Send a pilot inquiry</a><a class="button button--outline" href="/how-it-works">Read how MedGuard works</a></div>
+    </div>
+  </section>
+</BaseLayout>
