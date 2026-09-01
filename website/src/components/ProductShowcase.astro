@@ -1,193 +1,32 @@
 ---
-const channels = [
-  {
-    id: 'app',
-    number: '01',
-    eyebrow: 'Working prototype',
-    title: 'Mobile awareness',
-    body: 'One calm place for area outlooks, official updates, personal check-ins and practical next steps.',
-    label: 'App',
-  },
-  {
-    id: 'official',
-    number: '02',
-    eyebrow: 'Attributable evidence',
-    title: 'Official updates',
-    body: 'Sources and publication dates stay close to every report. Attribution never implies partnership.',
-    label: 'Source',
-  },
-  {
-    id: 'outlook',
-    number: '03',
-    eyebrow: 'Model-assisted',
-    title: 'Area outlooks',
-    body: 'Estimates retain confidence, freshness and validity labels so projection never becomes confirmation.',
-    label: 'Forecast',
-  },
-  {
-    id: 'care',
-    number: '04',
-    eyebrow: 'Practical action',
-    title: 'Nearby care',
-    body: 'Location can help find care while a manually saved state remains available when sharing is off.',
-    label: 'Care',
-  },
-  {
-    id: 'sms',
-    number: '05',
-    eyebrow: 'Pilot next',
-    title: 'SMS alerts',
-    body: 'MedGuard is preparing bounded, state-relevant SMS delivery for a future approved pilot—not claiming national coverage today.',
-    label: 'SMS',
-  },
-  {
-    id: 'ussd',
-    number: '06',
-    eyebrow: 'Pilot next',
-    title: 'USSD access',
-    body: 'Feature-phone flows are being prepared so essential awareness can eventually work without mobile data.',
-    label: 'USSD',
-  },
-  {
-    id: 'community',
-    number: '07',
-    eyebrow: 'Privacy boundary',
-    title: 'Aggregate signals',
-    body: 'Anonymous community patterns may add context, but they never become diagnosis or outbreak confirmation by themselves.',
-    label: 'Aggregate',
-  },
+const routes = [
+  { status: 'Working now', title: 'Android app and notifications', body: 'A person can choose an alert area, read attributable updates and decide whether notifications are useful to them.', tone: 'now' },
+  { status: 'Pilot next', title: 'SMS for relevant notices', body: 'A bounded pilot could test concise, state-relevant delivery for people with limited data or no smartphone.', tone: 'next' },
+  { status: 'Pilot next', title: 'USSD for essential access', body: 'Feature-phone access needs community, telecom and public-health partners before it can be offered responsibly.', tone: 'next' },
 ];
 ---
 
-<section class="channel-gallery" data-channel-gallery aria-labelledby="channel-gallery-title">
-  <div class="channel-gallery__topline">
-    <div>
-      <span class="eyebrow">One signal, many channels</span>
-      <h3 id="channel-gallery-title">Built to travel farther than one screen.</h3>
-    </div>
-    <div class="channel-gallery__progress" aria-hidden="true">
-      <span data-gallery-current>01</span><i></i><span>{String(channels.length).padStart(2, '0')}</span>
-    </div>
+<section class="delivery-story" aria-labelledby="delivery-story-title" data-delivery-story>
+  <div class="delivery-story__signal" data-story-reveal>
+    <span class="eyebrow">The signal</span>
+    <h3 id="delivery-story-title">A source stays attached to the message.</h3>
+    <p>Every route starts with the same discipline: distinguish an official update from a modelled outlook, name the place it applies to, and show what the information cannot confirm.</p>
+    <span class="delivery-story__boundary">No diagnosis · No fabricated reach data · No silent data sharing</span>
   </div>
 
-  <div class="channel-gallery__viewport" data-gallery-viewport>
-    <div class="channel-gallery__rail" data-gallery-rail>
-      {channels.map((channel, index) => (
-        <article
-          class="channel-panel"
-          data-gallery-panel
-          data-index={index}
-          data-active={index === 0 ? 'true' : 'false'}
-          aria-hidden={index === 0 ? 'false' : 'true'}
-          style={`--panel-x:${index * 43}%; --panel-turn:${index * -13}deg; --panel-z:${Math.abs(index) * -110}px; --panel-scale:${1 - Math.min(Math.abs(index), 2) * .09}; --panel-opacity:${1 - Math.min(Math.abs(index), 2) * .27}`}
-        >
-          <div class="channel-panel__face">
-            <div class="channel-panel__head"><span>{channel.number}</span><strong>{channel.label}</strong></div>
-            <div class={`channel-panel__visual channel-panel__visual--${channel.id}`} aria-hidden="true">
-              <div class="channel-panel__signal"><i></i><i></i><i></i></div>
-              <span>{channel.label}</span>
-            </div>
-            <div class="channel-panel__copy">
-              <small>{channel.eyebrow}</small>
-              <h4>{channel.title}</h4>
-              <p>{channel.body}</p>
-            </div>
-          </div>
-        </article>
-      ))}
-    </div>
+  <div class="delivery-story__routes" aria-label="Current and future delivery routes">
+    {routes.map((route, index) => (
+      <article class:list={['delivery-route', `delivery-route--${route.tone}`]} data-story-reveal>
+        <div class="delivery-route__line" aria-hidden="true"><i>{String(index + 1).padStart(2, '0')}</i></div>
+        <span>{route.status}</span>
+        <h4>{route.title}</h4>
+        <p>{route.body}</p>
+      </article>
+    ))}
   </div>
 
-  <div class="channel-gallery__controls">
-    <button type="button" data-gallery-previous aria-label="Show previous channel">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-    </button>
-    <div class="channel-gallery__dots" role="tablist" aria-label="Choose a channel">
-      {channels.map((channel, index) => (
-        <button
-          type="button"
-          role="tab"
-          aria-label={`Show ${channel.title}`}
-          aria-selected={index === 0 ? 'true' : 'false'}
-          tabindex={index === 0 ? 0 : -1}
-          data-gallery-dot={index}
-        ></button>
-      ))}
-    </div>
-    <button type="button" data-gallery-next aria-label="Show next channel">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-    </button>
+  <div class="delivery-story__footer" data-story-reveal>
+    <p><strong>What is missing is as important as what is shown:</strong> SMS and USSD are not live services today. They need a scoped, approved pilot and accountable delivery partners.</p>
+    <a class="button button--light" href="#inquiry" data-inquiry-topic="pilot">Explore a delivery pilot</a>
   </div>
-  <p class="channel-gallery__instruction">Drag, use arrow keys or choose a dot. Nothing advances without you.</p>
-  <ol class="sr-only">
-    {channels.map((channel) => <li>{channel.title}: {channel.body}</li>)}
-  </ol>
 </section>
-
-<script>
-  const gallery = document.querySelector<HTMLElement>('[data-channel-gallery]');
-  if (gallery) {
-    const panels = [...gallery.querySelectorAll<HTMLElement>('[data-gallery-panel]')];
-    const dots = [...gallery.querySelectorAll<HTMLButtonElement>('[data-gallery-dot]')];
-    const previous = gallery.querySelector<HTMLButtonElement>('[data-gallery-previous]');
-    const next = gallery.querySelector<HTMLButtonElement>('[data-gallery-next]');
-    const viewport = gallery.querySelector<HTMLElement>('[data-gallery-viewport]');
-    const current = gallery.querySelector<HTMLElement>('[data-gallery-current]');
-    let active = 0;
-    let pointerStart: number | undefined;
-
-    const show = (index: number) => {
-      active = (index + panels.length) % panels.length;
-      panels.forEach((panel, panelIndex) => {
-        let offset = panelIndex - active;
-        if (offset > panels.length / 2) offset -= panels.length;
-        if (offset < -panels.length / 2) offset += panels.length;
-        const isActive = panelIndex === active;
-        const distance = Math.abs(offset);
-        panel.style.setProperty('--panel-x', `${offset * 43}%`);
-        panel.style.setProperty('--panel-turn', `${offset * -13}deg`);
-        panel.style.setProperty('--panel-z', `${distance * -110}px`);
-        panel.style.setProperty('--panel-scale', String(1 - Math.min(distance, 2) * .09));
-        panel.style.setProperty('--panel-opacity', String(1 - Math.min(distance, 2) * .27));
-        panel.dataset.active = String(isActive);
-        panel.setAttribute('aria-hidden', String(!isActive));
-      });
-      dots.forEach((dot, dotIndex) => {
-        const isActive = dotIndex === active;
-        dot.setAttribute('aria-selected', String(isActive));
-        dot.tabIndex = isActive ? 0 : -1;
-      });
-      if (current) current.textContent = String(active + 1).padStart(2, '0');
-    };
-
-    previous?.addEventListener('click', () => show(active - 1));
-    next?.addEventListener('click', () => show(active + 1));
-    dots.forEach((dot, index) => {
-      dot.addEventListener('click', () => show(index));
-      dot.addEventListener('keydown', (event) => {
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault();
-        const target = event.key === 'ArrowRight' ? active + 1 : event.key === 'ArrowLeft' ? active - 1 : event.key === 'Home' ? 0 : panels.length - 1;
-        show(target);
-        dots[active]?.focus();
-      });
-    });
-    viewport?.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowLeft') show(active - 1);
-      if (event.key === 'ArrowRight') show(active + 1);
-    });
-    viewport?.addEventListener('pointerdown', (event) => {
-      pointerStart = event.clientX;
-      viewport.setPointerCapture(event.pointerId);
-    });
-    viewport?.addEventListener('pointerup', (event) => {
-      if (pointerStart === undefined) return;
-      const distance = event.clientX - pointerStart;
-      pointerStart = undefined;
-      if (Math.abs(distance) > 42) show(active + (distance < 0 ? 1 : -1));
-    });
-    viewport?.addEventListener('pointercancel', () => { pointerStart = undefined; });
-    viewport?.setAttribute('tabindex', '0');
-    show(0);
-  }
-</script>

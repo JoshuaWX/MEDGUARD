@@ -3,6 +3,7 @@ import { optionalEnv } from '../_shared/env.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { allowedWebsiteOrigin, websiteCors } from '../_shared/website-origin.ts';
+import { configuredWebsiteMailer, deliverWebsiteEmail, logWebsiteDelivery } from '../_shared/website-email.ts';
 import { parseWaitlistInput, WaitlistValidationError } from './validation.ts';
 
 const SUCCESS_MESSAGE = 'Thanks — if this address is eligible, it is now on the prototype list.';
@@ -24,20 +25,15 @@ async function digest(value: string): Promise<string> {
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function notifyOwner(email: string, platform: string): Promise<void> {
-  const apiKey = optionalEnv('RESEND_API_KEY');
-  const owner = optionalEnv('WAITLIST_OWNER_EMAIL');
-  const sender = optionalEnv('WAITLIST_SENDER_EMAIL');
-  if (!apiKey || !owner || !sender) {
-    console.warn(JSON.stringify({ event: 'waitlist_notification_skipped', category: 'missing_configuration' }));
-    return;
-  }
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: sender, to: [owner], subject: 'New MedGuard prototype waitlist entry', text: `A new prototype entry was accepted.\n\nEmail: ${email}\nPlatform: ${platform}` }),
-  });
-  if (!response.ok) console.error(JSON.stringify({ event: 'waitlist_notification_failed', category: 'provider_rejected', status: response.status }));
+async function notifyWaitlist(email: string, platform: string): Promise<boolean> {
+  const mailer = configuredWebsiteMailer();
+  const [owner, visitor] = await Promise.all([
+    deliverWebsiteEmail(mailer, { to: mailer?.owner ?? '', replyTo: email, subject: 'New MedGuard prototype request', text: `A new prototype request was accepted.\n\nEmail: ${email}\nPlatform: ${platform}` }),
+    deliverWebsiteEmail(mailer, { to: email, replyTo: mailer?.owner, subject: 'MedGuard prototype request received', text: 'Thanks for joining the MedGuard prototype list. We have received your request and will contact you about relevant prototype updates.\n\nMedGuard is a prototype for health awareness only. It does not provide a diagnosis.' }),
+  ]);
+  logWebsiteDelivery('waitlist_owner_notification', owner);
+  logWebsiteDelivery('waitlist_visitor_confirmation', visitor);
+  return visitor.accepted;
 }
 
 serve(async (req) => {
@@ -79,6 +75,9 @@ serve(async (req) => {
     return json(origin, { error: 'service_temporarily_unavailable' }, 503);
   }
 
-  await notifyOwner(input.email, input.platform);
-  return json(origin, { ok: true, message: SUCCESS_MESSAGE }, 201);
+  const confirmationSent = await notifyWaitlist(input.email, input.platform);
+  return json(origin, {
+    ok: true,
+    message: confirmationSent ? SUCCESS_MESSAGE : 'Thanks — your request has been received. Our confirmation email is temporarily unavailable, so please do not submit it again.',
+  }, 201);
 });

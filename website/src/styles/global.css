@@ -911,6 +911,75 @@ body.nav-open { overflow: hidden; }
 @media (max-width: 960px) { .site-header__inner { justify-content: space-between; }.site-rail { display: none; }.site-header__mobile-brand { display: block; }.site-header__mobile-brand .brand { color: var(--ink); }.menu-button { display: inline-flex; color: var(--ink); border-color: #cce2e4; background: #fff; }.mobile-nav { display: block; background: #0b2428; color: #f7ffff; }.mobile-nav .brand { color: #fff; }.hero--story { padding-top: 8.5rem; }.signal-atlas__stage { min-height: 500px; }.signal-atlas__poster { padding-inline: 1.3rem; }.signal-atlas__canvas { display: none; }.signal-atlas__labels { display: none; }.signal-atlas__interface { grid-template-columns: 1fr auto; }.signal-atlas__source { grid-column: 1 / -1; }.signal-atlas__skip { display: none; }.impact-chapter { padding-inline: 0; }.impact-grid { grid-template-columns: 1fr; }.signal-reach { grid-template-columns: minmax(0, .72fr) minmax(300px, 1fr); }.signal-reach__copy { order: 2; }.signal-reach__stage { order: 1; } }
 @media (max-width: 700px) { .site-header__inner { min-height: 82px; }.hero--story { padding: 7.2rem 0 2rem; }.hero h1 { font-size: clamp(3.35rem, 16vw, 4.7rem); }.signal-atlas { padding: .6rem; border-radius: 1.45rem; }.signal-atlas__stage { min-height: 365px; border-radius: 1.08rem; }.signal-atlas__poster { padding: .4rem .45rem 1.3rem; }.signal-atlas__caption { right: .65rem; bottom: .48rem; font-size: .5rem; }.signal-atlas__interface { grid-template-columns: 1fr; gap: .4rem; padding: .65rem .2rem .1rem; }.signal-atlas__selected { display: flex; align-items: baseline; gap: .5rem; padding: .2rem .35rem; }.signal-atlas__source { font-size: .62rem; }.problem-chapter, .method-chapter, .channel-story, .proof-chapter, .impact-chapter, .collaboration-chapter, .safety-band, .waitlist, .inquiry-section { width: min(100% - .8rem, 1384px); margin: .8rem auto; border-radius: 1.35rem; }.problem-chapter, .method-chapter, .channel-story, .proof-chapter, .collaboration-chapter, .safety-band, .waitlist, .inquiry-section { padding-inline: .4rem; }.chapter-intro h2, .section-head h2, .collaboration-grid h2, .impact-grid header h2 { max-width: 12ch; font-size: clamp(2.55rem, 12vw, 3.7rem); }.signal-reach { grid-template-columns: 1fr; }.signal-reach__stage { min-height: 0; }.signal-reach__canvas { display: none; }.signal-reach__copy { order: 2; }.signal-reach__stage { order: 1; }.signal-reach__toggle { display: none; } }
 
+/* Human proof and delivery architecture: grounded editorial content on the white canvas. */
+.human-context-section, .pilot-human-context { padding: clamp(2rem, 4vw, 4.5rem) 0; }
+.human-context { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr); gap: clamp(1.5rem, 4vw, 4.5rem); align-items: start; }
+.human-context__intro { position: sticky; top: 7.5rem; max-width: 29rem; }
+.human-context__intro h2 { margin: .7rem 0 1rem; font-size: clamp(2.35rem, 4vw, 4.65rem); line-height: .96; letter-spacing: -.065em; }
+.human-context__intro p { max-width: 31rem; margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.65; }
+.human-context__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.human-context__photo { min-width: 0; margin: 0; overflow: hidden; border: 1px solid #d3e5e6; border-radius: 1.5rem; background: #fff; box-shadow: 0 16px 42px rgb(3 75 85 / 8%); }
+.human-context__photo--vaccination-outreach { grid-row: span 2; }
+.human-context__photo picture { display: block; overflow: hidden; aspect-ratio: 1.05 / 1; background: #dbeff0; }
+.human-context__photo--vaccination-outreach picture { aspect-ratio: .84 / 1; }
+.human-context__photo img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 750ms cubic-bezier(.16, 1, .3, 1); }
+.human-context__photo:hover img { transform: scale(1.035); }
+.human-context__photo figcaption { padding: 1rem 1.05rem 1.15rem; }
+.human-context__credits { grid-column: 1 / -1; color: #5e787d; font-size: .78rem; line-height: 1.55; }
+.human-context__credits summary { min-height: 44px; display: inline-flex; align-items: center; color: var(--signal-deep); font-weight: 760; cursor: pointer; }
+.human-context__credits ul { display: grid; gap: .35rem; margin: .25rem 0 0; padding-left: 1rem; }
+.human-context__credits a { color: var(--signal-deep); text-underline-offset: .2em; }
+.human-context__photo figcaption > span { display: block; margin-bottom: .55rem; color: var(--signal); font-size: .62rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.human-context__photo strong { display: block; max-width: 21ch; font-family: var(--display); font-size: clamp(1.15rem, 1.55vw, 1.52rem); line-height: 1.02; letter-spacing: -.045em; }
+.human-context__photo p { margin: .7rem 0; color: #547277; font-size: .78rem; line-height: 1.5; }
+.human-context__photo small { display: block; color: #648287; font-size: .62rem; line-height: 1.45; }
+.human-context__photo small a { color: #1d6972; text-underline-offset: .18em; }
+.human-context--compact .human-context__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.human-context--compact .human-context__photo--vaccination-outreach { grid-row: auto; }
+
+.delivery-story { display: grid; grid-template-columns: minmax(250px, .72fr) minmax(0, 1.28fr); gap: clamp(1.5rem, 4vw, 4rem); padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid rgb(159 230 233 / 22%); border-radius: 1.7rem; background: linear-gradient(135deg, #082d33 0%, #0b545d 100%); box-shadow: 0 28px 70px rgb(0 47 54 / 18%); }
+.delivery-story__signal { padding: clamp(1rem, 2vw, 1.7rem); border-radius: 1.2rem; color: #ecffff; background: rgb(0 18 22 / 18%); }
+.delivery-story__signal .eyebrow { color: #82e9ee; }
+.delivery-story__signal h3 { margin: .75rem 0; max-width: 11ch; font-size: clamp(2rem, 3.5vw, 3.7rem); line-height: .95; letter-spacing: -.06em; }
+.delivery-story__signal p { color: #c3e1e3; line-height: 1.6; }
+.delivery-story__boundary { display: block; margin-top: 1.2rem; color: #8fc7ca; font-size: .65rem; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+.delivery-story__routes { display: grid; gap: .75rem; align-content: center; }
+.delivery-route { position: relative; display: grid; grid-template-columns: 3.8rem minmax(0, 1fr); column-gap: 1rem; padding: 1.25rem 1.2rem; border: 1px solid rgb(206 250 252 / 14%); border-radius: 1.1rem; background: rgb(255 255 255 / 7%); transition: transform 280ms cubic-bezier(.16,1,.3,1), background 220ms ease; }
+.delivery-route:hover { transform: translateX(6px); background: rgb(255 255 255 / 11%); }
+.delivery-route__line { grid-row: 1 / span 3; position: relative; display: grid; place-items: start center; }
+.delivery-route__line::after { position: absolute; top: 1.7rem; bottom: -1.75rem; width: 1px; content: ''; background: linear-gradient(var(--signal-bright), transparent); }
+.delivery-route:last-child .delivery-route__line::after { display: none; }
+.delivery-route__line i { width: 2.15rem; height: 2.15rem; display: grid; place-items: center; border-radius: 50%; color: #06272c; background: #b6fbff; font-size: .62rem; font-style: normal; font-weight: 900; letter-spacing: .05em; }
+.delivery-route--next .delivery-route__line i { color: #b5dedf; border: 1px dashed #8bcbd0; background: transparent; }
+.delivery-route > span { grid-column: 2; color: #9ce6ea; font-size: .64rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.delivery-route h4 { grid-column: 2; margin: .3rem 0 .42rem; color: #fff; font-size: clamp(1.15rem, 1.8vw, 1.45rem); letter-spacing: -.035em; }
+.delivery-route p { grid-column: 2; margin: 0; color: #bee0e2; font-size: .84rem; line-height: 1.53; }
+.delivery-story__footer { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.1rem .2rem .1rem; border-top: 1px solid rgb(192 244 246 / 15%); }
+.delivery-story__footer p { max-width: 62rem; margin: 0; color: #c5e6e8; font-size: .86rem; line-height: 1.55; }
+.delivery-story__footer .button { white-space: nowrap; }
+
+/* The atlas is a floating landmark, not a dashboard card. */
+.hero--story .signal-atlas { width: min(100%, 1160px); margin: .35rem auto 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.hero--story .signal-atlas__stage { min-height: clamp(540px, 53vw, 690px); overflow: visible; border: 0; border-radius: 0; background: radial-gradient(circle at 50% 48%, rgb(88 211 221 / 24%), transparent 37%); }
+.hero--story .signal-atlas__stage::after { display: none; }
+.hero--story .signal-atlas__poster { padding: .5rem 3.4rem 2.3rem; animation: atlas-float 8s ease-in-out infinite; }
+.hero--story .signal-atlas__labels text { font-size: 6.8px; stroke: #f9ffff; stroke-width: 3px; }
+.hero--story .signal-atlas__interface { max-width: 900px; margin: 0 auto; padding: .25rem 0 0; border-top: 1px solid #cfe7e8; }
+.hero--story .signal-atlas__caption { bottom: .3rem; }
+.site-footer__credits { display: flex; justify-content: space-between; gap: 1.2rem; padding: 1rem 0 1.6rem; color: #80a2a7; border-top: 1px solid rgb(255 255 255 / 9%); font-size: .65rem; line-height: 1.5; }
+.site-footer__credits a { color: #b2e7e9; text-underline-offset: .2em; }
+@keyframes atlas-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-11px) rotate(.18deg); } }
+
+@media (max-width: 960px) {
+  .human-context { grid-template-columns: 1fr; }.human-context__intro { position: static; }.human-context__grid { max-width: 760px; }.delivery-story { grid-template-columns: 1fr; }.hero--story .signal-atlas__poster { animation: none; }.hero--story .signal-atlas__stage { min-height: 500px; }
+}
+@media (max-width: 700px) {
+  .human-context__grid, .human-context--compact .human-context__grid { grid-template-columns: 1fr; }.human-context__photo--vaccination-outreach { grid-row: auto; }.human-context__photo picture, .human-context__photo--vaccination-outreach picture { aspect-ratio: 1.25 / 1; }.human-context__intro h2 { font-size: clamp(2.35rem, 12vw, 3.4rem); }.delivery-story { padding: .75rem; border-radius: 1.35rem; }.delivery-story__signal { padding: 1.15rem; }.delivery-story__routes { gap: .55rem; }.delivery-route { grid-template-columns: 3rem minmax(0, 1fr); padding: 1rem .8rem; }.delivery-story__footer { display: grid; gap: 1rem; padding: 1rem .4rem .35rem; }.delivery-story__footer .button { width: 100%; }.hero--story .signal-atlas__stage { min-height: 390px; }.hero--story .signal-atlas__poster { padding: .4rem .45rem 1.2rem; animation: none; }.hero--story .signal-atlas__interface { padding-inline: .3rem; }.site-footer__credits { display: grid; padding-bottom: 1.3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .human-context__photo img, .delivery-route, .hero--story .signal-atlas__poster { transition: none; animation: none; }
+}
+
 .impact-grid { grid-template-columns: minmax(280px, .88fr) minmax(380px, 1.06fr) minmax(250px, .76fr); gap: clamp(1.8rem, 3vw, 3.25rem); }
 .impact-grid header h2 { max-width: 10ch; font-size: clamp(2.65rem, 3.65vw, 4.25rem); }
 

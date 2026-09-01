@@ -3,6 +3,7 @@ import { optionalEnv } from '../_shared/env.ts';
 import { enforceRateLimit } from '../_shared/rate-limit.ts';
 import { tryCreateAdminClient } from '../_shared/supabase.ts';
 import { allowedWebsiteOrigin, websiteCors } from '../_shared/website-origin.ts';
+import { configuredWebsiteMailer, deliverWebsiteEmail, logWebsiteDelivery } from '../_shared/website-email.ts';
 import { InquiryValidationError, parseInquiryInput } from './validation.ts';
 
 const SUCCESS_MESSAGE = 'Thanks — your message has been received for review.';
@@ -27,37 +28,21 @@ async function digest(namespace: string, value: string): Promise<string> {
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function notifyOwner(input: ReturnType<typeof parseInquiryInput>): Promise<void> {
-  const apiKey = optionalEnv('RESEND_API_KEY');
-  const owner = optionalEnv('WAITLIST_OWNER_EMAIL');
-  const sender = optionalEnv('WAITLIST_SENDER_EMAIL');
-  if (!apiKey || !owner || !sender) {
-    console.warn(JSON.stringify({ event: 'website_inquiry_notification_skipped', category: 'missing_configuration' }));
-    return;
-  }
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: sender,
-      to: [owner],
-      subject: `New MedGuard website inquiry: ${input.topic.replaceAll('_', ' ')}`,
-      text: [
-        'A new website inquiry was accepted.',
-        '',
-        `Topic: ${input.topic}`,
-        `Email: ${input.email}`,
-        `Organization: ${input.organization ?? 'Not provided'}`,
-        `Role: ${input.role ?? 'Not provided'}`,
-        '',
-        'Message:',
-        input.message,
-      ].join('\n'),
+async function notifyInquiry(input: ReturnType<typeof parseInquiryInput>): Promise<boolean> {
+  const mailer = configuredWebsiteMailer();
+  const [owner, visitor] = await Promise.all([
+    deliverWebsiteEmail(mailer, {
+      to: mailer?.owner ?? '', replyTo: input.email, subject: `New MedGuard website inquiry: ${input.topic.replaceAll('_', ' ')}`,
+      text: ['A new website inquiry was accepted.', '', `Topic: ${input.topic}`, `Email: ${input.email}`, `Organization: ${input.organization ?? 'Not provided'}`, `Role: ${input.role ?? 'Not provided'}`, '', 'Message:', input.message].join('\n'),
     }),
-  });
-  if (!response.ok) {
-    console.error(JSON.stringify({ event: 'website_inquiry_notification_failed', category: 'provider_rejected', status: response.status }));
-  }
+    deliverWebsiteEmail(mailer, {
+      to: input.email, replyTo: mailer?.owner, subject: 'MedGuard inquiry received',
+      text: 'Thanks for your MedGuard inquiry. We have received it and will review it. Please do not reply with personal health information.\n\nMedGuard is a prototype for health awareness only. It does not provide a diagnosis.',
+    }),
+  ]);
+  logWebsiteDelivery('website_inquiry_owner_notification', owner);
+  logWebsiteDelivery('website_inquiry_visitor_confirmation', visitor);
+  return visitor.accepted;
 }
 
 serve(async (req) => {
@@ -124,6 +109,9 @@ serve(async (req) => {
     return json(origin, { error: 'service_temporarily_unavailable' }, 503);
   }
 
-  await notifyOwner(input);
-  return json(origin, { ok: true, message: SUCCESS_MESSAGE }, 201);
+  const confirmationSent = await notifyInquiry(input);
+  return json(origin, {
+    ok: true,
+    message: confirmationSent ? SUCCESS_MESSAGE : 'Thanks — your message has been received. Our confirmation email is temporarily unavailable, so please do not submit it again.',
+  }, 201);
 });

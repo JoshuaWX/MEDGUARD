@@ -91,6 +91,18 @@ test('prototype proof uses only privacy-safe synthetic renders', async () => {
   }
 });
 
+test('human context photos carry direct Commons attribution and do not imply MedGuard outcomes', async () => {
+  const context = await read('../src/components/HumanContext.astro');
+  for (const phrase of ['Wikimedia Commons', 'CC BY 2.0', 'CC BY-SA 4.0', 'not a MedGuard service, partner or user story', 'does not imply a MedGuard partnership or endorsement']) {
+    assert.match(context, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  for (const id of ['vaccination-outreach', 'health-workers-masaka', 'nigerian-nurse']) {
+    for (const extension of ['avif', 'webp', 'jpg']) {
+      await access(new URL(`../public/context/${id}.${extension}`, import.meta.url));
+    }
+  }
+});
+
 test('pilot brief is explicit about readiness and does not invent investment proof', async () => {
   const pilot = (await read('../src/pages/pilot.astro')).toLowerCase();
   for (const phrase of ['what exists, what needs validation, and what needs partners', 'medguard has no formal institutional partners yet', 'in the prototype', 'to validate', 'requires collaboration']) {

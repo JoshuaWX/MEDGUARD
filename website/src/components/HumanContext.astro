@@ -1,0 +1,74 @@
+---
+const photos = [
+  {
+    id: 'vaccination-outreach',
+    eyebrow: 'Care reaches people',
+    title: 'Health information belongs close to everyday life.',
+    alt: 'A health worker administering a vaccine in a rural Nigerian farming community.',
+    caption: 'Vaccine outreach in a Nigerian farming community. This photograph is public-health context, not a MedGuard service, partner or user story.',
+    credit: 'Yatender Singh / STOP Volunteer for CDC Global',
+    license: 'CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Administering_vaccine_on_a_farm_in_Nigeria_(33874915954).jpg',
+    licenceUrl: 'https://creativecommons.org/licenses/by/2.0/',
+  },
+  {
+    id: 'health-workers-masaka',
+    eyebrow: 'Trusted local explanation',
+    title: 'A useful signal has to be understandable, not just available.',
+    alt: 'Health workers speaking with mothers during immunisation education at a primary health centre in Masaka, Nigeria.',
+    caption: 'Health workers speaking with mothers during immunisation education in Masaka. This image does not imply a MedGuard partnership or endorsement.',
+    credit: 'HarunaSylvester, via Wikimedia Commons',
+    license: 'CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Health_workers_educating_mothers_during_immunization_at_primary_health_center_in_Masaka.jpg',
+    licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  },
+  {
+    id: 'nigerian-nurse',
+    eyebrow: 'The people who make care practical',
+    title: 'Better awareness should support—not replace—people and care systems.',
+    alt: 'Portrait of a Nigerian nurse in clinical attire.',
+    caption: 'A Nigerian nurse. The photograph is used as community context and does not identify a MedGuard clinician or participant.',
+    credit: 'Jamie Tubers, via Wikimedia Commons',
+    license: 'CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:A_Nigerian_Nurse.jpg',
+    licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  },
+];
+
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+const selected = compact ? photos.slice(0, 2) : photos;
+---
+
+<section class:list={['human-context', { 'human-context--compact': compact }]} aria-labelledby="human-context-heading">
+  <div class="human-context__intro" data-story-reveal>
+    <span class="eyebrow">People before product claims</span>
+    <h2 id="human-context-heading">Earlier awareness only matters when it reaches real life.</h2>
+    <p>MedGuard is being designed around how information travels: between families, health workers, community leaders, feature phones and the care people can actually reach.</p>
+  </div>
+  <div class="human-context__grid">
+    {selected.map((photo, index) => (
+      <figure class:list={['human-context__photo', `human-context__photo--${photo.id}`]} data-story-reveal>
+        <picture>
+          <source srcset={`/context/${photo.id}.avif`} type="image/avif" />
+          <source srcset={`/context/${photo.id}.webp`} type="image/webp" />
+          <img src={`/context/${photo.id}.jpg`} width="1400" height="900" loading={index === 0 ? 'eager' : 'lazy'} decoding="async" alt={photo.alt} />
+        </picture>
+        <figcaption>
+          <span>{photo.eyebrow}</span>
+          <strong>{photo.title}</strong>
+          <p>{photo.caption}</p>
+          <small>Photo: <a href={photo.source} target="_blank" rel="noopener noreferrer">{photo.credit}</a> · <a href={photo.licenceUrl} target="_blank" rel="noopener noreferrer">{photo.license}</a> · resized for the web.</small>
+        </figcaption>
+      </figure>
+    ))}
+  </div>
+  <details class="human-context__credits">
+    <summary>Image credits and licences</summary>
+    <ul>
+      {selected.map((photo) => (
+        <li><a href={photo.source} target="_blank" rel="noopener noreferrer">{photo.credit}</a> · <a href={photo.licenceUrl} target="_blank" rel="noopener noreferrer">{photo.license}</a> · resized for the web.</li>
+      ))}
+    </ul>
+  </details>
+</section>
