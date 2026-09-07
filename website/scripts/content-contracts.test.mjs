@@ -14,9 +14,9 @@ test('homepage keeps the public-interest story and prototype boundaries', async 
     'Explore a pilot',
     'Share a suggestion',
     'Prototype · Awareness only · Not diagnosis',
-    'No partner logos.',
-    'An honest invitation.',
-    'Impact to validate',
+    'Working now',
+    'Pilot next',
+    'Measure what matters in a pilot.',
     'SMS and USSD',
   ];
 
@@ -91,16 +91,45 @@ test('prototype proof uses only privacy-safe synthetic renders', async () => {
   }
 });
 
-test('human context photos carry direct Commons attribution and do not imply MedGuard outcomes', async () => {
+test('human context carousel carries direct Commons attribution and avoids false MedGuard association', async () => {
   const context = await read('../src/components/HumanContext.astro');
-  for (const phrase of ['Wikimedia Commons', 'CC BY 2.0', 'CC BY-SA 4.0', 'not a MedGuard service, partner or user story', 'does not imply a MedGuard partnership or endorsement']) {
-    assert.match(context, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  }
-  for (const id of ['vaccination-outreach', 'health-workers-masaka', 'nigerian-nurse']) {
+  assert.match(context, /Wikimedia Commons/);
+  assert.match(context, /CC BY 2.0/);
+  assert.match(context, /CC BY-SA 4.0/);
+  assert.match(context, /medical-mission/);
+  assert.match(context, /vaccination-team/);
+  assert.match(context, /Image credits/);
+  assert.doesNotMatch(context, /MedGuard partner|MedGuard user|MedGuard outcome/i);
+  for (const id of ['vaccination-outreach', 'health-workers-masaka', 'medical-mission', 'vaccination-team', 'nigerian-nurse']) {
     for (const extension of ['avif', 'webp', 'jpg']) {
       await access(new URL(`../public/context/${id}.${extension}`, import.meta.url));
     }
   }
+});
+
+test('visual proof components preserve keyboard alternatives and the splash brand mark', async () => {
+  const rail = await read('../src/components/HumanContext.astro');
+  const delivery = await read('../src/components/ProductShowcase.astro');
+  const brand = await read('../src/components/Brand.astro');
+  assert.match(rail, /data-context-previous/);
+  assert.match(rail, /data-context-next/);
+  assert.match(rail, /ArrowLeft/);
+  assert.match(delivery, /role="tablist"/);
+  assert.match(delivery, /Working now/);
+  assert.match(delivery, /Pilot next/);
+  assert.match(brand, /medguard-splash\.png/);
+  await access(new URL('../public/brand/medguard-splash.png', import.meta.url));
+});
+
+test('desktop visual enhancements preserve the CSS-only mobile path', async () => {
+  const rail = await read('../src/components/HumanContext.astro');
+  const atmosphere = await read('../src/components/HeroAtmosphere.astro');
+  assert.match(rail, /matchMedia\('\(min-width: 961px\)'\)/);
+  assert.match(rail, /await import\('three'\)/);
+  assert.match(rail, /prefers-reduced-motion: reduce/);
+  assert.match(atmosphere, /matchMedia\('\(min-width: 961px\)'\)/);
+  assert.match(atmosphere, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(atmosphere, /import\('three'\)/);
 });
 
 test('pilot brief is explicit about readiness and does not invent investment proof', async () => {

@@ -1,0 +1,79 @@
+<div class="hero-atmosphere" data-hero-atmosphere>
+  <div class="hero-atmosphere__fallback" aria-hidden="true"></div>
+  <canvas class="hero-atmosphere__canvas" aria-hidden="true" hidden></canvas>
+  <button class="hero-atmosphere__toggle" type="button" aria-pressed="false" hidden>Pause motion</button>
+</div>
+
+<script>
+  import { mountDesktopEffect, renderWhenVisible } from '../scripts/desktop-effects';
+  const root = document.querySelector<HTMLElement>('[data-hero-atmosphere]');
+  if (root) {
+    const canvas = root.querySelector('canvas')!;
+    const toggle = root.querySelector('button')!;
+    const hero = root.closest<HTMLElement>('.hero')!;
+    mountDesktopEffect(root, async (signal) => {
+      signal.throwIfAborted();
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Canvas unavailable');
+      let width = 0;
+      let height = 0;
+      let elapsed = 0;
+      let paused = false;
+      const grain = document.createElement('canvas');
+      grain.width = grain.height = 128;
+      const grainContext = grain.getContext('2d')!;
+      const noise = grainContext.createImageData(128, 128);
+      let seed = 17;
+      for (let i = 0; i < noise.data.length; i += 4) {
+        seed = (seed * 16807) % 2147483647;
+        noise.data[i] = 12; noise.data[i + 1] = 90; noise.data[i + 2] = 98;
+        noise.data[i + 3] = seed % 13;
+      }
+      grainContext.putImageData(noise, 0, 0);
+      const pattern = context.createPattern(grain, 'repeat');
+      const loop = renderWhenVisible(root, delta => {
+        if (!paused) elapsed += delta;
+        context.clearRect(0, 0, width, height);
+        context.save();
+        // Muted plates lead towards the map, keeping the headline clear.
+        context.translate(width * .55, height * .25);
+        context.rotate(-.30);
+        [0, 1, 2].forEach(index => {
+          context.fillStyle = ['rgba(220,238,238,.28)', 'rgba(236,241,239,.42)', 'rgba(233,245,242,.34)'][index];
+          context.fillRect(-width * .60 + index * width * .22, -height * .20 + index * 30, width * .2, height * .65);
+        });
+        const phase = (elapsed % 26) / 26;
+        context.strokeStyle = 'rgba(11,124,140,' + (.1 * Math.sin(phase * Math.PI)) + ')';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.ellipse(0, height * (.65 - phase * .85), width * .38, height * .14, 0, 0, Math.PI * 2);
+        context.stroke();
+        context.restore();
+        if (pattern) { context.fillStyle = pattern; context.fillRect(0, 0, width, height); }
+        return !paused;
+      });
+      const resize = () => {
+        const rect = root.getBoundingClientRect(); width = rect.width; height = rect.height;
+        const ratio = Math.min(devicePixelRatio || 1, 1.5);
+        canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0); loop.invalidate();
+      };
+      const onToggle = () => {
+        paused = !paused;
+        toggle.setAttribute('aria-pressed', String(paused));
+        toggle.textContent = paused ? 'Resume motion' : 'Pause motion';
+        hero.dataset.motionPaused = String(paused);
+        hero.dispatchEvent(new CustomEvent('medguard:hero-motion', { detail: { paused } }));
+        loop.invalidate();
+      };
+      const observer = new ResizeObserver(resize); observer.observe(root); resize();
+      canvas.hidden = false; toggle.hidden = false; root.dataset.enhancement = 'ready';
+      toggle.addEventListener('click', onToggle);
+      return () => {
+        loop.dispose(); observer.disconnect(); toggle.removeEventListener('click', onToggle);
+        canvas.hidden = true; toggle.hidden = true; root.dataset.enhancement = 'fallback';
+        delete hero.dataset.motionPaused;
+      };
+    }, '0px');
+  }
+</script>

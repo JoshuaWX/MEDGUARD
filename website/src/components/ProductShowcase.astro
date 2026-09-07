@@ -1,32 +1,73 @@
 ---
 const routes = [
-  { status: 'Working now', title: 'Android app and notifications', body: 'A person can choose an alert area, read attributable updates and decide whether notifications are useful to them.', tone: 'now' },
-  { status: 'Pilot next', title: 'SMS for relevant notices', body: 'A bounded pilot could test concise, state-relevant delivery for people with limited data or no smartphone.', tone: 'next' },
-  { status: 'Pilot next', title: 'USSD for essential access', body: 'Feature-phone access needs community, telecom and public-health partners before it can be offered responsibly.', tone: 'next' },
+  { id: 'app', status: 'Working now', title: 'Android app', copy: 'Read an attributed update with its place, source and date.', icon: 'phone' },
+  { id: 'notification', status: 'Working now', title: 'Notifications', copy: 'Choose whether a relevant update deserves an interruption.', icon: 'bell' },
+  { id: 'sms', status: 'Pilot next', title: 'SMS', copy: 'Short updates for people with limited internet access.', icon: 'message' },
+  { id: 'ussd', status: 'Pilot next', title: 'USSD', copy: 'Simple menus on feature phones, with telecom partners needed for a pilot.', icon: 'keypad' },
 ];
 ---
 
-<section class="delivery-story" aria-labelledby="delivery-story-title" data-delivery-story>
-  <div class="delivery-story__signal" data-story-reveal>
-    <span class="eyebrow">The signal</span>
-    <h3 id="delivery-story-title">A source stays attached to the message.</h3>
-    <p>Every route starts with the same discipline: distinguish an official update from a modelled outlook, name the place it applies to, and show what the information cannot confirm.</p>
-    <span class="delivery-story__boundary">No diagnosis · No fabricated reach data · No silent data sharing</span>
+<section class="delivery-story" aria-labelledby="delivery-story-title" data-delivery-story data-routes={JSON.stringify(routes)}>
+  <header class="delivery-story__head" data-story-reveal>
+    <span class="eyebrow">One signal, many channels</span>
+    <h3 id="delivery-story-title">One clear message. More than one way to find it.</h3>
+  </header>
+
+  <div class="delivery-story__stage" data-story-reveal>
+    <article class="delivery-story__origin" aria-label="Illustrative attributed health update">
+      <span class="delivery-story__origin-dot" aria-hidden="true"></span>
+      <small>Attributed update</small>
+      <strong>Source, place and date stay visible.</strong>
+      <span>Illustrative signal</span>
+    </article>
+    <svg class="delivery-story__paths" viewBox="0 0 1000 430" preserveAspectRatio="none" aria-hidden="true">
+      <path pathLength="1" d="M 235 213 C 375 213, 385 77, 520 77" />
+      <path pathLength="1" d="M 235 213 C 370 213, 385 180, 520 180" />
+      <path pathLength="1" d="M 235 213 C 370 213, 385 290, 520 290" />
+      <path pathLength="1" d="M 235 213 C 375 213, 385 386, 520 386" />
+    </svg>
+    <div class="delivery-story__route-grid" role="tablist" aria-label="Delivery routes">
+      {routes.map((route, index) => (
+        <button class:list={['delivery-route', `delivery-route--${route.id}`]} type="button" role="tab" aria-controls="delivery-route-detail" aria-selected={index === 0 ? 'true' : 'false'} data-route-card data-route-index={index}>
+          <span class="delivery-route__status">{route.status}</span>
+          <span class:list={['delivery-route__icon', `delivery-route__icon--${route.icon}`]} aria-hidden="true"><i></i><i></i><i></i></span>
+          <strong>{route.title}</strong>
+        </button>
+      ))}
+    </div>
   </div>
 
-  <div class="delivery-story__routes" aria-label="Current and future delivery routes">
-    {routes.map((route, index) => (
-      <article class:list={['delivery-route', `delivery-route--${route.tone}`]} data-story-reveal>
-        <div class="delivery-route__line" aria-hidden="true"><i>{String(index + 1).padStart(2, '0')}</i></div>
-        <span>{route.status}</span>
-        <h4>{route.title}</h4>
-        <p>{route.body}</p>
-      </article>
-    ))}
+  <div id="delivery-route-detail" class="delivery-story__detail" role="tabpanel" data-story-reveal>
+    <p><span data-route-status>{routes[0].status}</span><strong data-route-title>{routes[0].title}</strong><em data-route-copy>{routes[0].copy}</em></p>
+    <a class="button button--primary" href="#inquiry" data-inquiry-topic="pilot">Explore a delivery pilot</a>
   </div>
-
-  <div class="delivery-story__footer" data-story-reveal>
-    <p><strong>What is missing is as important as what is shown:</strong> SMS and USSD are not live services today. They need a scoped, approved pilot and accountable delivery partners.</p>
-    <a class="button button--light" href="#inquiry" data-inquiry-topic="pilot">Explore a delivery pilot</a>
-  </div>
+  <p class="delivery-story__note">Every route keeps the source visible. SMS and USSD are not live services yet.</p>
 </section>
+
+<script>
+  const delivery = document.querySelector<HTMLElement>('[data-delivery-story]');
+  if (delivery) {
+    const routes = JSON.parse(delivery.dataset.routes ?? '[]') as { status: string; title: string; copy: string }[];
+    const cards = [...delivery.querySelectorAll<HTMLButtonElement>('[data-route-card]')];
+    const status = delivery.querySelector<HTMLElement>('[data-route-status]');
+    const title = delivery.querySelector<HTMLElement>('[data-route-title]');
+    const copy = delivery.querySelector<HTMLElement>('[data-route-copy]');
+    const select = (index: number) => {
+      const route = routes[index]; if (!route) return;
+      cards.forEach((card, cardIndex) => card.setAttribute('aria-selected', String(cardIndex === index)));
+      if (status) status.textContent = route.status;
+      if (title) title.textContent = route.title;
+      if (copy) copy.textContent = route.copy;
+    };
+    cards.forEach((card, index) => {
+      card.addEventListener('click', () => select(index));
+      card.addEventListener('focus', () => select(index));
+      card.addEventListener('keydown', (event) => {
+        if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? cards.length - 1 : (index + (event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1) + cards.length) % cards.length;
+        cards[next]?.focus(); select(next);
+      });
+    });
+  }
+</script>

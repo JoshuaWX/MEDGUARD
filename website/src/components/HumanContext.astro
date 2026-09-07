@@ -1,74 +1,152 @@
 ---
 const photos = [
   {
-    id: 'vaccination-outreach',
-    eyebrow: 'Care reaches people',
-    title: 'Health information belongs close to everyday life.',
-    alt: 'A health worker administering a vaccine in a rural Nigerian farming community.',
-    caption: 'Vaccine outreach in a Nigerian farming community. This photograph is public-health context, not a MedGuard service, partner or user story.',
-    credit: 'Yatender Singh / STOP Volunteer for CDC Global',
-    license: 'CC BY 2.0',
-    source: 'https://commons.wikimedia.org/wiki/File:Administering_vaccine_on_a_farm_in_Nigeria_(33874915954).jpg',
-    licenceUrl: 'https://creativecommons.org/licenses/by/2.0/',
+    id: 'vaccination-outreach', label: 'Outreach', caption: 'Vaccination outreach in a Nigerian farming community.',
+    alt: 'A health worker administering a vaccine in a rural Nigerian farming community.', credit: 'Yatender Singh / STOP Volunteer for CDC Global', license: 'CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Administering_vaccine_on_a_farm_in_Nigeria_(33874915954).jpg', licenceUrl: 'https://creativecommons.org/licenses/by/2.0/',
   },
   {
-    id: 'health-workers-masaka',
-    eyebrow: 'Trusted local explanation',
-    title: 'A useful signal has to be understandable, not just available.',
-    alt: 'Health workers speaking with mothers during immunisation education at a primary health centre in Masaka, Nigeria.',
-    caption: 'Health workers speaking with mothers during immunisation education in Masaka. This image does not imply a MedGuard partnership or endorsement.',
-    credit: 'HarunaSylvester, via Wikimedia Commons',
-    license: 'CC BY-SA 4.0',
-    source: 'https://commons.wikimedia.org/wiki/File:Health_workers_educating_mothers_during_immunization_at_primary_health_center_in_Masaka.jpg',
-    licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    id: 'health-workers-masaka', label: 'Listening', caption: 'Health workers speaking with mothers at a primary health centre in Masaka.',
+    alt: 'Health workers speaking with mothers during immunisation education at a primary health centre in Masaka, Nigeria.', credit: 'HarunaSylvester, via Wikimedia Commons', license: 'CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Health_workers_educating_mothers_during_immunization_at_primary_health_center_in_Masaka.jpg', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
   {
-    id: 'nigerian-nurse',
-    eyebrow: 'The people who make care practical',
-    title: 'Better awareness should support—not replace—people and care systems.',
-    alt: 'Portrait of a Nigerian nurse in clinical attire.',
-    caption: 'A Nigerian nurse. The photograph is used as community context and does not identify a MedGuard clinician or participant.',
-    credit: 'Jamie Tubers, via Wikimedia Commons',
-    license: 'CC BY-SA 4.0',
-    source: 'https://commons.wikimedia.org/wiki/File:A_Nigerian_Nurse.jpg',
-    licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    id: 'medical-mission', label: 'Community care', caption: 'A community medical outreach in Benue State.',
+    alt: 'People gathered during a community medical outreach in Benue State, Nigeria.', credit: 'Lovelyn Obiakor, via Wikimedia Commons', license: 'CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Medical_mission.jpg', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  },
+  {
+    id: 'vaccination-team', label: 'Last mile', caption: 'A vaccination team reaching a Nigerian community.',
+    alt: 'Members of a vaccination team in a Nigerian community.', credit: 'CDC Global Health, via Wikimedia Commons', license: 'CC BY 2.0',
+    source: 'https://commons.wikimedia.org/wiki/File:Vaccination_teams_reach_every_child_in_a_community_(33874917584).jpg', licenceUrl: 'https://creativecommons.org/licenses/by/2.0/',
+  },
+  {
+    id: 'nigerian-nurse', label: 'Care teams', caption: 'A Nigerian nurse in clinical attire.',
+    alt: 'Portrait of a Nigerian nurse in clinical attire.', credit: 'Jamie Tubers, via Wikimedia Commons', license: 'CC BY-SA 4.0',
+    source: 'https://commons.wikimedia.org/wiki/File:A_Nigerian_Nurse.jpg', licenceUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
 ];
-
-interface Props { compact?: boolean }
-const { compact = false } = Astro.props;
-const selected = compact ? photos.slice(0, 2) : photos;
 ---
 
-<section class:list={['human-context', { 'human-context--compact': compact }]} aria-labelledby="human-context-heading">
-  <div class="human-context__intro" data-story-reveal>
-    <span class="eyebrow">People before product claims</span>
-    <h2 id="human-context-heading">Earlier awareness only matters when it reaches real life.</h2>
-    <p>MedGuard is being designed around how information travels: between families, health workers, community leaders, feature phones and the care people can actually reach.</p>
-  </div>
-  <div class="human-context__grid">
-    {selected.map((photo, index) => (
-      <figure class:list={['human-context__photo', `human-context__photo--${photo.id}`]} data-story-reveal>
+<section class="human-context" aria-labelledby="human-context-heading" data-context-rail data-context-captions={JSON.stringify(photos.map((photo) => photo.caption))} data-context-images={JSON.stringify(photos.map((photo) => `/context/${photo.id}.webp`))}>
+  <header class="human-context__head" data-story-reveal>
+    <span class="eyebrow">Health in real life</span>
+    <h2 id="human-context-heading">Information has to travel.</h2>
+  </header>
+  <div class="human-context__three" role="group" tabindex="-1" aria-label="Nigerian public-health photographs" data-context-three></div>
+  <div class="human-context__viewport" tabindex="0" aria-label="Nigerian public-health context photographs. Use left and right arrow keys to browse." data-context-viewport>
+    <div class="human-context__rail" data-context-rail-track>
+      {photos.map((photo, index) => (
+      <figure class="human-context__photo" data-context-card data-active={index === 0 ? 'true' : 'false'}>
         <picture>
           <source srcset={`/context/${photo.id}.avif`} type="image/avif" />
           <source srcset={`/context/${photo.id}.webp`} type="image/webp" />
-          <img src={`/context/${photo.id}.jpg`} width="1400" height="900" loading={index === 0 ? 'eager' : 'lazy'} decoding="async" alt={photo.alt} />
+          <img src={`/context/${photo.id}.jpg`} width="1400" height="900" loading="lazy" decoding="async" alt={photo.alt} />
         </picture>
-        <figcaption>
-          <span>{photo.eyebrow}</span>
-          <strong>{photo.title}</strong>
-          <p>{photo.caption}</p>
-          <small>Photo: <a href={photo.source} target="_blank" rel="noopener noreferrer">{photo.credit}</a> · <a href={photo.licenceUrl} target="_blank" rel="noopener noreferrer">{photo.license}</a> · resized for the web.</small>
-        </figcaption>
+        <span class="human-context__photo-label">{photo.label}</span>
       </figure>
-    ))}
+      ))}
+    </div>
+  </div>
+  <div class="human-context__meta" aria-live="polite">
+    <p data-context-caption>{photos[0].caption}</p>
+    <div class="human-context__controls" aria-label="Browse photographs">
+      <button type="button" data-context-previous aria-label="Show previous photograph"><span aria-hidden="true">←</span></button>
+      <span><b data-context-current>01</b> / {String(photos.length).padStart(2, '0')}</span>
+      <button type="button" data-context-next aria-label="Show next photograph"><span aria-hidden="true">→</span></button>
+    </div>
   </div>
   <details class="human-context__credits">
     <summary>Image credits and licences</summary>
     <ul>
-      {selected.map((photo) => (
-        <li><a href={photo.source} target="_blank" rel="noopener noreferrer">{photo.credit}</a> · <a href={photo.licenceUrl} target="_blank" rel="noopener noreferrer">{photo.license}</a> · resized for the web.</li>
+      {photos.map((photo, index) => (
+        <li data-photo-credit data-active={index === 0 ? 'true' : 'false' }><a href={photo.source} target="_blank" rel="noopener noreferrer">{photo.credit}</a> · <a href={photo.licenceUrl} target="_blank" rel="noopener noreferrer">{photo.license}</a> · resized for the web.</li>
       ))}
     </ul>
   </details>
 </section>
+
+<script>
+  import { mountDesktopEffect } from '../scripts/desktop-effects';
+
+  document.querySelectorAll<HTMLElement>('[data-context-rail]').forEach((root) => {
+    const captions: string[] = JSON.parse(root.dataset.contextCaptions ?? '[]');
+    const urls: string[] = JSON.parse(root.dataset.contextImages ?? '[]');
+    const viewport = root.querySelector<HTMLElement>('[data-context-viewport]')!;
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-context-card]')];
+    const host = root.querySelector<HTMLElement>('[data-context-three]')!;
+    const caption = root.querySelector<HTMLElement>('[data-context-caption]')!;
+    const counter = root.querySelector<HTMLElement>('[data-context-current]')!;
+    const credits = [...root.querySelectorAll<HTMLElement>('[data-photo-credit]')];
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    let active = 0;
+    let scene: { select: (index: number) => void; dispose: () => void } | undefined;
+
+    const update = (index: number, move = true) => {
+      active = (index + cards.length) % cards.length;
+      root.dataset.activeIndex = String(active);
+      cards.forEach((card, i) => card.dataset.active = String(i === active));
+      credits.forEach((credit, i) => credit.dataset.active = String(i === active));
+      caption.textContent = captions[active];
+      counter.textContent = String(active + 1).padStart(2, '0');
+      host.setAttribute('aria-label', captions[active] + ' Use arrow keys to browse photographs.');
+      if (scene) scene.select(active);
+      else if (move) {
+        const card = cards[active];
+        viewport.scrollTo({ left: card.offsetLeft - viewport.offsetLeft - (viewport.clientWidth - card.clientWidth) / 2, behavior: reduced.matches ? 'instant' : 'smooth' });
+      }
+    };
+    const fallback = () => {
+      scene?.dispose(); scene = undefined;
+      root.classList.remove('human-context--three-ready');
+      host.tabIndex = -1; viewport.tabIndex = 0;
+      if (document.activeElement === host) viewport.focus({ preventScroll: true });
+    };
+    root.querySelector('[data-context-previous]')?.addEventListener('click', () => update(active - 1));
+    root.querySelector('[data-context-next]')?.addEventListener('click', () => update(active + 1));
+    root.addEventListener('keydown', (event) => {
+      if (!(event.target === host || event.target === viewport || (event.target as HTMLElement).closest('.human-context__controls'))) return;
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      update(event.key === 'Home' ? 0 : event.key === 'End' ? cards.length - 1 : active + (event.key === 'ArrowRight' ? 1 : -1));
+    });
+    // Native horizontal scrolling keeps vertical touch gestures available.
+    let scrollFrame = 0;
+    viewport.addEventListener('scroll', () => {
+      if (scene || scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        const centre = viewport.getBoundingClientRect().left + viewport.clientWidth / 2;
+        const index = cards.reduce((best, card, i) => {
+          const rect = card.getBoundingClientRect();
+          const previous = cards[best].getBoundingClientRect();
+          return Math.abs(rect.left + rect.width / 2 - centre) < Math.abs(previous.left + previous.width / 2 - centre) ? i : best;
+        }, 0);
+        if (index !== active) update(index, false);
+      });
+    }, { passive: true });
+    let drag: { x: number; scroll: number } | undefined;
+    viewport.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      drag = { x: event.clientX, scroll: viewport.scrollLeft };
+      viewport.setPointerCapture(event.pointerId);
+    });
+    viewport.addEventListener('pointermove', (event) => { if (drag) viewport.scrollLeft = drag.scroll + drag.x - event.clientX; });
+    const release = () => { drag = undefined; };
+    viewport.addEventListener('pointerup', release); viewport.addEventListener('pointercancel', release);
+    root.querySelectorAll('img').forEach(img => img.draggable = false);
+
+    mountDesktopEffect(root, async (signal) => {
+      const { createPhotoGallery } = await import('../scripts/photo-gallery');
+      signal.throwIfAborted();
+      const mounted = await createPhotoGallery({ host, urls, initial: active, signal,
+        onSelect: index => update(index, false), onFailure: fallback });
+      signal.throwIfAborted();
+      scene = mounted; root.classList.add('human-context--three-ready');
+      host.tabIndex = 0; viewport.tabIndex = -1;
+      update(active, false);
+      return fallback;
+    });
+    update(0, false);
+  });
+</script>

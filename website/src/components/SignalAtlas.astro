@@ -53,12 +53,13 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
   <div class="signal-atlas__interface">
     <label class="signal-atlas__state-control" for="atlas-state"><span>Explore a state</span><select id="atlas-state" data-atlas-state>{states.map((state) => <option value={state.id} selected={state.id === initialState.id}>{state.name}</option>)}</select></label>
     <p class="signal-atlas__selected"><strong data-atlas-state-name>{initialState.name}</strong><span>Illustrative local view</span></p>
-    <button class="signal-atlas__skip" type="button" data-atlas-skip>Use flat atlas</button>
+    <button class="signal-atlas__skip" type="button" data-atlas-skip hidden>Use flat atlas</button>
     <a class="signal-atlas__source" href="https://www.geoboundaries.org/" target="_blank" rel="noreferrer">Boundary data: geoBoundaries gbOpen · CC BY 4.0</a>
   </div>
 </section>
 
 <script>
+  import { mountDesktopEffect, renderWhenVisible } from '../scripts/desktop-effects';
   type AtlasState = { id: string; name: string; centroid: number[]; polygons: number[][][][] };
   type Atlas = { bounds: { minX: number; minY: number; maxX: number; maxY: number }; states: AtlasState[] };
   const root = document.querySelector<HTMLElement>('[data-signal-atlas]');
@@ -70,8 +71,7 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
     const stateName = root.querySelector<HTMLElement>('[data-atlas-state-name]');
     const canvasHost = root.querySelector<HTMLElement>('.signal-atlas__canvas');
     const skip = root.querySelector<HTMLButtonElement>('[data-atlas-skip]');
-    const reducedQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const desktopQuery = window.matchMedia('(min-width: 961px)');
+    let userStill = false;
     let selectedState = root.dataset.initialState ?? atlas.states[0]?.id;
     let selectSceneState: ((id: string) => void) | undefined;
     let stopScene: (() => void) | undefined;
@@ -83,13 +83,14 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
     };
     stateSelect?.addEventListener('change', () => chooseState(stateSelect.value));
     posterStates.forEach((path) => { path.addEventListener('pointerenter', () => chooseState(path.dataset.posterState)); path.addEventListener('click', () => chooseState(path.dataset.posterState)); path.addEventListener('focus', () => chooseState(path.dataset.posterState)); path.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); chooseState(path.dataset.posterState); } }); });
-    const setStill = () => { root.classList.add('signal-atlas--still'); stopScene?.(); stopScene = undefined; };
-    skip?.addEventListener('click', () => { setStill(); skip.hidden = true; });
-    const memory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8);
-    if (!canvasHost || reducedQuery.matches || !desktopQuery.matches || memory <= 2) setStill();
-    else requestAnimationFrame(async () => {
+    const setStill = () => { root.classList.add('signal-atlas--still'); root.classList.remove('signal-atlas--ready'); stopScene?.(); stopScene = undefined; selectSceneState = undefined; if (skip) skip.hidden = true; };
+    skip?.addEventListener('click', () => { userStill = true; setStill(); });
+    mountDesktopEffect(root, async (signal) => {
+      if (!canvasHost || userStill) return () => {};
       try {
-        const THREE = await import('three'); if (root.classList.contains('signal-atlas--still')) return;
+        const THREE = await import('three');
+        signal.throwIfAborted();
+        if (userStill) return () => {};
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.4)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.domElement.setAttribute('aria-hidden', 'true'); canvasHost.appendChild(renderer.domElement);
         const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(31, 1, 0.1, 100); camera.position.set(0, -0.4, 11.1); const terrain = new THREE.Group(); terrain.rotation.set(-0.24, -0.08, -0.02); scene.add(terrain);
         const mapWidth = atlas.bounds.maxX - atlas.bounds.minX; const mapHeight = atlas.bounds.maxY - atlas.bounds.minY; const mapScale = 7.85 / Math.max(mapWidth, mapHeight); const cx = (atlas.bounds.minX + atlas.bounds.maxX) / 2; const cy = (atlas.bounds.minY + atlas.bounds.maxY) / 2; const point = ([x, y]: number[]) => new THREE.Vector2((x - cx) * mapScale, (y - cy) * mapScale); const materials = new Map<string, InstanceType<typeof THREE.MeshStandardMaterial>>(); const stateObjects = new Map<string, InstanceType<typeof THREE.Object3D>[]>();
@@ -97,11 +98,47 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
         scene.add(new THREE.HemisphereLight(0xc4ffff, 0x02323a, 2.2)); const key = new THREE.DirectionalLight(0x7be7eb, 2.1); key.position.set(-3, 5, 7); scene.add(key);
         selectSceneState = (id) => { materials.forEach((material, key) => { const active = key === id; material.color.set(active ? 0x0b8792 : 0x09636e); material.emissive.set(active ? 0x053a40 : 0x000000); material.emissiveIntensity = active ? 0.62 : 0; }); stateObjects.forEach((objects, key) => objects.forEach((object) => { object.position.z = key === id ? 0.15 : 0; })); };
         const resize = () => { const rect = canvasHost.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(canvasHost); resize();
-        let visible = true; let frame = 0; let targetY = -0.08; let targetX = -0.24; const onPointer = (event: PointerEvent) => { const rect = root.getBoundingClientRect(); targetY = -0.08 + ((event.clientX - rect.left) / rect.width - .5) * .28; targetX = -0.24 + ((event.clientY - rect.top) / rect.height - .5) * .14; }; root.addEventListener('pointermove', onPointer, { passive: true });
-        const render = (time = 0) => { frame = 0; if (!visible || document.hidden) return; terrain.rotation.y += (targetY - terrain.rotation.y) * .032; terrain.rotation.x += (targetX - terrain.rotation.x) * .032; terrain.position.y = Math.sin(time * .00055) * .055; terrain.position.x = Math.cos(time * .00037) * .025; renderer.render(scene, camera); frame = requestAnimationFrame(render); }; const resume = () => { if (visible && !document.hidden && !frame) frame = requestAnimationFrame(render); }; const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; visible ? resume() : (cancelAnimationFrame(frame), frame = 0); }, { threshold: .06 }); observer.observe(root); const visibility = () => document.hidden ? (cancelAnimationFrame(frame), frame = 0) : resume(); document.addEventListener('visibilitychange', visibility); const reduced = (event: MediaQueryListEvent) => { if (event.matches) setStill(); }; reducedQuery.addEventListener('change', reduced);
-        stopScene = () => { cancelAnimationFrame(frame); resizeObserver.disconnect(); observer.disconnect(); document.removeEventListener('visibilitychange', visibility); reducedQuery.removeEventListener('change', reduced); scene.traverse((object) => { const mesh = object as InstanceType<typeof THREE.Mesh>; mesh.geometry?.dispose?.(); const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]; materials.filter(Boolean).forEach((item) => item.dispose?.()); }); renderer.dispose(); renderer.domElement.remove(); };
-        renderer.domElement.addEventListener('webglcontextlost', (event) => { event.preventDefault(); setStill(); }, { once: true }); root.classList.add('signal-atlas--ready'); chooseState(selectedState); resume();
-      } catch { setStill(); }
+        let targetY = -0.08; let targetX = -0.24; let elapsed = 0;
+        const hero = root.closest<HTMLElement>('.hero');
+        let paused = hero?.dataset.motionPaused === 'true';
+        const onPointer = (event: PointerEvent) => {
+          const rect = root.getBoundingClientRect();
+          targetY = -0.08 + ((event.clientX - rect.left) / rect.width - .5) * .18;
+          targetX = -0.24 + ((event.clientY - rect.top) / rect.height - .5) * .1;
+          loop.invalidate();
+        };
+        const loop = renderWhenVisible(root, delta => {
+          if (!paused) {
+            elapsed += delta;
+            terrain.rotation.y += (targetY - terrain.rotation.y) * .06;
+            terrain.rotation.x += (targetX - terrain.rotation.x) * .06;
+            terrain.position.y = Math.sin(elapsed * .55) * .04;
+          }
+          renderer.render(scene, camera);
+          return !paused;
+        });
+        const motion = (event: Event) => { paused = (event as CustomEvent<{paused: boolean}>).detail.paused; loop.invalidate(); };
+        const onStateChange = () => loop.invalidate();
+        stateSelect?.addEventListener('change', onStateChange);
+        root.addEventListener('pointermove', onPointer, { passive: true });
+        root.addEventListener('focusin', onStateChange);
+        hero?.addEventListener('medguard:hero-motion', motion);
+        stopScene = () => {
+          loop.dispose(); resizeObserver.disconnect();
+          root.removeEventListener('pointermove', onPointer); root.removeEventListener('focusin', onStateChange);
+          stateSelect?.removeEventListener('change', onStateChange);
+          hero?.removeEventListener('medguard:hero-motion', motion);
+          scene.traverse((object) => {
+            const mesh = object as InstanceType<typeof THREE.Mesh>;
+            mesh.geometry?.dispose?.();
+            const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            list.filter(Boolean).forEach(item => item.dispose?.());
+          });
+          renderer.dispose(); renderer.domElement.remove();
+        };
+        renderer.domElement.addEventListener('webglcontextlost', (event) => { event.preventDefault(); setStill(); }, { once: true }); root.classList.remove('signal-atlas--still'); root.classList.add('signal-atlas--ready'); if (skip) skip.hidden = false; chooseState(selectedState); loop.invalidate();
+        return setStill;
+      } catch (error) { setStill(); throw error; }
     });
   }
 </script>
