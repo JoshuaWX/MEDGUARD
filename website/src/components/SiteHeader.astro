@@ -1,15 +1,17 @@
 ---
 import Brand from './Brand.astro';
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const current = (href: string) => href.startsWith('/#') ? path === '/' : path === href;
 ---
 <header class="site-header" data-site-header>
   <div class="shell site-header__inner">
     <div class="site-rail" aria-label="Primary navigation" data-site-nav>
       <a class="site-rail__brand" href="/" aria-label="MedGuard home"><img src="/brand/medguard-splash.png" alt="" /></a>
       <nav class="site-dock" data-site-nav>
-        <a href="/#why">Why MedGuard</a>
-        <a href="/how-it-works">How it works</a>
-        <a href="/pilot">Pilot brief</a>
-        <a href="/safety">Safety</a>
+        <a href="/#why" aria-current={current('/#why') ? 'page' : undefined}>Why MedGuard</a>
+        <a href="/how-it-works" aria-current={current('/how-it-works') ? 'page' : undefined}>How it works</a>
+        <a href="/pilot" aria-current={current('/pilot') ? 'page' : undefined}>Pilot brief</a>
+        <a href="/safety" aria-current={current('/safety') ? 'page' : undefined}>Safety</a>
         <a href="/#download">Download Android</a>
       </nav>
       <a class="site-rail__cta" href="/#waitlist">Join prototype</a>
@@ -26,11 +28,11 @@ import Brand from './Brand.astro';
     </div>
     <p class="mobile-nav__eyebrow">Navigate MedGuard</p>
     <nav aria-label="Mobile primary navigation">
-      <a href="/#why"><span>01</span> Why MedGuard <i aria-hidden="true">↗</i></a>
-      <a href="/how-it-works"><span>02</span> How it works <i aria-hidden="true">↗</i></a>
-      <a href="/pilot"><span>03</span> Pilot brief <i aria-hidden="true">↗</i></a>
-      <a href="/safety"><span>04</span> Safety <i aria-hidden="true">↗</i></a>
-      <a href="/#download"><span>05</span> Download Android <i aria-hidden="true">↗</i></a>
+      <a href="/#why">Why MedGuard <i aria-hidden="true">↗</i></a>
+      <a href="/how-it-works" aria-current={current('/how-it-works') ? 'page' : undefined}>How it works <i aria-hidden="true">↗</i></a>
+      <a href="/pilot" aria-current={current('/pilot') ? 'page' : undefined}>Pilot brief <i aria-hidden="true">↗</i></a>
+      <a href="/safety" aria-current={current('/safety') ? 'page' : undefined}>Safety <i aria-hidden="true">↗</i></a>
+      <a href="/#download">Download Android <i aria-hidden="true">↗</i></a>
     </nav>
     <div class="mobile-nav__actions">
       <a class="button button--primary" href="/#waitlist">Join the prototype</a>
@@ -38,6 +40,11 @@ import Brand from './Brand.astro';
     </div>
     <p class="mobile-nav__boundary">Prototype · Awareness only · Not diagnosis</p>
   </div>
+  <noscript>
+    <nav class="noscript-nav" aria-label="Primary navigation without JavaScript">
+      <a href="/#why">Why MedGuard</a><a href="/how-it-works">How it works</a><a href="/pilot">Pilot brief</a><a href="/safety">Safety</a><a href="/#download">Download Android</a>
+    </nav>
+  </noscript>
 </header>
 
 <script>
@@ -45,12 +52,12 @@ import Brand from './Brand.astro';
   const panel = document.querySelector<HTMLElement>('[data-mobile-nav]');
   const closeButton = document.querySelector<HTMLButtonElement>('[data-menu-close]');
   if (button && panel) {
-    const close = () => {
+    const close = (restoreFocus = true) => {
       button.setAttribute('aria-expanded', 'false');
       button.setAttribute('aria-label', 'Open navigation');
       panel.hidden = true;
       document.body.classList.remove('nav-open');
-      button.focus();
+      if (restoreFocus) button.focus();
     };
     const open = () => {
       button.setAttribute('aria-expanded', 'true');
@@ -60,8 +67,10 @@ import Brand from './Brand.astro';
       requestAnimationFrame(() => closeButton?.focus());
     };
     button.addEventListener('click', () => button.getAttribute('aria-expanded') === 'true' ? close() : open());
-    closeButton?.addEventListener('click', close);
-    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
+    closeButton?.addEventListener('click', () => close());
+    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => close()));
+    const desktop = matchMedia('(min-width: 961px)');
+    desktop.addEventListener('change', () => { if (desktop.matches && !panel.hidden) close(false); });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && button.getAttribute('aria-expanded') === 'true') close();
       if (event.key !== 'Tab' || button.getAttribute('aria-expanded') !== 'true') return;
@@ -80,10 +89,12 @@ import Brand from './Brand.astro';
     });
   }
 
-  const rail = document.querySelector<HTMLElement>('[data-site-nav]');
-  if (rail && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const rail = document.querySelector<HTMLElement>('.site-rail[data-site-nav]');
+  if (rail) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const links = [...rail.querySelectorAll<HTMLElement>('a')];
     rail.addEventListener('pointermove', (event) => {
+      if (reduced.matches) return;
       links.forEach((link) => {
         const rect = link.getBoundingClientRect();
         const distance = Math.abs(event.clientX - (rect.left + rect.width / 2));
@@ -92,5 +103,6 @@ import Brand from './Brand.astro';
       });
     });
     rail.addEventListener('pointerleave', () => links.forEach((link) => { link.style.transform = ''; }));
+    reduced.addEventListener('change', () => links.forEach((link) => { link.style.transform = ''; }));
   }
 </script>

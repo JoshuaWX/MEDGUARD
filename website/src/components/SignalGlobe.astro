@@ -5,7 +5,7 @@
   <div class="signal-reach__copy">
     <span class="eyebrow">Signal reach</span>
     <h3 id="signal-reach-title">A signal can travel further than one screen.</h3>
-    <p>MedGuard is testing the app first, while SMS and USSD are prepared for future, approved pilots. The orb is a product metaphor—not a measure of outbreaks or reach.</p>
+    <p>The app is being tested now. SMS and USSD need an approved pilot. This visual is illustrative.</p>
     <button class="signal-reach__toggle" type="button" data-globe-toggle aria-pressed="false" hidden>Pause motion</button>
   </div>
   <div class="signal-reach__stage">
@@ -27,14 +27,14 @@
       try {
         const THREE = await import('three'); signal.throwIfAborted();
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.35)); host.appendChild(renderer.domElement);
-        const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 30); camera.position.z = 11.4; const world = new THREE.Group(); scene.add(world);
+        const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 30); camera.position.z = 13.15; const world = new THREE.Group(); scene.add(world);
         const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(2.3, 4), new THREE.MeshBasicMaterial({ color: 0x58d3dd, wireframe: true, transparent: true, opacity: .32 })); world.add(orb);
         world.add(new THREE.Mesh(new THREE.SphereGeometry(2.34, 28, 20), new THREE.MeshBasicMaterial({ color: 0x0b7c8c, transparent: true, opacity: .08, side: THREE.BackSide })));
         world.add(new THREE.Mesh(new THREE.SphereGeometry(.38, 20, 16), new THREE.MeshBasicMaterial({ color: 0x58d3dd, transparent: true, opacity: .9 })));
         const bands: { group: InstanceType<typeof THREE.Group>; bead: InstanceType<typeof THREE.Mesh>; radius: number; speed: number; phase: number }[] = [];
         [2.85, 3.26, 3.62].forEach((radius, index) => { const group = new THREE.Group(); group.rotation.set([.35, 1.1, 2.02][index], [.72, .18, 1.12][index], [.1, .56, 1.16][index]); group.add(new THREE.Mesh(new THREE.TorusGeometry(radius, .014, 5, 112), new THREE.MeshBasicMaterial({ color: [0x0b7c8c, 0x58d3dd, 0x159e7a][index], transparent: true, opacity: .48 }))); const bead = new THREE.Mesh(new THREE.SphereGeometry(.065, 14, 10), new THREE.MeshBasicMaterial({ color: [0x0b7c8c, 0x58d3dd, 0x159e7a][index] })); group.add(bead); world.add(group); bands.push({ group, bead, radius, speed: [.0002, -.00015, .00012][index], phase: index * 2.1 }); });
         let paused = false; let elapsed = 0; let pointerX = 0; let pointerY = 0;
-        const resize = () => { const rect = host.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host); resize();
+        const resize = () => { const rect = host.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); renderer.render(scene, camera); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host); resize();
         const pointer = (event: PointerEvent) => { const rect = root.getBoundingClientRect(); pointerX = ((event.clientX - rect.left) / rect.width - .5) * .28; pointerY = ((event.clientY - rect.top) / rect.height - .5) * .18; }; root.addEventListener('pointermove', pointer, { passive: true });
         const loop = renderWhenVisible(root, delta => {
           if (!paused) {

@@ -38,8 +38,8 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
     <div class="shell chapter-grid">
       <header class="chapter-intro" data-story-reveal>
         <p class="eyebrow">Warnings do not arrive evenly</p>
-        <h2>Useful health information should reach people before it is too late to use it.</h2>
-        <p>Across Nigeria, outbreaks and public-health events do not reach every community with the same speed or clarity.</p>
+        <h2>Useful health information should arrive while there is time to act.</h2>
+        <p>Across Nigeria, timing still depends on connectivity, location and trust.</p>
         <p class="chapter-status"><strong>Working now</strong> Mobile awareness and notifications are being tested. <strong>Pilot next</strong> SMS and USSD are being prepared for approved community pilots.</p>
         <div class="source-links">
           <a href="https://ncdc.gov.ng/themes/common/files/annualreports/aef20a745a4834768d51591445f9ea4d.pdf" target="_blank" rel="noreferrer">NCDC 2025 annual report</a>
@@ -88,12 +88,8 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
     </div>
   </section>
 
-  <section class="section channel-story" aria-labelledby="channel-story-heading">
+  <section class="section channel-story">
     <div class="shell">
-      <header class="section-head section-head--split" data-story-reveal>
-        <div><h2 id="channel-story-heading">One signal should work beyond smartphones.</h2></div>
-        <p>The app is the starting point. SMS and USSD are routes for a future, approved pilot.</p>
-      </header>
       <ProductShowcase />
     </div>
   </section>
@@ -101,7 +97,7 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
   <section class="story-chapter proof-chapter">
     <div class="shell">
       <header class="section-head" data-story-reveal>
-        <h2>Clear about what works now—and what still needs a pilot.</h2>
+        <h2>Working now. Testing next.</h2>
       </header>
       <PrototypeProof />
       <div class="roadmap">
@@ -129,7 +125,7 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
   <section class="section impact-chapter">
     <div class="shell impact-grid">
       <header data-story-reveal>
-        <h2>Measure what matters in a pilot.</h2>
+        <h2>Test what matters.</h2>
         <p>A pilot should test whether people are reached, understand the signal and know what to do next.</p>
       </header>
       <SignalGlobe />
@@ -145,7 +141,7 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
   <section class="section collaboration-chapter">
     <div class="shell collaboration-grid">
       <div data-story-reveal>
-        <h2>Building responsibly means building together.</h2>
+        <h2>A useful pilot takes more than software.</h2>
         <p>MedGuard has no formal partners yet. Any pilot should be shaped with communities, public-health teams, healthcare providers and telecom operators from the start.</p>
       </div>
       <div class="collaboration-roles">
@@ -175,7 +171,7 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
 
   <section class="section waitlist" id="waitlist">
     <div class="shell waitlist__grid">
-      <div class="waitlist__copy" data-story-reveal><span class="eyebrow">Prototype access</span><h2>Help shape a signal people can trust.</h2><p>Join the early-access list for occasional prototype invitations and important testing updates. No health questionnaire. No marketing tracker.</p></div>
+      <div class="waitlist__copy" data-story-reveal><span class="eyebrow">Prototype access</span><h2>Test MedGuard with us.</h2><p>Join the early-access list for prototype invitations and testing updates. No health questionnaire. No marketing tracker.</p></div>
       <WaitlistForm />
     </div>
   </section>
@@ -204,12 +200,12 @@ import HeroAtmosphere from '../components/HeroAtmosphere.astro';
     const { inView } = await import('motion');
     const hero = document.querySelectorAll<HTMLElement>('[data-hero-copy] > *');
     const heroAnimations = [...hero].map((element, index) => element.animate(
-      [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'translateY(0)' }],
+      [{ transform: 'translateY(18px)' }, { transform: 'translateY(0)' }],
       { duration: 620, delay: index * 65, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
     ));
     const revealObserver = inView('[data-story-reveal]', (element) => {
       element.animate(
-        [{ opacity: 0, transform: 'translateY(22px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        [{ transform: 'translateY(22px)' }, { transform: 'translateY(0)' }],
         { duration: 540, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'both' },
       );
     }, { margin: '0px 0px -10% 0px' });

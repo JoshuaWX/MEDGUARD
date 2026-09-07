@@ -39,7 +39,7 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
   <div class="signal-atlas__stage">
     <div class="signal-atlas__canvas" aria-hidden="true"></div>
     <div class="signal-atlas__poster">
-      <svg viewBox={`0 0 ${viewBox.width} ${viewBox.height}`} role="img" aria-labelledby="atlas-map-title atlas-map-description">
+      <svg viewBox={`0 0 ${viewBox.width} ${viewBox.height}`} role="group" aria-labelledby="atlas-map-title atlas-map-description">
         <title id="atlas-map-title">Nigeria, divided into its 36 states and Federal Capital Territory</title>
         <desc id="atlas-map-description">An illustrative MedGuard product atlas. Select a state to inspect its name. It does not contain live disease data.</desc>
         <defs><linearGradient id="atlas-land" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#147f8c" /><stop offset="1" stop-color="#075965" /></linearGradient></defs>
@@ -97,7 +97,7 @@ const labels = states.slice().sort((a, b) => a.point[1] - b.point[1]).map((state
         atlas.states.forEach((state) => { const material = new THREE.MeshStandardMaterial({ color: 0x09636e, roughness: 0.72, metalness: 0.05 }); materials.set(state.id, material); const objects: InstanceType<typeof THREE.Object3D>[] = []; stateObjects.set(state.id, objects); state.polygons.forEach((polygon) => { const outer = polygon[0]; if (!outer || outer.length < 4) return; const shape = new THREE.Shape(); outer.forEach((item, index) => { const p = point(item); index ? shape.lineTo(p.x, p.y) : shape.moveTo(p.x, p.y); }); shape.closePath(); const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 1 }); const mesh = new THREE.Mesh(geometry, material); terrain.add(mesh); objects.push(mesh); const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 8), new THREE.LineBasicMaterial({ color: 0xa4eff1, transparent: true, opacity: 0.37 })); edge.position.z = 0.006; terrain.add(edge); objects.push(edge); }); });
         scene.add(new THREE.HemisphereLight(0xc4ffff, 0x02323a, 2.2)); const key = new THREE.DirectionalLight(0x7be7eb, 2.1); key.position.set(-3, 5, 7); scene.add(key);
         selectSceneState = (id) => { materials.forEach((material, key) => { const active = key === id; material.color.set(active ? 0x0b8792 : 0x09636e); material.emissive.set(active ? 0x053a40 : 0x000000); material.emissiveIntensity = active ? 0.62 : 0; }); stateObjects.forEach((objects, key) => objects.forEach((object) => { object.position.z = key === id ? 0.15 : 0; })); };
-        const resize = () => { const rect = canvasHost.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(canvasHost); resize();
+        const resize = () => { const rect = canvasHost.getBoundingClientRect(); camera.aspect = rect.width / Math.max(1, rect.height); camera.updateProjectionMatrix(); renderer.setSize(rect.width, rect.height, false); renderer.render(scene, camera); }; const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(canvasHost); resize();
         let targetY = -0.08; let targetX = -0.24; let elapsed = 0;
         const hero = root.closest<HTMLElement>('.hero');
         let paused = hero?.dataset.motionPaused === 'true';

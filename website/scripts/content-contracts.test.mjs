@@ -16,7 +16,7 @@ test('homepage keeps the public-interest story and prototype boundaries', async 
     'Prototype · Awareness only · Not diagnosis',
     'Working now',
     'Pilot next',
-    'Measure what matters in a pilot.',
+    'Test what matters.',
     'SMS and USSD',
   ];
 
@@ -124,11 +124,16 @@ test('visual proof components preserve keyboard alternatives and the splash bran
 test('desktop visual enhancements preserve the CSS-only mobile path', async () => {
   const rail = await read('../src/components/HumanContext.astro');
   const atmosphere = await read('../src/components/HeroAtmosphere.astro');
-  assert.match(rail, /matchMedia\('\(min-width: 961px\)'\)/);
-  assert.match(rail, /await import\('three'\)/);
-  assert.match(rail, /prefers-reduced-motion: reduce/);
-  assert.match(atmosphere, /matchMedia\('\(min-width: 961px\)'\)/);
-  assert.match(atmosphere, /prefers-reduced-motion: reduce/);
+  const eligibility = await read('../src/scripts/desktop-effects.ts');
+  const gallery = await read('../src/scripts/photo-gallery.ts');
+  assert.match(eligibility, /\(min-width: 961px\) and \(pointer: fine\)/);
+  assert.match(eligibility, /prefers-reduced-motion: reduce/);
+  assert.match(eligibility, /deviceMemory/);
+  assert.match(eligibility, /saveData/);
+  assert.match(rail, /mountDesktopEffect/);
+  assert.match(rail, /await import\('\.\.\/scripts\/photo-gallery'\)/);
+  assert.match(gallery, /from 'three'/);
+  assert.match(atmosphere, /mountDesktopEffect/);
   assert.doesNotMatch(atmosphere, /import\('three'\)/);
 });
 

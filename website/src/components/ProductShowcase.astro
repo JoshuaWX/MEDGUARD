@@ -28,7 +28,7 @@ const routes = [
     </svg>
     <div class="delivery-story__route-grid" role="tablist" aria-label="Delivery routes">
       {routes.map((route, index) => (
-        <button class:list={['delivery-route', `delivery-route--${route.id}`]} type="button" role="tab" aria-controls="delivery-route-detail" aria-selected={index === 0 ? 'true' : 'false'} data-route-card data-route-index={index}>
+        <button class:list={['delivery-route', `delivery-route--${route.id}`]} id={`delivery-route-${route.id}`} type="button" role="tab" aria-controls="delivery-route-detail" aria-selected={index === 0 ? 'true' : 'false'} tabindex={index === 0 ? 0 : -1} data-route-card data-route-index={index}>
           <span class="delivery-route__status">{route.status}</span>
           <span class:list={['delivery-route__icon', `delivery-route__icon--${route.icon}`]} aria-hidden="true"><i></i><i></i><i></i></span>
           <strong>{route.title}</strong>
@@ -37,7 +37,7 @@ const routes = [
     </div>
   </div>
 
-  <div id="delivery-route-detail" class="delivery-story__detail" role="tabpanel" data-story-reveal>
+  <div id="delivery-route-detail" class="delivery-story__detail" role="tabpanel" aria-labelledby="delivery-route-app" data-story-reveal>
     <p><span data-route-status>{routes[0].status}</span><strong data-route-title>{routes[0].title}</strong><em data-route-copy>{routes[0].copy}</em></p>
     <a class="button button--primary" href="#inquiry" data-inquiry-topic="pilot">Explore a delivery pilot</a>
   </div>
@@ -52,9 +52,15 @@ const routes = [
     const status = delivery.querySelector<HTMLElement>('[data-route-status]');
     const title = delivery.querySelector<HTMLElement>('[data-route-title]');
     const copy = delivery.querySelector<HTMLElement>('[data-route-copy]');
+    const detail = delivery.querySelector<HTMLElement>('#delivery-route-detail');
     const select = (index: number) => {
       const route = routes[index]; if (!route) return;
-      cards.forEach((card, cardIndex) => card.setAttribute('aria-selected', String(cardIndex === index)));
+      cards.forEach((card, cardIndex) => {
+        const selected = cardIndex === index;
+        card.setAttribute('aria-selected', String(selected));
+        card.tabIndex = selected ? 0 : -1;
+      });
+      detail?.setAttribute('aria-labelledby', cards[index].id);
       if (status) status.textContent = route.status;
       if (title) title.textContent = route.title;
       if (copy) copy.textContent = route.copy;

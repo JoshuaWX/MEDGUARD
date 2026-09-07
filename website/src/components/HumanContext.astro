@@ -101,6 +101,7 @@ const photos = [
       root.classList.remove('human-context--three-ready');
       host.tabIndex = -1; viewport.tabIndex = 0;
       if (document.activeElement === host) viewport.focus({ preventScroll: true });
+      update(active);
     };
     root.querySelector('[data-context-previous]')?.addEventListener('click', () => update(active - 1));
     root.querySelector('[data-context-next]')?.addEventListener('click', () => update(active + 1));
@@ -141,7 +142,7 @@ const photos = [
       signal.throwIfAborted();
       const mounted = await createPhotoGallery({ host, urls, initial: active, signal,
         onSelect: index => update(index, false), onFailure: fallback });
-      signal.throwIfAborted();
+      if (signal.aborted) { mounted.dispose(); signal.throwIfAborted(); }
       scene = mounted; root.classList.add('human-context--three-ready');
       host.tabIndex = 0; viewport.tabIndex = -1;
       update(active, false);

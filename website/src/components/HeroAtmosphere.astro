@@ -71,7 +71,11 @@
       toggle.addEventListener('click', onToggle);
       return () => {
         loop.dispose(); observer.disconnect(); toggle.removeEventListener('click', onToggle);
-        canvas.hidden = true; toggle.hidden = true; root.dataset.enhancement = 'fallback';
+        canvas.hidden = true;
+        toggle.hidden = true;
+        toggle.textContent = 'Pause motion';
+        toggle.setAttribute('aria-pressed', 'false');
+        root.dataset.enhancement = 'fallback';
         delete hero.dataset.motionPaused;
       };
     }, '0px');
